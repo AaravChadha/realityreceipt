@@ -324,7 +324,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   Extend `quote` to all 9 path kinds: `repair` (when `current` is given; repair cost from `repair_quote_*` as `user_entered`, else the profile's repair ranges as `published`; running cost from the current unit), `refurbished` (from a refurbished listing; warranty months shown in a flag), `new` x4 via A3, `rent_to_own` x2 via A4 (when `lease` is given). A path whose inputs are absent is omitted, never invented. Apply flags: `past_typical_life`, `test_procedure_changed` (when comparing a pre-2014 unit with a newer one), `year_from_serial_low_confidence`. `api/tests/test_quote_all_paths.py`: a full request returns 9 paths sorted by `total_3yr_high`; each path's totals equal the sums of its arrays. `api/tests/test_copy.py`: no label, formula or flag in that output contains an em dash, `APR` or `qualif`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py api/tests/test_copy.py -q` passes.
 
-- [ ] **3.3.1 Incomplete paths flagged and sorted last (Track A2)** (NEW 2026-09-26, decision 3)
+- [x] **3.3.1 Incomplete paths flagged and sorted last (Track A2)** (NEW 2026-09-26, decision 3)
   A path whose electricity (for a category that uses energy), financing or replacement timing is `not_estimated` gets the flag `costs_not_estimated`. `quote` sorts complete paths by `total_3yr_high` then `pay_today`, then flagged paths in the same order.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including a test where a rent-to-own path with no electricity figure sorts after a complete new-cash path even though its total is lower.
 
