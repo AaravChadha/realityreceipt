@@ -2,5 +2,6 @@
   "brand": "Frigidaire",
   "model": "FFTR1835VS",
   "price": 250.0,
-  "condition": "used_as_is"
+  "condition": "used_as_is",
+  "mfg_year": null
 }

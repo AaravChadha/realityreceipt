@@ -2,6 +2,8 @@
   "brand": "GE",
   "model": "GTS18GSNRSS",
   "serial": "FG123456A",
+  "mfg_year": 2016,
   "product_class": "top_freezer",
-  "volume_cuft": 18.1
+  "volume_cuft": 18.1,
+  "label_kwh_per_year": 369
 }
