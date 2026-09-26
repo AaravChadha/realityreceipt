@@ -1,0 +1,82 @@
+[
+  {
+    "id": "ga_power_residential_tariff",
+    "title": "Electric Service Tariff: Residential Service Schedule R-31",
+    "publisher": "Georgia Power Company",
+    "url": "https://www.georgiapower.com/content/dam/georgia-power/pdfs/tariffs/r.pdf",
+    "retrieved_date": "2026-09-26",
+    "notes": "Effective 'With Bills Rendered for the Billing Month of June, 2026', page 2.10. Quoted: 'WINTER - For the Billing Months of October through May ... All kWh ... 8.2116¢ per kWh'; 'SUMMER - For the Billing Months of June through September ... First 650 kWh ... 8.7738¢ per kWh / Next 350 kWh ... 14.5738¢ per kWh / Over 1000 kWh ... 15.0828¢ per kWh'. Linked from https://www.georgiapower.com/residential/rate-plans/residential-service.html."
+  },
+  {
+    "id": "ga_power_fcr",
+    "title": "Electric Service Tariff: Fuel Cost Recovery Schedule FCR-27",
+    "publisher": "Georgia Power Company",
+    "url": "https://www.georgiapower.com/content/dam/georgia-power/pdfs/tariffs/fcr.pdf",
+    "retrieved_date": "2026-09-26",
+    "notes": "Effective with bills rendered for June 2026, page 10.40. Quoted: 'June through September: Secondary Distribution customers ... 3.8069¢ per kWh'; 'October through May: Secondary Distribution customers ... 3.8561¢ per kWh'. 'SECONDARY DISTRIBUTION CUSTOMERS: Any customer not defined as a Transmission or Primary Distribution Customer.'"
+  },
+  {
+    "id": "ga_power_eccr",
+    "title": "Electric Service Tariff: Environmental Compliance Cost Recovery Schedule ECCR-15",
+    "publisher": "Georgia Power Company",
+    "url": "https://www.georgiapower.com/content/dam/georgia-power/pdfs/tariffs/eccr.pdf",
+    "retrieved_date": "2026-09-26",
+    "notes": "Effective with bills rendered for June 2026, page 10.00. Quoted: 'All bills rendered subject to the ECCR Schedule shall be respectively increased in an amount equal to 13.0205% of their base bill calculations which excludes Real Time Pricing (RTP) incremental usage revenue.'"
+  },
+  {
+    "id": "ga_power_dsm_r",
+    "title": "Electric Service Tariff: Demand Side Management Residential Schedule DSM-R-16",
+    "publisher": "Georgia Power Company",
+    "url": "https://www.georgiapower.com/content/dam/georgia-power/pdfs/tariffs/dsm-r.pdf",
+    "retrieved_date": "2026-09-26",
+    "notes": "Effective with bills rendered for June 2026, page 10.20. Quoted: 'All bills rendered subject to the DSM-R Schedule shall be respectively increased in an amount equal to 1.1969% of their base bill calculations which excludes Real Time Pricing (RTP) incremental usage revenue.'"
+  },
+  {
+    "id": "ga_power_mff",
+    "title": "Electric Service Tariff: Municipal Franchise Fee Schedule MFF-11",
+    "publisher": "Georgia Power Company",
+    "url": "https://www.georgiapower.com/content/dam/georgia-power/pdfs/tariffs/mff.pdf",
+    "retrieved_date": "2026-09-26",
+    "notes": "Effective with bills rendered for January 2025, page 10.60. Quoted: 'Inside City Limits Municipal Franchise Fee ... 3.0843% times usage revenue'; 'Outside City Limits Municipal Franchise Fee ... 1.1995% times usage revenue'. Not applied to ga_power_marginal_per_kwh because it depends on the customer's location."
+  },
+  {
+    "id": "egrid_georgia",
+    "title": "eGRID2023 Summary Tables (rev2), Table 1: Subregion Output Emission Rates",
+    "publisher": "U.S. Environmental Protection Agency",
+    "url": "https://www.epa.gov/system/files/documents/2025-06/summary_tables_rev2.xlsx",
+    "retrieved_date": "2026-09-26",
+    "notes": "Linked from https://www.epa.gov/egrid/summary-data (PDF version: https://www.epa.gov/system/files/documents/2025-06/summary_tables_rev2.pdf). Table 1 row: 'SRSO | SERC South | Total output emission rates (lb/MWh): CO2 842.329, CH4 0.056, N2O 0.008, CO2e 846.007 | Non-baseload output emission rates (lb/MWh): CO2 1385.997, CH4 0.096, N2O 0.014, CO2e 1392.345'. Subregion check from the eGRID2023 data file (https://www.epa.gov/system/files/documents/2025-06/egrid2023_data_rev2.xlsx, sheet PLNT23): of plants with PSTATABB = GA, 242 of 250 and 99.33% of annual net generation (PLNGENAN) are in SUBRGN = SRSO."
+  },
+  {
+    "id": "frb_g19",
+    "title": "Consumer Credit - G.19, Terms of Credit",
+    "publisher": "Board of Governors of the Federal Reserve System",
+    "url": "https://www.federalreserve.gov/releases/g19/current/default.htm",
+    "retrieved_date": "2026-09-26",
+    "notes": "Release dated September 8, 2026. Terms of Credit, 'Commercial bank interest rates', 'Credit card plans', 'Accounts assessed interest', percent, not seasonally adjusted: 2021 16.45 | 2022 17.91 | 2023 22.15 | 2024r 22.89 | 2025r 22.32 | 2025 Q2r 22.25 | Q3r 22.83 | Q4r 22.30 | 2026 Q1r 21.52 | Q2r 22.15 | Mayr 22.15 | Junr n.a. | Julp n.a."
+  },
+  {
+    "id": "ncua_pals_ii",
+    "title": "12 CFR 701.21(c)(7)(iv), Payday alternative loans (PALs II)",
+    "publisher": "National Credit Union Administration, via the Electronic Code of Federal Regulations",
+    "url": "https://www.ecfr.gov/current/title-12/chapter-VII/subchapter-A/part-701/section-701.21",
+    "retrieved_date": "2026-09-26",
+    "notes": "Text retrieved from https://www.ecfr.gov/api/versioner/v1/full/2026-09-24/title-12.xml?part=701&section=701.21. Quoted: '(iv) Payday alternative loans (PALs II)-(A) Minimum requirements for PALs II. Notwithstanding any other provision of this section, a federal credit union may charge an interest rate that is 1000 basis points above the maximum interest rate established by the Board under paragraph (c)(7)(ii) of this section ...'; '(1) The principal of the payday alternative loan is not more than $2,000;'; '(2) The payday alternative loan has a minimum maturity of one month and a maximum maturity of 12 months;'; '(6) ... a reasonable application fee ... but that in no case exceeds $20;'."
+  },
+  {
+    "id": "ncua_rate_ceiling",
+    "title": "NCUA Board Extends Loan Interest Rate Ceiling",
+    "publisher": "National Credit Union Administration",
+    "url": "https://ncua.gov/newsroom/press-release/2026/ncua-board-extends-loan-interest-rate-ceiling",
+    "retrieved_date": "2026-09-26",
+    "notes": "Press release dated February 6, 2026. Quoted: 'The National Credit Union Administration Board (Board), approved the continuation of a temporary 18-percent interest rate ceiling for loans made by federal credit unions. The Board action extends the temporary interest rate ceiling to September 10, 2027.'"
+  },
+  {
+    "id": "energystar_refrigerators",
+    "title": "ENERGY STAR Certified Residential Refrigerators",
+    "publisher": "U.S. Environmental Protection Agency, ENERGY STAR",
+    "url": "https://data.energystar.gov/Active-Specifications/ENERGY-STAR-Certified-Residential-Refrigerators/p5st-her9",
+    "retrieved_date": "2026-09-26",
+    "notes": "Dataset p5st-her9; metadata at https://data.energystar.gov/api/views/p5st-her9.json returned name 'ENERGY STAR Certified Residential Refrigerators'. Model rows are recorded in energystar_refrigerators.csv (task 2.2)."
+  }
+]
