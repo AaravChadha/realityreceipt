@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path as FilePath
+from typing import Any
 
 import pytest
 
@@ -13,19 +14,63 @@ CARDS = json.loads((CARDS_DIR / "cards.json").read_text())["cards"]
 FRIDGE_CARDS = [c for c in CARDS if c["kind"] in ("label", "listing")]
 LEASE_CARDS = [c for c in CARDS if c["kind"] == "lease"]
 
+# The condition a scan of each kind gives the item when the card prints none.
+SCAN_CONDITION = {"label": "used_as_is", "lease": "new"}
+LABEL_ATTRIBUTES = ("product_class", "volume_cuft", "label_kwh_per_year")
+LEASE_FIELDS = (
+    "weekly_payment",
+    "term_weeks",
+    "cash_price",
+    "fees",
+    "early_purchase_rule",
+    "early_purchase_text",
+    "missed_payment_rule",
+)
+
 
 @pytest.fixture(scope="module")
 def repo() -> Repository:
     return Repository.load()
 
 
-def _landed(task: str, repo: Repository) -> bool:
-    """Whether the repository feature a card depends on is on main yet."""
-    if task == "2.2.1":
-        return repo.model_energy("GE", "GTE18FSL****") is not None
-    if task == "2.2.2":
-        return hasattr(repo, "model_year")
-    raise AssertionError(f"unknown dependency {task}")
+def _corrected(card: dict) -> dict[str, Any]:
+    fields = dict(card["printed"])
+    for fix in card["corrections"]:
+        assert fields[fix["field"]] == fix["printed"], f"correction to {fix['field']} does not match the card"
+        assert fix["why"]
+        fields[fix["field"]] = fix["typed"]
+    return fields
+
+
+def _expected_typed(card: dict) -> dict[str, Any]:
+    """What a person types from the card: the printed fields plus the recorded corrections, nothing else."""
+    kind, fields = card["kind"], _corrected(card)
+    item_id = card["typed"]["item"]["id"]
+    item: dict[str, Any] = {
+        "id": item_id,
+        "category": "refrigerator",
+        "brand": fields["brand"],
+        "model": fields["model"],
+        "condition": fields.get("condition", SCAN_CONDITION.get(kind)),
+    }
+    if "mfg_year" in fields:
+        item["mfg_year"] = fields["mfg_year"]
+    if kind == "label":
+        item["attributes"] = {k: fields[k] for k in LABEL_ATTRIBUTES if k in fields}
+    out: dict[str, Any] = {"item": Item.model_validate(item)}
+    if kind == "listing":
+        out["offer"] = Offer.model_validate(
+            {"item_id": item_id, "price": fields["price"], "seller_type": "private",
+             "source": "user_listing", "source_id": "user_listing"}
+        )
+    if kind == "lease":
+        out["offer"] = Offer.model_validate(
+            {"item_id": item_id, "price": fields["cash_price"], "seller_type": "rent_to_own",
+             "source": "user_listing", "source_id": "user_listing"}
+        )
+        lease = {k: fields[k] for k in LEASE_FIELDS if k in fields}
+        out["lease"] = Lease.model_validate({**lease, "source_id": "user_lease"})
+    return out
 
 
 def test_every_scenario_has_a_card() -> None:
@@ -47,11 +92,20 @@ def test_card_file_exists_and_typed_equivalent_validates(card: dict) -> None:
         Lease.model_validate(typed["lease"])
 
 
+@pytest.mark.parametrize("card", CARDS, ids=lambda c: c["file"])
+def test_typed_equals_printed_plus_recorded_corrections(card: dict) -> None:
+    expected = _expected_typed(card)
+    typed = card["typed"]
+    assert set(typed) == set(expected)
+    assert Item.model_validate(typed["item"]) == expected["item"]
+    if "offer" in expected:
+        assert Offer.model_validate(typed["offer"]) == expected["offer"]
+    if "lease" in expected:
+        assert Lease.model_validate(typed["lease"]) == expected["lease"]
+
+
 @pytest.mark.parametrize("card", FRIDGE_CARDS, ids=lambda c: c["file"])
 def test_fridge_card_model_returns_a_rated_figure(card: dict, repo: Repository) -> None:
-    needs = card.get("needs")
-    if needs and not _landed(needs, repo):
-        pytest.skip(f"needs task {needs} on main")
     item = card["typed"]["item"]
     energy = repo.model_energy(item["brand"], item["model"])
     assert energy is not None, f"{item['brand']} {item['model']} has no rated figure"
