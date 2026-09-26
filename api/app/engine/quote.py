@@ -8,9 +8,14 @@ whose inputs are absent is left out, never invented.
 Card, PAL, buy now pay later and lease contributions already hold every dollar paid,
 the price included, so a price line is added to those paths as a line only.
 
+A path whose electricity, financing or replacement timing is not estimated counts that
+cost as $0 in its totals, so it is flagged `costs_not_estimated` and sorted after the
+complete paths (task 3.3.1): otherwise a blank cost would make it look cheapest.
+
 `quote` takes any object with the methods of `QuoteRepository`, so this module does
 not import `app.repository`; the real `Repository` (task 2.1) satisfies it.
-`_cash_path` is also used by `rank.py` (task 4.2) and is kept as it was.
+`_cash_path` is also used by `rank.py` (task 4.2); since task 3.3.1 it also sets
+`costs_not_estimated`, so ranked offers carry the flag.
 """
 
 from datetime import date
@@ -50,6 +55,8 @@ DEFAULT_CATEGORY = "refrigerator"
 # comparable with later ones (spec §7).
 TEST_PROCEDURE_YEAR = 2014
 
+INCOMPLETE = "costs_not_estimated"
+
 # A user listing's item condition -> path name and group.
 LISTING_KINDS: dict[str, tuple[str, PathGroup]] = {
     "used_as_is": ("Used, as-is", "used_as_is"),
@@ -81,7 +88,8 @@ class QuoteRepository(Protocol):
 
 
 def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
-    """Paths sorted by total over 3 years (high end), ties by pay today.
+    """Complete paths sorted by total over 3 years (high end), ties by pay today; then the
+    paths flagged `costs_not_estimated`, in the same order.
 
     Raises `ValueError` if any line or carbon figure names a source id that is neither
     reserved (`user`, `user_listing`, `user_lease`) nor in `repo.sources()`.
@@ -127,7 +135,7 @@ def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
             built.append((_unit_path(name, "rent_to_own", method, acquire, unit, age, aged, profile, cheapest_new, repo, []), year))
 
     paths = _flag_test_procedure(built)
-    paths.sort(key=lambda p: (p.total_3yr_high, p.pay_today))
+    paths.sort(key=lambda p: (INCOMPLETE in p.flags, p.total_3yr_high, p.pay_today))
     _check_sources(paths, repo)
     return paths
 
@@ -182,7 +190,7 @@ def _cash_path(
         carbon_kg=carbon,
         carbon_source_ids=carbon_ids,
         lines=total.lines,
-        flags=["past_typical_life"] if life_low == 0 else [],
+        flags=(["past_typical_life"] if life_low == 0 else []) + ([INCOMPLETE] if _costs_not_estimated(total.lines, profile) else []),
     )
 
 
@@ -206,6 +214,21 @@ def _annual_cost(electricity: Contribution, schedule: list[UpkeepItem]) -> tuple
     upkeep_low = sum(item.cost_low * 12 / item.every_months for item in schedule)
     upkeep_high = sum(item.cost_high * 12 / item.every_months for item in schedule)
     return energy_low + upkeep_low, energy_high + upkeep_high
+
+
+def _costs_not_estimated(lines: list[CostLine], profile: CategoryProfile) -> bool:
+    """True when the electricity (for a category with energy data), financing or replacement
+    line is blank. The "Extra use from age" line is blank on every used unit and is shown on
+    its own, so it does not count."""
+    aging = aging_line().label
+    for line in lines:
+        if line.source_type != "not_estimated":
+            continue
+        if line.kind in ("financing", "replacement"):
+            return True
+        if line.kind == "running" and line.label != aging and profile.energy_dataset_refs:
+            return True
+    return False
 
 
 def _line_only(line: CostLine) -> Contribution:
@@ -288,6 +311,8 @@ def _unit_path(
         flags.append("past_typical_life")
     if item is not None and item.year_confidence == "low":
         flags.append("year_from_serial_low_confidence")
+    if _costs_not_estimated(total.lines, profile):
+        flags.append(INCOMPLETE)
 
     return Path(
         name=name,
