@@ -34,6 +34,27 @@ def test_every_rate_source_resolves(repo: Repository) -> None:
         assert repo.source(repo.rate(key).source_id).id == repo.rate(key).source_id
 
 
+RATE_RANGES = {
+    "ga_power_marginal_per_kwh": (0.05, 0.40),  # dollars per kWh
+    "egrid_ga_kg_per_kwh": (0.1, 1.2),  # kg CO2e per kWh, not lb/MWh
+    "g19_card_apr_assessed": (0.05, 0.60),  # a fraction, not 22.15
+    "pal_rate_cap": (0.05, 0.60),  # a fraction, not 28
+    "pal_fee_cap": (1.0, 100.0),  # dollars
+    "pal_max_amount": (100.0, 10000.0),  # dollars
+}
+
+
+def test_every_rate_lies_in_its_unit_range(repo: Repository) -> None:
+    assert set(RATE_RANGES) == set(RATE_KEYS)
+    for key, (low, high) in RATE_RANGES.items():
+        assert low <= repo.rate(key).value <= high, key
+
+
+def test_retailer_sources_exist(repo: Repository) -> None:
+    ids = {s.id for s in repo.sources()}
+    assert {"retailer_cache_bestbuy", "retailer_cache_homedepot", "retailer_cache_lowes"} <= ids
+
+
 def test_every_rate_has_notes() -> None:
     raw = json.loads((DATA_DIR / "rates.json").read_text(encoding="utf-8"))
     assert set(raw) == set(RATE_KEYS)
@@ -84,6 +105,35 @@ def test_energy_lookup_is_exact_with_candidates_on_a_miss(bare_dir: pathlib.Path
     assert (hit.kwh_per_year, hit.source_type, hit.source_id) == (400.0, "rated", "energystar_refrigerators")
     assert repo.model_energy("Acme", "AB123Y") is None
     assert repo.model_candidates("AB123Y") == ["AB-123/X"]
+
+
+def test_item_lookup_by_id(bare_dir: pathlib.Path) -> None:
+    assert Repository.load(bare_dir).item("fridge-1") is None
+    (bare_dir / "retailer_cache.json").write_text(
+        json.dumps(
+            {
+                "items": [{"id": "fridge-1", "category": "refrigerator", "brand": "Acme", "model": "AB-123", "condition": "new"}],
+                "offers": [
+                    {
+                        "item_id": "fridge-1",
+                        "price": 899.0,
+                        "seller_type": "retailer",
+                        "source": "retailer_cache",
+                        "source_id": "retailer_cache_homedepot",
+                        "url": "https://www.homedepot.com/",
+                        "retrieved_at": "2026-09-26",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    repo = Repository.load(bare_dir)
+    item = repo.item("fridge-1")
+    assert item is not None and (item.brand, item.model) == ("Acme", "AB-123")
+    assert repo.item("missing") is None
+    (offer,) = repo.new_offers("refrigerator")
+    assert repo.item(offer.item_id) == item
 
 
 def test_bnpl_terms_are_one_sourced_provider(repo: Repository) -> None:

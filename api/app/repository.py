@@ -196,5 +196,9 @@ class Repository:
             and self._items[o.item_id].condition == "new"
         ]
 
+    def item(self, id: str) -> Item | None:
+        """The `Item` stored beside the retailer cache's offers; `None` if `id` is absent."""
+        return self._items.get(id)
+
     def bnpl_terms(self) -> BnplTerms | None:
         return self._bnpl
