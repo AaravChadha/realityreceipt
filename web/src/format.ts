@@ -49,3 +49,23 @@ export const PERIOD_SUFFIX: Record<Period, string> = {
   year: ' a year',
   window: '',
 }
+
+/** One plain sentence per flag pinned in PLAN.md "Fixed interfaces" (task 2.9.1). */
+export const FLAG_SENTENCES = {
+  costs_not_estimated: 'Some costs are not estimated, so the real total may be higher.',
+  past_typical_life: 'This unit is at or past its typical life.',
+  test_procedure_changed:
+    'The energy test changed around 2014, so ratings from before and after it are not directly comparable.',
+  year_from_serial_low_confidence: 'The year made comes from the serial number and may not be exact.',
+  pal_caps_not_an_offer: 'These figures use the federal limits on credit union PALs, not an offer from a lender.',
+  bnpl_terms_not_an_offer: "These figures use one provider's published terms, not an offer.",
+  over_budget_today: 'This costs more today than the amount you said you can spend.',
+  delivery_unknown: 'The delivery time for this offer is not known.',
+  width_unknown: 'The width of this unit is not known.',
+  fixture: 'Sample data, not a real quote',
+} as const
+
+/** The sentence for a pinned flag; null for any other flag, which is not shown. */
+export function flagSentence(flag: string): string | null {
+  return Object.hasOwn(FLAG_SENTENCES, flag) ? FLAG_SENTENCES[flag as keyof typeof FLAG_SENTENCES] : null
+}
