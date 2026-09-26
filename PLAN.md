@@ -215,7 +215,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `api/app/engine/running.py` per "Fixed interfaces". `energy`: monthly cost = `kwh_per_year / 12 * rate.value` in every month 0 to 35; one `running` line with the kWh source label and a `formula` string. `aging_line`: a `running` line labeled "Extra use from age", `not_estimated`. `carbon_kg`: `kwh_per_year * kg_per_kwh.value * months / 12`. `upkeep`: each item's cost at every `every_months`. `api/tests/test_running.py`: 600 kWh at $0.15 gives $7.50 a month and $270.00 over the 36 months; carbon for 600 kWh at 0.4 kg over 36 months is 720 kg.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_running.py -q` passes.
 
-- [ ] **2.4.1 Name the rate's source on the electricity line (Track A5)** (NEW 2026-09-26, needs 1.5)
+- [x] **2.4.1 Name the rate's source on the electricity line (Track A5)** (NEW 2026-09-26, needs 1.5)
   In `energy`, set `other_source_ids=[rate.source_id]` on the estimated electricity line (not on the `not_estimated` one). Add a test in `api/tests/test_running.py` asserting it.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_running.py -q` passes, including the new test.
 

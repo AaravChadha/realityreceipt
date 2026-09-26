@@ -48,6 +48,7 @@ def energy(kwh: ModelEnergy, rate: RateValue, months: int = 36) -> Contribution:
             f"{_num(kwh.kwh_per_year)} kWh/yr x ${_num(rate.value)}/kWh"
             f" = ${per_year:,.2f}/yr, ${per_month:,.2f}/month"
         ),
+        other_source_ids=[rate.source_id],
     )
     return Contribution(pay_today=0.0, monthly_low=monthly, monthly_high=list(monthly), lines=[line])
 
