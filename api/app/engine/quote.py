@@ -1,20 +1,28 @@
-"""Every way to get the item, as receipt paths (PLAN.md task 2.6, row A2).
+"""Every way to get the item, as receipt paths (PLAN.md tasks 2.6 and 3.3, row A2).
 
-Task 2.6 builds the slice: each used listing bought as-is, and the cheapest cached
-new offer paid in cash. A path whose inputs are absent is left out, never invented.
+Nine kinds of path: repair the one you have; each used listing, as-is or refurbished;
+the cheapest cached new offer paid four ways (cash, card, buy now pay later, credit
+union PAL); and a lease kept to the end or bought out at its cheapest week. A path
+whose inputs are absent is left out, never invented.
+
+Card, PAL, buy now pay later and lease contributions already hold every dollar paid,
+the price included, so a price line is added to those paths as a line only.
 
 `quote` takes any object with the methods of `QuoteRepository`, so this module does
 not import `app.repository`; the real `Repository` (task 2.1) satisfies it.
+`_cash_path` is also used by `rank.py` (task 4.2) and is kept as it was.
 """
 
 from datetime import date
 from typing import Protocol
 
-from app.engine.financing import USER_SOURCE_IDS, cash
+from app.engine.financing import USER_SOURCE_IDS, bnpl, card, cash, pal
+from app.engine.lease import rto_buyout, rto_full
 from app.engine.lifecycle import combine, cost_per_year, remaining_life, replacement, replacement_month
 from app.engine.running import aging_line, carbon_kg, energy, upkeep
 from app.models import (
     MONTHS,
+    BnplTerms,
     CategoryProfile,
     Contribution,
     CostLine,
@@ -23,6 +31,7 @@ from app.models import (
     Offer,
     Path,
     PathGroup,
+    PaymentMethod,
     QuoteRequest,
     RateValue,
     Source,
@@ -31,7 +40,21 @@ from app.models import (
 
 ELECTRICITY_RATE = "ga_power_marginal_per_kwh"
 GRID_EMISSIONS = "egrid_ga_kg_per_kwh"
+CARD_RATE = "g19_card_apr_assessed"
+PAL_RATE_CAP = "pal_rate_cap"
+PAL_FEE_CAP = "pal_fee_cap"
+PAL_MAX_AMOUNT = "pal_max_amount"
 DEFAULT_CATEGORY = "refrigerator"
+
+# Refrigerator ratings from before the ~2014 test procedure change are not directly
+# comparable with later ones (spec §7).
+TEST_PROCEDURE_YEAR = 2014
+
+# A user listing's item condition -> path name and group.
+LISTING_KINDS: dict[str, tuple[str, PathGroup]] = {
+    "used_as_is": ("Used, as-is", "used_as_is"),
+    "refurbished": ("Used, refurbished", "refurbished"),
+}
 
 # `running.energy` turns this into its blank "not estimated" electricity line.
 _NO_KWH = ModelEnergy(kwh_per_year=0.0, source_type="not_estimated", source_id="")
@@ -50,6 +73,12 @@ class QuoteRepository(Protocol):
 
     def sources(self) -> list[Source]: ...
 
+    def item(self, id: str) -> Item | None: ...
+
+    def bnpl_terms(self) -> BnplTerms | None: ...
+
+    def standard_ceiling(self, mfg_year: int, product_class: str, volume_cuft: float) -> ModelEnergy | None: ...
+
 
 def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
     """Paths sorted by total over 3 years (high end), ties by pay today.
@@ -61,16 +90,43 @@ def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
     profile = repo.profile(category)
     items = {item.id: item for item in req.items}
     cheapest_new = min(repo.new_offers(category), key=lambda o: o.price, default=None)
+    this_year = date.today().year
 
-    paths: list[Path] = []
+    built: list[tuple[Path, int | None]] = []  # each path with its unit's manufacture year
+    if req.current is not None:
+        repair = _repair_cost(req, profile)
+        if repair is not None:
+            path = _unit_path("Repair the one you have", "repair", None, repair, req.current, _age(req.current), True, profile, cheapest_new, repo, [])
+            built.append((path, req.current.mfg_year))
+
     for offer in req.offers:
         item = items.get(offer.item_id)
-        if offer.source == "user_listing" and item is not None and item.condition == "used_as_is":
-            paths.append(_cash_path("Used, as-is", "used_as_is", offer, item, _age(item), profile, cheapest_new, repo))
-    if cheapest_new is not None:
-        # The new offer's brand and model are known only when the request carries its item.
-        paths.append(_cash_path("New, pay cash", "new", cheapest_new, items.get(cheapest_new.item_id), 0.0, profile, cheapest_new, repo))
+        if offer.source != "user_listing" or offer.seller_type == "rent_to_own" or item is None or item.condition not in LISTING_KINDS:
+            continue
+        name, group = LISTING_KINDS[item.condition]
+        flags = [f"warranty_{item.warranty_months}_months"] if group == "refurbished" and item.warranty_months else []
+        path = _unit_path(name, group, "cash", cash(offer.price, offer.source_id), item, _age(item), True, profile, cheapest_new, repo, flags)
+        built.append((path, item.mfg_year))
 
+    if cheapest_new is not None:
+        item = repo.item(cheapest_new.item_id) or items.get(cheapest_new.item_id)
+        for name, method, acquire, flags in _new_ways(cheapest_new, repo):
+            path = _unit_path(name, "new", method, acquire, item, 0.0, False, profile, cheapest_new, repo, flags)
+            built.append((path, this_year))
+
+    if req.lease is not None:
+        unit = _leased_item(req, items)
+        is_new = unit is not None and unit.condition == "new"
+        age = 0.0 if is_new else (_age(unit) if unit is not None else None)
+        year = this_year if is_new else (unit.mfg_year if unit is not None else None)
+        aged = unit is not None and not is_new
+        for name, method, acquire in (
+            ("Rent-to-own, keep paying", "rto_full", rto_full(req.lease)),
+            ("Rent-to-own, early buyout", "rto_buyout", rto_buyout(req.lease)),
+        ):
+            built.append((_unit_path(name, "rent_to_own", method, acquire, unit, age, aged, profile, cheapest_new, repo, []), year))
+
+    paths = _flag_test_procedure(built)
     paths.sort(key=lambda p: (p.total_3yr_high, p.pay_today))
     _check_sources(paths, repo)
     return paths
@@ -183,3 +239,174 @@ def _check_sources(paths: list[Path], repo: QuoteRepository) -> None:
     missing = sorted(named - known)
     if missing:
         raise ValueError(f"no source recorded for {missing}")
+
+
+def _unit_path(
+    name: str,
+    group: PathGroup,
+    method: PaymentMethod | None,
+    acquire: Contribution,
+    item: Item | None,
+    age_years: float | None,
+    aged: bool,
+    profile: CategoryProfile,
+    cheapest_new: Offer | None,
+    repo: QuoteRepository,
+    flags: list[str],
+) -> Path:
+    """One path: `acquire` (every dollar paid to get the unit), then electricity, the aging
+    line when `aged`, upkeep and the replacement for `item`, with cost per year and carbon."""
+    kwh = _kwh(item, repo)
+    electricity = energy(kwh or _NO_KWH, repo.rate(ELECTRICITY_RATE))
+    parts = [acquire, electricity]
+    if aged:
+        parts.append(_line_only(aging_line()))
+    parts.append(upkeep(profile.upkeep_schedule))
+
+    life_low, life_high = remaining_life(age_years, profile.lifespan_range)
+    if cheapest_new is not None:
+        parts.append(replacement(cheapest_new, life_low, life_high))
+    elif life_low is not None and replacement_month(life_low) < MONTHS:
+        parts.append(_line_only(_replacement_not_estimated()))
+    total = combine(parts)
+
+    annual_low, annual_high = _annual_cost(electricity, profile.upkeep_schedule)
+    # "Purchase total" includes financing: everything `acquire` pays, not just the price.
+    cpy_low, cpy_high = cost_per_year(
+        sum(acquire.monthly_low), sum(acquire.monthly_high), annual_low, annual_high, life_low, life_high
+    )
+
+    carbon: float | None = None
+    carbon_ids: list[str] = []
+    if profile.carbon_applicable and kwh is not None:
+        grid = repo.rate(GRID_EMISSIONS)
+        carbon = carbon_kg(kwh.kwh_per_year, grid)
+        carbon_ids = [kwh.source_id, grid.source_id]
+
+    flags = [*flags]
+    if life_low == 0:
+        flags.append("past_typical_life")
+    if item is not None and item.year_confidence == "low":
+        flags.append("year_from_serial_low_confidence")
+
+    return Path(
+        name=name,
+        group=group,
+        payment_method=method,
+        pay_today=total.pay_today,
+        total_3yr_low=round(sum(total.monthly_low), 2),
+        total_3yr_high=round(sum(total.monthly_high), 2),
+        cost_per_year_low=cpy_low,
+        cost_per_year_high=cpy_high,
+        expected_life_low=life_low,
+        expected_life_high=life_high,
+        monthly_low=total.monthly_low,
+        monthly_high=total.monthly_high,
+        carbon_kg=carbon,
+        carbon_source_ids=carbon_ids,
+        lines=total.lines,
+        flags=flags,
+    )
+
+
+def _kwh(item: Item | None, repo: QuoteRepository) -> ModelEnergy | None:
+    """The rated figure for the model. For a unit that is not new and has no rating, the DOE
+    standard ceiling for its year, class and adjusted volume; total volume alone gives nothing,
+    because the standard is written in adjusted volume."""
+    if item is None:
+        return None
+    rated = repo.model_energy(item.brand, item.model)
+    if rated is not None or item.condition == "new" or item.mfg_year is None:
+        return rated
+    product_class = item.attributes.get("product_class")
+    try:
+        adjusted = float(item.attributes["adjusted_volume_cuft"])
+    except (KeyError, ValueError):
+        return None
+    if product_class is None or not adjusted > 0:
+        return None
+    if isinstance(product_class, float):  # a class sent as a number: 3.0 is CFR class "3"
+        product_class = f"{product_class:g}"
+    return repo.standard_ceiling(item.mfg_year, product_class, adjusted)
+
+
+def _repair_cost(req: QuoteRequest, profile: CategoryProfile) -> Contribution | None:
+    """The repair, paid today: the user's quote, else the profile's published ranges from the
+    lowest to the highest. `None` when there is neither. Pay today is the high end."""
+    if req.repair_quote_low is not None or req.repair_quote_high is not None:
+        given = [x for x in (req.repair_quote_low, req.repair_quote_high) if x is not None]
+        low, high = round(min(given), 2), round(max(given), 2)
+        amount = f"${low:,.2f}" if low == high else f"${low:,.2f} to ${high:,.2f}"
+        line = CostLine(
+            kind="repair", label="Repair quote", amount_low=low, amount_high=high, period="once",
+            source_type="user_entered", source_id="user", formula=f"Quote you entered: {amount}, paid today",
+        )
+    elif profile.repair_ranges:
+        ranges = profile.repair_ranges
+        low = round(min(r.cost_low for r in ranges), 2)
+        high = round(max(r.cost_high for r in ranges), 2)
+        source_ids = list(dict.fromkeys(r.source_id for r in ranges))
+        listed = "; ".join(f"{r.label} ${r.cost_low:,.2f} to ${r.cost_high:,.2f}" for r in ranges)
+        line = CostLine(
+            kind="repair", label="Repair, published ranges", amount_low=low, amount_high=high, period="once",
+            source_type="published", source_id=source_ids[0], other_source_ids=source_ids[1:],
+            formula=f"No quote entered. Published ranges: {listed}. Shown from the lowest to the highest, paid today",
+        )
+    else:
+        return None
+    monthly_low = [0.0] * MONTHS
+    monthly_high = [0.0] * MONTHS
+    monthly_low[0], monthly_high[0] = low, high
+    return Contribution(pay_today=high, monthly_low=monthly_low, monthly_high=monthly_high, lines=[line])
+
+
+def _new_ways(offer: Offer, repo: QuoteRepository) -> list[tuple[str, PaymentMethod, Contribution, list[str]]]:
+    """The new offer paid in cash, by card, by buy now pay later, and by a PAL when its price is
+    under the loan cap. Each contribution holds the price once."""
+    price_line = _line_only(_price_line(offer))
+    terms = repo.bnpl_terms()
+    ways: list[tuple[str, PaymentMethod, Contribution, list[str]]] = [
+        ("New, pay cash", "cash", cash(offer.price, offer.source_id), []),
+        ("New, credit card", "card", combine([price_line, card(offer.price, repo.rate(CARD_RATE))]), []),
+        (
+            "New, buy now pay later", "bnpl", combine([price_line, bnpl(offer.price, terms)]),
+            ["bnpl_terms_not_an_offer"] if terms is not None else [],
+        ),
+    ]
+    loan = pal(offer.price, repo.rate(PAL_RATE_CAP), repo.rate(PAL_FEE_CAP), repo.rate(PAL_MAX_AMOUNT))
+    if loan is not None:
+        ways.append(("New, credit union PAL", "pal", combine([price_line, loan]), ["pal_caps_not_an_offer"]))
+    return ways
+
+
+def _price_line(offer: Offer) -> CostLine:
+    """The price as a line only, for a method whose payments already include it."""
+    price = round(offer.price, 2)
+    user = offer.source_id in USER_SOURCE_IDS
+    where = "the price on your listing" if user else "the cached retailer price"
+    return CostLine(
+        kind="purchase", label="Price", amount_low=price, amount_high=price, period="once",
+        source_type="user_entered" if user else "published", source_id=offer.source_id,
+        formula=f"${price:,.2f}, {where}, counted once inside the payments",
+    )
+
+
+def _leased_item(req: QuoteRequest, items: dict[str, Item]) -> Item | None:
+    """The item of the request's rent-to-own offer, when it has one."""
+    for offer in req.offers:
+        if offer.seller_type == "rent_to_own" and offer.item_id in items:
+            return items[offer.item_id]
+    return None
+
+
+def _flag_test_procedure(built: list[tuple[Path, int | None]]) -> list[Path]:
+    """Flag each pre-2014 unit's paths when the quote also holds a newer unit."""
+    years = [year for _, year in built if year is not None]
+    if not any(y < TEST_PROCEDURE_YEAR for y in years) or not any(y >= TEST_PROCEDURE_YEAR for y in years):
+        return [path for path, _ in built]
+    return [
+        path.model_copy(update={"flags": [*path.flags, "test_procedure_changed"]})
+        if year is not None and year < TEST_PROCEDURE_YEAR
+        else path
+        for path, year in built
+    ]
