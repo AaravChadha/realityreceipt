@@ -44,13 +44,14 @@ def test_csv_shape() -> None:
     assert path.stat().st_size < 1_000_000
     with path.open(newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
-    assert rows
+    assert len(rows) >= 4000, "the full ENERGY STAR dataset, not a brand subset"
     assert list(rows[0]) == ["brand", "model_number", "model_normalized", "annual_kwh"]
-    keys = [(r["brand"], r["model_normalized"]) for r in rows]
-    assert len(keys) == len(set(keys)), "one row per brand and model"
+    keys = [(r["brand"], r["model_normalized"], r["annual_kwh"]) for r in rows]
+    assert len(keys) == len(set(keys)), "one row per brand, model and kWh"
     for r in rows:
-        assert r["model_normalized"] == normalize_model(r["model_number"]).rstrip("*")
+        assert r["model_normalized"] == normalize_model(r["model_number"])
         assert float(r["annual_kwh"]) > 0
+    assert not any("Ã" in r["brand"] for r in rows), "brand names are decoded as UTF-8"
 
 
 def test_known_demo_model_returns_its_csv_kwh(repo: Repository) -> None:
@@ -65,6 +66,74 @@ def test_one_character_typo_misses_with_candidates(repo: Repository) -> None:
     candidates = repo.model_candidates("GBE17HYQ")
     assert 1 <= len(candidates) <= 5
     assert any(c.startswith("GBE17HY") for c in candidates)
+
+
+def test_label_family_and_a_retail_number_built_from_it_return_the_familys_kwh(repo: Repository) -> None:
+    family = repo.model_energy("GE", "GTE18FSL****")
+    assert family is not None
+    assert (family.kwh_per_year, family.source_type, family.source_id) == (363.0, "rated", "energystar_refrigerators")
+    assert repo.model_energy("GE", "GTE18FSLRWW") == family
+    assert repo.model_energy("GE", "GTE18FSL") == family, "every wildcard may be blank"
+    assert repo.model_energy("GE", "GTE18FSLRWWXY") is None, "one wildcard too many"
+
+
+def test_another_brands_row_is_never_returned(repo: Repository) -> None:
+    assert repo.model_energy("LG", "GTE18FSLRWW") is None
+    assert repo.model_energy("Whirlpool", "GBE17HYR") is None
+    assert repo.model_energy("", "GBE17HYR") is None
+    assert repo.model_candidates("GTE18FSLRWW") == ["GTE18FSL****"], "candidates are hints, not answers"
+
+
+def test_brand_names_match_without_regard_to_case_punctuation_or_the_ge_alias(repo: Repository) -> None:
+    assert repo.model_energy("GE Appliances", "GBE17HYR") == repo.model_energy("GE", "GBE17HYR")
+    assert repo.model_energy("g.e.", "GBE17HYR") == repo.model_energy("GE", "GBE17HYR")
+    assert repo.model_energy("GEA", "GBE17HYR") is None
+    assert repo.model_energy("GE Profile", "GBE17HYR") is None, "a sub-brand is not an alias"
+
+
+def test_a_model_listed_at_two_kwh_is_not_guessed(repo: Repository) -> None:
+    # GTE18DCN**** appears at 359 and 443 kWh.
+    assert repo.model_energy("GE", "GTE18DCN****") is None
+    assert repo.model_energy("GE", "GTE18DCNRWW") is None
+    assert "GTE18DCN****" in repo.model_candidates("GTE18DCNRWW")
+
+
+def _repo_with(tmp_path: pathlib.Path, rows: list[tuple[str, str, float]]) -> Repository:
+    for name in ("sources.json", "rates.json"):
+        shutil.copy(DATA_DIR / name, tmp_path / name)
+    lines = ["brand,model_number,model_normalized,annual_kwh"]
+    lines += [f"{b},{m},{normalize_model(m)},{k}" for b, m, k in rows]
+    (tmp_path / "energystar_refrigerators.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return Repository.load(tmp_path)
+
+
+def test_two_matches_with_different_kwh_return_none_with_both_as_candidates(tmp_path: pathlib.Path) -> None:
+    repo = _repo_with(tmp_path, [("Acme", "AB12*", 300), ("Acme", "AB1*3", 350)])
+    assert repo.model_energy("Acme", "AB123") is None
+    assert sorted(repo.model_candidates("AB123")) == ["AB1*3", "AB12*"]
+
+
+def test_matches_that_agree_on_kwh_return_it(tmp_path: pathlib.Path) -> None:
+    repo = _repo_with(tmp_path, [("Acme", "AB12*", 300), ("Acme", "AB1*3", 300)])
+    hit = repo.model_energy("Acme", "AB123")
+    assert hit is not None and hit.kwh_per_year == 300.0
+
+
+def test_the_row_with_the_fewest_wildcards_wins(tmp_path: pathlib.Path) -> None:
+    repo = _repo_with(tmp_path, [("Acme", "AB123", 300), ("Acme", "AB12*", 350), ("Acme", "AB***", 400)])
+    assert repo.model_energy("Acme", "AB123").kwh_per_year == 300.0
+    assert repo.model_energy("Acme", "AB124").kwh_per_year == 350.0
+    assert repo.model_energy("Acme", "AB1").kwh_per_year == 400.0
+
+
+def test_hash_is_one_optional_character_and_a_query_with_wildcards_needs_the_same_pattern(tmp_path: pathlib.Path) -> None:
+    repo = _repo_with(tmp_path, [("Acme", "AB12#C", 300), ("Acme", "AB99C", 310)])
+    assert repo.model_energy("Acme", "AB12C").kwh_per_year == 300.0
+    assert repo.model_energy("Acme", "AB127C").kwh_per_year == 300.0
+    assert repo.model_energy("Acme", "AB1277C") is None
+    assert repo.model_energy("Acme", "AB12#C").kwh_per_year == 300.0
+    assert repo.model_energy("Acme", "AB12*C") is None, "a different pattern is not the same model"
+    assert repo.model_energy("Acme", "AB9#C") is None, "a wildcard query does not match a concrete row"
 
 
 def test_2004_unit_returns_the_formula_value_for_its_volume(repo: Repository) -> None:
