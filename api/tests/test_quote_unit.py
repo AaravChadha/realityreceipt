@@ -24,8 +24,12 @@ from app.models import (
 RATES = {
     "ga_power_marginal_per_kwh": RateValue(value=0.15, source_id="ga_power_residential_tariff"),
     "egrid_ga_kg_per_kwh": RateValue(value=0.4, source_id="egrid_georgia"),
+    "g19_card_apr_assessed": RateValue(value=0.2215, source_id="frb_g19"),
+    "pal_rate_cap": RateValue(value=0.28, source_id="ncua_pals_ii"),
+    "pal_fee_cap": RateValue(value=20.0, source_id="ncua_pals_ii"),
+    "pal_max_amount": RateValue(value=2000.0, source_id="ncua_pals_ii"),
 }
-SOURCE_IDS = ["energystar_refrigerators", "ga_power_residential_tariff", "egrid_georgia", "lifespan_src", "upkeep_src", "retailer_src"]
+SOURCE_IDS = ["energystar_refrigerators", "ga_power_residential_tariff", "egrid_georgia", "lifespan_src", "upkeep_src", "retailer_src", "frb_g19", "ncua_pals_ii"]
 
 OLD = Item(id="old", category="refrigerator", brand="Whirlpool", model="OLD123", condition="used_as_is", mfg_year=date.today().year - 12)
 NEW = Item(id="new-a", category="refrigerator", brand="GE", model="NEW456", condition="new")
@@ -41,6 +45,7 @@ class FakeRepo:
     new: list[Offer] = field(default_factory=lambda: list(NEW_OFFERS))
     source_ids: list[str] = field(default_factory=lambda: list(SOURCE_IDS))
     energy: dict[str, float] = field(default_factory=lambda: {"OLD123": 600.0, "NEW456": 380.0})
+    catalog: dict[str, Item] = field(default_factory=lambda: {NEW.id: NEW})
 
     def rate(self, key: str) -> RateValue:
         return RATES[key]
@@ -66,20 +71,31 @@ class FakeRepo:
     def sources(self) -> list[Source]:
         return [Source(id=i, title=i, publisher="test", url="https://example.org", retrieved_date=date(2026, 9, 26)) for i in self.source_ids]
 
+    def item(self, id: str) -> Item | None:
+        return self.catalog.get(id)
+
+    def bnpl_terms(self) -> None:
+        return None
+
+    def standard_ceiling(self, mfg_year: int, product_class: str, volume_cuft: float) -> None:
+        return None
+
 
 def slice_request(**overrides) -> QuoteRequest:
     return QuoteRequest(**{"items": [OLD, NEW], "offers": [LISTING], **overrides})
 
 
 def by_group(paths: list[Path]) -> dict[str, Path]:
-    return {p.group: p for p in paths}
+    """Each group's cash path (since task 3.3 the new offer is also paid three other ways)."""
+    return {p.group: p for p in paths if p.payment_method == "cash"}
 
 
 def test_slice_returns_both_groups_sorted_by_total_high() -> None:
     paths = quote(slice_request(), FakeRepo())
-    assert [p.group for p in paths] == ["new", "used_as_is"]
-    assert [p.payment_method for p in paths] == ["cash", "cash"]
-    assert paths[0].total_3yr_high <= paths[1].total_3yr_high
+    cash_paths = [p for p in paths if p.payment_method == "cash"]
+    assert [p.group for p in cash_paths] == ["new", "used_as_is"]
+    assert cash_paths[0].total_3yr_high <= cash_paths[1].total_3yr_high
+    assert [p.total_3yr_high for p in paths] == sorted(p.total_3yr_high for p in paths)
 
 
 def test_used_path_past_typical_life() -> None:
@@ -137,14 +153,14 @@ def test_unknown_model_leaves_energy_and_carbon_blank() -> None:
 
 
 def test_new_offer_without_its_item_has_no_energy_figure() -> None:
-    new = by_group(quote(slice_request(items=[OLD]), FakeRepo()))["new"]
+    new = by_group(quote(slice_request(items=[OLD]), FakeRepo(catalog={})))["new"]
     assert new.lines[1].source_type == "not_estimated"
     assert new.carbon_kg is None
 
 
 def test_listing_without_its_item_is_left_out() -> None:
     paths = quote(slice_request(items=[NEW]), FakeRepo())
-    assert [p.group for p in paths] == ["new"]
+    assert {p.group for p in paths} == {"new"}
 
 
 def test_no_new_offers_leaves_the_replacement_blank() -> None:
