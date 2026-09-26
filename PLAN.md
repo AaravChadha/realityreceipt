@@ -130,7 +130,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   Put the spec at `docs/RealityReceipt_Build_Spec.pdf`. Commit `BRIEF.md`, `PLAN.md`, `AGENTS.md`, `CLAUDE.md`, `LEARNINGS.md`, `.gitignore`, `.claude/acstack.md` and the PDF as `task 0.1: planning docs and repo config`.
   **Acceptance:** `git ls-files BRIEF.md PLAN.md AGENTS.md CLAUDE.md .gitignore .claude/acstack.md docs/RealityReceipt_Build_Spec.pdf | wc -l` prints `7`.
 
-- [ ] **0.2 Scaffold the API (Track 0 — operator)**
+- [x] **0.2 Scaffold the API (Track 0 — operator)**
   `api/app/__init__.py` (empty); `api/app/main.py` with `app = FastAPI()` and `GET /health` returning `{"ok": true}`; `api/tests/test_health.py` calling it through `fastapi.testclient.TestClient`; root `pytest.ini` with `[pytest]`, `pythonpath = api analysis`, `testpaths = api/tests analysis`. Create `api/.venv` with `python3 -m venv api/.venv`, install `fastapi uvicorn pydantic pytest httpx python-multipart python-dotenv pandas matplotlib`, then pin every package with `api/.venv/bin/pip freeze > api/requirements.txt`. `api/.env.example` holds two lines, `XAI_API_KEY=` and `XAI_MODEL=`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests -q` prints `1 passed`, and `test "$(grep -c '==' api/requirements.txt)" -gt 5 && echo pinned` prints `pinned`.
 
