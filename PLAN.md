@@ -207,7 +207,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   A number computed from two sourced inputs must name both. `CostLine.other_source_ids: list[str] = []` lists the sources of a line's other inputs (electricity: the rate; `source_id` stays the kWh figure's). `Path.carbon_source_ids: list[str] = []`, required non-empty whenever `carbon_kg` is set (the kWh source and the eGRID source). Mirrored in `web/src/contracts.ts`; `contracts/receipt_fridge.json` regenerated. Tests in `api/tests/test_contracts.py`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py -q` passes, and `npm --prefix web test -- contracts` passes.
 
-- [ ] **1.6 Contract hardening (Track A1)** (NEW 2026-09-26, review)
+- [x] **1.6 Contract hardening (Track A1)** (NEW 2026-09-26, review)
   In `api/app/models.py`: `ConfigDict(extra="forbid", allow_inf_nan=False)` on `Contract`; `UpkeepItem` and `RepairRange` require `cost_low <= cost_high`; `Item.mfg_year` between 1940 and the current year; `Lease.term_weeks` at most 260. Document the `Item.attributes` keys from "Fixed interfaces" in the `Item` docstring and in `web/src/contracts.ts`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py -q` passes, including new tests that reject an infinite price, an upkeep item with low above high, and `mfg_year=1800`.
 
