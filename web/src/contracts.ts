@@ -78,6 +78,10 @@ export interface Lease {
   early_purchase_text?: string
   missed_payment_rule?: string
   source_id?: string
+  /** As printed; a promotion can make it less than one weekly payment. */
+  payment_today?: number | null
+  /** As printed; when set, the engine uses it instead of weekly_payment * term_weeks. */
+  total_of_payments?: number | null
 }
 
 export interface CostLine {
@@ -192,6 +196,9 @@ export interface ScanResult {
   kind: ScanKind
   valid: boolean
   errors: string[]
+  /** Every value read from the image, valid or not: pre-fills the correction form. */
+  fields: Record<string, string | number | boolean | null>
+  /** item, offer and lease are set only when valid. */
   item: Item | null
   offer: Offer | null
   lease: Lease | null
