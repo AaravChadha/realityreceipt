@@ -164,6 +164,16 @@ def test_each_kind_has_its_own_prompt_and_strict_schema() -> None:
     assert len(systems) == 4
 
 
+def test_prompts_keep_lease_services_out_of_fees_and_descriptions_out_of_product_class() -> None:
+    # Seen on the real Aaron's card and EnergyGuide labels before these rules were added.
+    lease = FakeGrokClient(_load("lease_valid.json"))
+    scan("lease", JPEG, lease)
+    assert "never the cost of lease services" in lease.calls[0]["system"]
+    label = FakeGrokClient(_load("label_valid.json"))
+    scan("label", JPEG, label)
+    assert "is not a code, so use null" in label.calls[0]["system"]
+
+
 class RaisingClient:
     def __init__(self, exc: Exception) -> None:
         self.exc = exc

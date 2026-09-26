@@ -22,15 +22,20 @@ _RULES = (
 _PROMPTS: dict[ScanKind, str] = {
     "label": (
         "You read refrigerator rating labels and EnergyGuide labels: brand, model number, serial "
-        "number, manufacture year, product class or type, total volume in cubic feet, and the "
-        "yearly electricity use in kWh printed on an EnergyGuide label (label_kwh_per_year)." + _RULES
+        "number, manufacture year, total volume in cubic feet, and the yearly electricity use in "
+        "kWh printed on an EnergyGuide label (label_kwh_per_year). product_class is the DOE product "
+        "class code only when the label prints one as a code (for example 3 or 5A); a description "
+        "such as Refrigerator-Freezers with Top-Mounted Freezer is not a code, so use null." + _RULES
     ),
     "price_tag": "You read store price tags: brand, model number and the price in dollars." + _RULES,
     "lease": (
         "You read rent-to-own lease pages and paperwork: the leased refrigerator's brand and model "
         "number, weekly payment, term in weeks, cash price, "
         "fees, the early purchase option (its rule, the percent printed, and its exact wording in "
-        "early_purchase_text) and the missed payment rule. early_purchase_rule is pct_of_remaining "
+        "early_purchase_text) and the missed payment rule. fees is a separately charged fee printed "
+        "as a dollar amount, such as an enrollment, processing or delivery fee; 0 when the page "
+        "prints the fee as None or Free; never the cost of lease services, a payment or a total. "
+        "early_purchase_rule is pct_of_remaining "
         "when the buyout is a percent of the remaining payments, cash_price_minus_pct_paid when it "
         "is the cash price minus a percent of what was paid, none when no early purchase option is "
         "printed. early_purchase_percent is the percent number as printed (50 for 50%)." + _RULES
