@@ -406,6 +406,7 @@ Scenario 4 is the strongest talking point: it proves the AI is only the keyboard
 - [ ] **Best Buy API key (NEW 2026-09-26).** Assume it will not arrive; the hand-built cache in 2.3 is the plan.
 - [ ] **TigerData prize (NEW 2026-09-26).** Enter only if confirmed (spec §1).
 - [ ] **Spec §7 verify list (NEW 2026-09-26).** Georgia Power tier, season and riders and the eGRID rate type (2.1); the DOE standard ceiling and the ~2014 test procedure change (3.5); RECS variables and cell sizes (3.12); whether a Georgia regulator publishes rent-to-own multiples and whether a newer ACEEE Atlanta figure exists (pitch, 4.8).
+  **Status (2026-09-26):** RECS variables and cell sizes answered by `analysis/recs/VARIABLES.md` (3.12, #10): every name and the jackknife formula quoted from EIA; Georgia fails EIA's 10-household rule in 17 of 30 cells, so the finding is for the South region.
 
 ## Glossary
 
