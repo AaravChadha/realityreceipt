@@ -49,7 +49,11 @@ export interface Item {
   year_confidence?: YearConfidence
   condition: Condition
   warranty_months?: number | null
-  /** Keys in use: product_class, volume_cuft, width_in. */
+  /**
+   * Keys in use (PLAN.md "Fixed interfaces"): product_class (CFR class code, e.g. "3"),
+   * volume_cuft (label total volume), adjusted_volume_cuft (DOE adjusted volume; only this
+   * feeds the standard ceiling), width_in, label_kwh_per_year (kWh on the unit's EnergyGuide label).
+   */
   attributes?: Record<string, string | number>
 }
 

@@ -8,7 +8,7 @@ another name in any module that needs both.
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 MONTHS = 36
 
@@ -27,11 +27,17 @@ Lang = Literal["en", "es"]
 
 
 class Contract(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
 
 class Item(Contract):
-    """One appliance. `attributes` keys in use: product_class, volume_cuft, width_in."""
+    """One appliance.
+
+    `attributes` keys in use (PLAN.md "Fixed interfaces"): `product_class` (CFR class code,
+    e.g. "3"), `volume_cuft` (total volume printed on the label), `adjusted_volume_cuft`
+    (DOE adjusted volume; only this feeds the standard ceiling), `width_in`, and
+    `label_kwh_per_year` (kWh printed on the unit's own EnergyGuide label).
+    """
 
     id: str
     category: str
@@ -43,6 +49,13 @@ class Item(Contract):
     condition: Condition
     warranty_months: int | None = Field(default=None, ge=0)
     attributes: dict[str, str | float] = Field(default_factory=dict)
+
+    @field_validator("mfg_year")
+    @classmethod
+    def _plausible_year(cls, year: int | None) -> int | None:
+        if year is not None and not 1940 <= year <= date.today().year:
+            raise ValueError(f"mfg_year must be between 1940 and {date.today().year}")
+        return year
 
 
 class Offer(Contract):
@@ -58,7 +71,7 @@ class Offer(Contract):
 
 class Lease(Contract):
     weekly_payment: float = Field(gt=0)
-    term_weeks: int = Field(gt=0)
+    term_weeks: int = Field(gt=0, le=260)
     cash_price: float = Field(ge=0)
     fees: float = Field(default=0, ge=0)
     early_purchase_rule: EarlyPurchaseRule = "none"
@@ -129,18 +142,25 @@ class Path(Contract):
         return self
 
 
-class UpkeepItem(Contract):
-    label: str
+class _OrderedCost(Contract):
     cost_low: float = Field(ge=0)
     cost_high: float = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _low_not_above_high(self) -> "_OrderedCost":
+        if self.cost_low > self.cost_high:
+            raise ValueError("cost_low must not exceed cost_high")
+        return self
+
+
+class UpkeepItem(_OrderedCost):
+    label: str
     every_months: int = Field(gt=0)
     source_id: str
 
 
-class RepairRange(Contract):
+class RepairRange(_OrderedCost):
     label: str
-    cost_low: float = Field(ge=0)
-    cost_high: float = Field(ge=0)
     source_id: str
 
 

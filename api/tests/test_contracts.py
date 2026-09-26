@@ -3,7 +3,7 @@ import pathlib
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from app.models import MONTHS, CostLine, Lease, Path
+from app.models import MONTHS, CostLine, Item, Lease, Offer, Path, RepairRange, UpkeepItem
 
 FIXTURE = pathlib.Path(__file__).resolve().parents[2] / "contracts" / "receipt_fridge.json"
 
@@ -73,3 +73,29 @@ def test_unknown_fields_are_rejected() -> None:
 def test_lease_rule_needs_its_percentage() -> None:
     with pytest.raises(ValidationError):
         Lease(weekly_payment=30, term_weeks=52, cash_price=700, early_purchase_rule="pct_of_remaining")
+
+
+def test_infinite_money_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        Offer(item_id="x", price=float("inf"), seller_type="retailer", source="retailer_cache", source_id="s")
+
+
+def test_cost_ranges_must_be_ordered() -> None:
+    with pytest.raises(ValidationError):
+        UpkeepItem(label="x", cost_low=100, cost_high=10, every_months=12, source_id="s")
+    with pytest.raises(ValidationError):
+        RepairRange(label="x", cost_low=100, cost_high=10, source_id="s")
+    assert UpkeepItem(label="x", cost_low=10, cost_high=10, every_months=12, source_id="s").cost_high == 10
+
+
+def test_manufacture_year_must_be_plausible() -> None:
+    with pytest.raises(ValidationError):
+        Item(id="x", category="refrigerator", brand="b", model="m", condition="used_as_is", mfg_year=1800)
+    with pytest.raises(ValidationError):
+        Item(id="x", category="refrigerator", brand="b", model="m", condition="used_as_is", mfg_year=2999)
+    assert Item(id="x", category="refrigerator", brand="b", model="m", condition="used_as_is", mfg_year=2004).mfg_year == 2004
+
+
+def test_lease_term_is_bounded() -> None:
+    with pytest.raises(ValidationError):
+        Lease(weekly_payment=30, term_weeks=261, cash_price=700)
