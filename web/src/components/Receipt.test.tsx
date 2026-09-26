@@ -1,0 +1,92 @@
+import '@testing-library/jest-dom/vitest'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, expect, test, vi } from 'vitest'
+import sample from '../../../contracts/receipt_fridge.json'
+import type { CostLine, Path } from '../contracts'
+import { Receipt } from './Receipt'
+
+const fixture = sample as Path[]
+
+afterEach(cleanup)
+
+function card(name: string) {
+  return within(screen.getByRole('article', { name }))
+}
+
+test('shows the sample banner and all 9 paths in API order', () => {
+  render(<Receipt paths={fixture} />)
+  expect(screen.getByText('Sample data, not a real quote')).toBeVisible()
+  const names = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
+  expect(names).toHaveLength(9)
+  expect(names).toEqual(fixture.map((p) => p.name))
+})
+
+test('no banner when no path is fixture data', () => {
+  const real = fixture.map((p) => ({ ...p, flags: p.flags.filter((f) => f !== 'fixture') }))
+  render(<Receipt paths={real} />)
+  expect(screen.queryByText('Sample data, not a real quote')).toBeNull()
+})
+
+test('each path shows its three headline numbers in whole dollars', () => {
+  render(<Receipt paths={fixture} />)
+  const used = card('Used, as-is')
+  expect(used.getByText('$250')).toBeVisible()
+  expect(used.getByText('$484 to $1,383')).toBeVisible()
+  expect(used.getByText('$128 to $328')).toBeVisible()
+  expect(card('New, pay cash').getByText('$1,070')).toBeVisible()
+  expect(card('New, pay cash').getByText('$110 to $132')).toBeVisible()
+})
+
+test('a missing upper end reads "or more" with its note', () => {
+  render(<Receipt paths={fixture} />)
+  const repair = card('Repair the one you have')
+  expect(repair.getByText('$159 or more')).toBeVisible()
+  expect(repair.getByText('upper end not estimated')).toBeVisible()
+})
+
+test('the carbon line shows only when carbon_kg is set', () => {
+  const paths = fixture.map((p, i) => (i === 0 ? { ...p, carbon_kg: null } : p))
+  render(<Receipt paths={paths} />)
+  expect(card(paths[0].name).queryByText(/Carbon/)).toBeNull()
+  expect(card('Used, as-is').getByText('624 kg CO2')).toBeVisible()
+})
+
+test('cost lines are collapsed until "What\'s in this number" is tapped', () => {
+  render(<Receipt paths={fixture} />)
+  const credit = card('New, credit card')
+  expect(credit.queryByText('Card interest')).toBeNull()
+  const toggle = credit.getByRole('button', { name: "What's in this number" })
+  expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  fireEvent.click(toggle)
+  expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  expect(credit.getByText('Card interest')).toBeVisible()
+  expect(credit.getAllByText('Published').length).toBeGreaterThan(0)
+})
+
+test('a not estimated line is labeled and left blank', () => {
+  render(<Receipt paths={fixture} />)
+  const bnpl = card('New, buy now pay later')
+  fireEvent.click(bnpl.getByRole('button', { name: "What's in this number" }))
+  const line = bnpl.getByRole('button', { name: /Buy now pay later cost/ })
+  expect(within(line).getByText('Not estimated')).toBeVisible()
+  expect(line.textContent).not.toMatch(/\$/)
+})
+
+test('tapping a line calls onLineTap with that line', () => {
+  const onLineTap = vi.fn<(line: CostLine) => void>()
+  render(<Receipt paths={fixture} onLineTap={onLineTap} />)
+  const credit = card('New, credit card')
+  fireEvent.click(credit.getByRole('button', { name: "What's in this number" }))
+  fireEvent.click(credit.getByRole('button', { name: /Card interest/ }))
+  const expected = fixture.find((p) => p.name === 'New, credit card')!.lines.find((l) => l.label === 'Card interest')
+  expect(onLineTap).toHaveBeenCalledWith(expected)
+})
+
+test('the rendered receipt has no em dash, no "APR", and nothing about qualifying', () => {
+  const { container } = render(<Receipt paths={fixture} />)
+  for (const toggle of screen.getAllByRole('button', { name: "What's in this number" })) fireEvent.click(toggle)
+  const text = container.textContent ?? ''
+  expect(text).not.toContain(String.fromCharCode(0x2014))
+  expect(text).not.toContain('APR')
+  expect(text.toLowerCase()).not.toContain('qualif')
+})
