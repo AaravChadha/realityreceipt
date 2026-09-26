@@ -1,4 +1,6 @@
 {
+  "brand": "Frigidaire",
+  "model": "FRTE1936AV",
   "weekly_payment": 30.0,
   "term_weeks": 52,
   "cash_price": 800.0,

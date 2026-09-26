@@ -7,8 +7,9 @@ import io
 import json
 from pathlib import Path
 
+import httpx
 import pytest
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 from app.grok import client as client_module
 from app.grok.client import GrokClient, shrink_jpeg
@@ -93,6 +94,26 @@ def test_lease_valid_turns_the_printed_percent_into_a_fraction() -> None:
     assert result.lease.source_id == "user_lease"
 
 
+def test_lease_reads_the_leased_fridge_and_prices_its_offer_at_the_cash_price() -> None:
+    result = scan("lease", JPEG, FakeGrokClient(_load("lease_valid.json")))
+    assert result.item is not None
+    assert (result.item.brand, result.item.model) == ("Frigidaire", "FRTE1936AV")
+    assert result.offer is not None
+    assert result.offer.item_id == result.item.id
+    assert result.offer.seller_type == "rent_to_own"
+    assert result.offer.price == 800.0
+
+
+def test_lease_without_brand_and_model_is_invalid() -> None:
+    payload = {**_load("lease_valid.json"), "brand": None, "model": None}
+    result = scan("lease", JPEG, FakeGrokClient(payload))
+    assert result.valid is False
+    assert "brand: missing" in result.errors
+    assert "model: missing" in result.errors
+    assert result.lease is not None
+    assert result.lease.cash_price == 800.0
+
+
 def test_lease_missing_term_is_invalid_and_keeps_what_parsed() -> None:
     payload = {**_load("lease_valid.json"), "term_weeks": None}
     result = scan("lease", JPEG, FakeGrokClient(payload))
@@ -141,6 +162,49 @@ def test_each_kind_has_its_own_prompt_and_strict_schema() -> None:
         assert set(schema["required"]) == set(schema["properties"])
         assert set(_load(name)) == set(schema["properties"])
     assert len(systems) == 4
+
+
+class RaisingClient:
+    def __init__(self, exc: Exception) -> None:
+        self.exc = exc
+
+    def chat_json(self, *_args, **_kwargs) -> dict:
+        raise self.exc
+
+
+_REQUEST = httpx.Request("POST", "https://api.x.ai/v1/chat/completions")
+
+
+@pytest.mark.parametrize(
+    ("exc", "message"),
+    [
+        (httpx.ConnectError("boom", request=_REQUEST), "Could not reach Grok"),
+        (httpx.ReadTimeout("slow", request=_REQUEST), "Could not reach Grok"),
+        (
+            httpx.HTTPStatusError("bad", request=_REQUEST, response=httpx.Response(400, request=_REQUEST)),
+            "HTTP 400",
+        ),
+        (json.JSONDecodeError("Expecting value", "not json", 0), "reply could not be read"),
+        (KeyError("choices"), "reply could not be read"),
+        (UnidentifiedImageError("cannot identify image file"), "image could not be read"),
+        (RuntimeError("unexpected"), "The scan failed"),
+    ],
+)
+def test_client_failures_become_an_invalid_result_with_a_plain_message(exc: Exception, message: str) -> None:
+    result = scan("label", JPEG, RaisingClient(exc))
+    assert result.valid is False
+    assert len(result.errors) == 1
+    assert message in result.errors[0]
+    assert result.item is None and result.offer is None and result.lease is None
+
+
+def test_a_non_image_upload_through_the_real_client_is_a_plain_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(client_module, "load_dotenv", lambda *_a, **_k: None)
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
+    monkeypatch.setenv("XAI_MODEL", "grok-4.20-0309-non-reasoning")
+    result = scan("label", b"not an image", GrokClient())
+    assert result.valid is False
+    assert result.errors == ["The image could not be read. Use a JPEG or PNG photo."]
 
 
 def test_shrink_caps_the_long_edge_and_returns_jpeg() -> None:

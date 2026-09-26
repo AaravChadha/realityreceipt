@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
+import httpx
+from PIL import UnidentifiedImageError
 from pydantic import TypeAdapter, ValidationError
 
 from app.grok.client import GrokClient
@@ -24,7 +27,8 @@ _PROMPTS: dict[ScanKind, str] = {
     ),
     "price_tag": "You read store price tags: brand, model number and the price in dollars." + _RULES,
     "lease": (
-        "You read rent-to-own lease pages and paperwork: weekly payment, term in weeks, cash price, "
+        "You read rent-to-own lease pages and paperwork: the leased refrigerator's brand and model "
+        "number, weekly payment, term in weeks, cash price, "
         "fees, the early purchase option (its rule, the percent printed, and its exact wording in "
         "early_purchase_text) and the missed payment rule. early_purchase_rule is pct_of_remaining "
         "when the buyout is a percent of the remaining payments, cash_price_minus_pct_paid when it "
@@ -70,6 +74,8 @@ _SCHEMAS: dict[ScanKind, dict] = {
     ),
     "lease": _schema(
         {
+            "brand": _nullable("string"),
+            "model": _nullable("string"),
             "weekly_payment": _nullable("number"),
             "term_weeks": _nullable("integer"),
             "cash_price": _nullable("number"),
@@ -105,10 +111,25 @@ _ITEM_SCAFFOLD: dict[str, Any] = {
 }
 
 
+def _failure(exc: Exception) -> str:
+    if isinstance(exc, UnidentifiedImageError):
+        return "The image could not be read. Use a JPEG or PNG photo."
+    if isinstance(exc, httpx.HTTPStatusError):
+        return f"Grok returned an error (HTTP {exc.response.status_code}). Enter the details by hand."
+    if isinstance(exc, httpx.RequestError):
+        return "Could not reach Grok. Enter the details by hand."
+    if isinstance(exc, (json.JSONDecodeError, KeyError, IndexError, TypeError, ValueError)):
+        return "Grok's reply could not be read. Enter the details by hand."
+    return "The scan failed. Enter the details by hand."
+
+
 def scan(kind: ScanKind, image_jpeg: bytes, client: GrokClient) -> ScanResult:
-    raw = client.chat_json(_PROMPTS[kind], _USER, image_jpeg, schema=_SCHEMAS[kind])
+    try:
+        raw = client.chat_json(_PROMPTS[kind], _USER, image_jpeg, schema=_SCHEMAS[kind])
+    except Exception as exc:  # any client, network, reply or image failure goes to the manual form
+        return ScanResult(kind=kind, valid=False, errors=[_failure(exc)])
     if not isinstance(raw, dict):
-        return ScanResult(kind=kind, valid=False, errors=["response is not a JSON object"])
+        return ScanResult(kind=kind, valid=False, errors=["Grok's reply could not be read. Enter the details by hand."])
     printed = {k: v for k, v in raw.items() if v is not None and v != ""}
     if kind == "label":
         return _from_label(printed)
@@ -229,4 +250,11 @@ def _from_lease(raw: dict[str, Any]) -> ScanResult:
     except ValidationError as exc:
         errors += _fmt(exc, prefix="lease")
         lease = Lease.model_construct(**kept)
-    return _result("lease", errors, lease=lease)
+    # The leased unit is the rent-to-own offer the quote pairs with the lease; its price is the cash price.
+    item_kept, item_errors = _check(Item, raw, ("brand", "model"))
+    item, build_errors = _item(item_kept, condition="new")
+    offer_raw = {"price": kept["cash_price"]} if "cash_price" in kept else {}
+    offer, offer_errors = _offer(offer_raw, seller_type="rent_to_own", source="user_listing", source_id="user_listing")
+    offer_errors = [e for e in offer_errors if e != "price: missing"]
+    errors += item_errors + build_errors + offer_errors + _missing(item_kept, ("brand", "model"))
+    return _result("lease", errors, item=item, offer=offer, lease=lease)
