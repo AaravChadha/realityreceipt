@@ -244,7 +244,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 > **Build order:** A3 (3.1), A4 (3.2), B4 (3.4), B2 (3.5), B1 (3.6), D1 (3.7), D4 (3.12), B3 (3.13) run in parallel → A2 (3.3) → D1 (3.8) → A1 (3.9) → C1 (3.10), C2 (3.11). D1 and D4 may start right after Phase 1.
 > **Exit criterion:** `api/.venv/bin/python -m pytest api/tests analysis -q` passes with `test_quote_all_paths.py` and `test_not_a_wrapper.py` included, and `npm --prefix web test` passes.
 
-- [ ] **3.1 Card, PAL and BNPL (Track A3)**
+- [x] **3.1 Card, PAL and BNPL (Track A3)**
   `card`, `pal`, `bnpl` per "Fixed interfaces" and the pinned formulas. Tests in `api/tests/test_financing.py`: `card(1000, RateValue(0.24, ...))` pays 94.56 a month for months 1 to 12 (total 1134.72, within 0.01) with `pay_today == 0`; `pal(1000, ...)` at 28% for 12 months pays 96.50 a month (within 0.01) plus the $20 fee, and returns `None` for a price of 2500; `bnpl(500, None)` returns one `not_estimated` financing line.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_financing.py -q` passes.
 
