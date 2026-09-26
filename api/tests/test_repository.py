@@ -4,7 +4,8 @@ import shutil
 
 import pytest
 
-from app.models import RateValue
+from app.engine.financing import bnpl
+from app.models import BnplTerms, RateValue
 from app.repository import DATA_DIR, RATE_KEYS, Repository, normalize_model
 
 
@@ -133,3 +134,20 @@ def test_item_lookup_by_id(bare_dir: pathlib.Path) -> None:
     assert repo.item("missing") is None
     (offer,) = repo.new_offers("refrigerator")
     assert repo.item(offer.item_id) == item
+
+
+def test_bnpl_terms_are_one_sourced_provider(repo: Repository) -> None:
+    terms = repo.bnpl_terms()
+    assert terms is not None
+    assert (terms.provider, terms.installments, terms.interval_weeks, terms.apr) == ("Afterpay", 4, 2, 0.0)
+    source = repo.source(terms.source_id)
+    assert source.url.startswith("https://") and "0% interest" in source.notes
+
+
+def test_bnpl_terms_feed_the_bnpl_path(repo: Repository) -> None:
+    terms = repo.bnpl_terms()
+    assert isinstance(terms, BnplTerms)
+    path = bnpl(1000.0, terms)
+    assert path.pay_today == 250.0
+    assert path.lines[0].source_type == "published" and path.lines[0].source_id == terms.source_id
+    assert path.lines[0].amount_low == 0.0  # 0% interest when paid on time; late fees are not modeled
