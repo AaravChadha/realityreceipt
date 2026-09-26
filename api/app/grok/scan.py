@@ -35,6 +35,9 @@ _PROMPTS: dict[ScanKind, str] = {
         "early_purchase_text) and the missed payment rule. fees is a separately charged fee printed "
         "as a dollar amount, such as an enrollment, processing or delivery fee; 0 when the page "
         "prints the fee as None or Free; never the cost of lease services, a payment or a total. "
+        "payment_today is the amount printed as due today or at signing. total_of_payments is the "
+        "total of all lease payments to ownership as printed (labelled for example Total of Payments "
+        "or Total Cost of Ownership); null when no total is printed, never a sum you work out. "
         "early_purchase_rule is pct_of_remaining "
         "when the buyout is a percent of the remaining payments, cash_price_minus_pct_paid when it "
         "is the cash price minus a percent of what was paid, none when no early purchase option is "
@@ -94,6 +97,8 @@ _SCHEMAS: dict[ScanKind, dict] = {
             "early_purchase_percent": _nullable("number"),
             "early_purchase_text": _nullable("string"),
             "missed_payment_rule": _nullable("string"),
+            "payment_today": _nullable("number"),
+            "total_of_payments": _nullable("number"),
         }
     ),
     "listing": _schema(
@@ -135,14 +140,14 @@ def scan(kind: ScanKind, image_jpeg: bytes, client: GrokClient) -> ScanResult:
         return ScanResult(kind=kind, valid=False, errors=[_failure(exc)])
     if not isinstance(raw, dict):
         return ScanResult(kind=kind, valid=False, errors=["Grok's reply could not be read. Enter the details by hand."])
-    printed = {k: v for k, v in raw.items() if v is not None and v != ""}
-    if kind == "label":
-        return _from_label(printed)
-    if kind == "price_tag":
-        return _from_price_tag(printed)
-    if kind == "lease":
-        return _from_lease(printed)
-    return _from_listing(printed)
+    printed = {
+        k: v for k, v in raw.items() if v is not None and v != "" and isinstance(v, (str, int, float, bool))
+    }
+    errors, parts = _BUILDERS[kind](printed)
+    errors = list(dict.fromkeys(errors))
+    if errors:
+        return ScanResult(kind=kind, valid=False, errors=errors, fields=printed)
+    return ScanResult(kind=kind, valid=True, fields=printed, **parts)
 
 
 def _fmt(exc: ValidationError, prefix: str = "") -> list[str]:
@@ -173,52 +178,48 @@ def _missing(kept: dict[str, Any], keys: tuple[str, ...]) -> list[str]:
     return [f"{key}: missing" for key in keys if key not in kept]
 
 
-def _item(kept: dict[str, Any], **extra: Any) -> tuple[Item, list[str]]:
-    data = {**_ITEM_SCAFFOLD, **extra, **kept}
+Built = tuple[list[str], dict[str, Any]]
+
+
+def _item(kept: dict[str, Any], **extra: Any) -> tuple[Item | None, list[str]]:
     try:
-        return Item.model_validate(data), []
+        return Item.model_validate({**_ITEM_SCAFFOLD, **extra, **kept}), []
     except ValidationError as exc:
-        return Item.model_construct(**data), _fmt(exc, prefix="item")
+        return None, _fmt(exc, prefix="item")
 
 
 def _offer(raw: dict[str, Any], **fixed: Any) -> tuple[Offer | None, list[str]]:
     kept, errors = _check(Offer, raw, ("price",))
     if "price" not in kept:
         return None, errors + _missing(kept, ("price",))
-    data = {"item_id": "scan", **fixed, **kept}
     try:
-        return Offer.model_validate(data), errors
+        return Offer.model_validate({"item_id": "scan", **fixed, **kept}), errors
     except ValidationError as exc:
-        return Offer.model_construct(**data), errors + _fmt(exc, prefix="offer")
-
-
-def _result(kind: ScanKind, errors: list[str], **parts: Any) -> ScanResult:
-    errors = list(dict.fromkeys(errors))
-    return ScanResult(kind=kind, valid=not errors, errors=errors, **parts)
+        return None, errors + _fmt(exc, prefix="offer")
 
 
 _LABEL_ATTRS = {"product_class": str, "volume_cuft": float, "label_kwh_per_year": float}
 
 
-def _from_label(raw: dict[str, Any]) -> ScanResult:
+def _from_label(raw: dict[str, Any]) -> Built:
     kept, errors = _check(Item, raw, ("brand", "model", "serial", "mfg_year"))
     attrs, attr_errors = _check(_LABEL_ATTRS, raw, _LABEL_ATTRS)
     extra: dict[str, Any] = {"attributes": attrs}
     if "mfg_year" in kept:
         extra["year_confidence"] = "high"
     item, item_errors = _item(kept, **extra)
-    return _result("label", errors + attr_errors + item_errors + _missing(kept, ("brand", "model")), item=item)
+    return errors + attr_errors + item_errors + _missing(kept, ("brand", "model")), {"item": item}
 
 
-def _from_price_tag(raw: dict[str, Any]) -> ScanResult:
+def _from_price_tag(raw: dict[str, Any]) -> Built:
     kept, errors = _check(Item, raw, ("brand", "model"))
     item, item_errors = _item(kept, condition="new")
     offer, offer_errors = _offer(raw, seller_type="retailer", source="price_tag", source_id="user")
     errors = errors + item_errors + offer_errors + _missing(kept, ("brand", "model"))
-    return _result("price_tag", errors, item=item, offer=offer)
+    return errors, {"item": item, "offer": offer}
 
 
-def _from_listing(raw: dict[str, Any]) -> ScanResult:
+def _from_listing(raw: dict[str, Any]) -> Built:
     kept, errors = _check(Item, raw, ("brand", "model", "condition", "mfg_year"))
     extra: dict[str, Any] = {}
     if "mfg_year" in kept:
@@ -227,7 +228,7 @@ def _from_listing(raw: dict[str, Any]) -> ScanResult:
     item, item_errors = _item(kept, **extra)
     offer, offer_errors = _offer(raw, seller_type="private", source="user_listing", source_id="user_listing")
     errors = errors + item_errors + offer_errors + _missing(kept, ("brand", "model", "condition"))
-    return _result("listing", errors, item=item, offer=offer)
+    return errors, {"item": item, "offer": offer}
 
 
 _LEASE_KEYS = (
@@ -238,10 +239,12 @@ _LEASE_KEYS = (
     "early_purchase_rule",
     "early_purchase_text",
     "missed_payment_rule",
+    "payment_today",
+    "total_of_payments",
 )
 
 
-def _from_lease(raw: dict[str, Any]) -> ScanResult:
+def _from_lease(raw: dict[str, Any]) -> Built:
     kept, errors = _check(Lease, raw, _LEASE_KEYS)
     if "early_purchase_percent" in raw:
         pct, pct_errors = _check({"early_purchase_percent": float}, raw, ("early_purchase_percent",))
@@ -250,11 +253,11 @@ def _from_lease(raw: dict[str, Any]) -> ScanResult:
             kept["early_purchase_pct"] = pct["early_purchase_percent"] / 100
     kept["source_id"] = "user_lease"
     errors += _missing(kept, ("weekly_payment", "term_weeks", "cash_price"))
+    lease: Lease | None = None
     try:
         lease = Lease.model_validate(kept)
     except ValidationError as exc:
         errors += _fmt(exc, prefix="lease")
-        lease = Lease.model_construct(**kept)
     # The leased unit is the rent-to-own offer the quote pairs with the lease; its price is the cash price.
     item_kept, item_errors = _check(Item, raw, ("brand", "model"))
     item, build_errors = _item(item_kept, condition="new")
@@ -262,4 +265,7 @@ def _from_lease(raw: dict[str, Any]) -> ScanResult:
     offer, offer_errors = _offer(offer_raw, seller_type="rent_to_own", source="user_listing", source_id="user_listing")
     offer_errors = [e for e in offer_errors if e != "price: missing"]
     errors += item_errors + build_errors + offer_errors + _missing(item_kept, ("brand", "model"))
-    return _result("lease", errors, item=item, offer=offer, lease=lease)
+    return errors, {"item": item, "offer": offer, "lease": lease}
+
+
+_BUILDERS = {"label": _from_label, "price_tag": _from_price_tag, "lease": _from_lease, "listing": _from_listing}

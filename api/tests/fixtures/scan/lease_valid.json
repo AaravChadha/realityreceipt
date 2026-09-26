@@ -8,5 +8,7 @@
   "early_purchase_rule": "pct_of_remaining",
   "early_purchase_percent": 50,
   "early_purchase_text": "Pay 50% of the remaining balance to own",
-  "missed_payment_rule": "Account may be placed for collection after 7 days past due"
+  "missed_payment_rule": "Account may be placed for collection after 7 days past due",
+  "payment_today": null,
+  "total_of_payments": null
 }

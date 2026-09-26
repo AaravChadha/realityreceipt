@@ -110,21 +110,36 @@ def test_lease_without_brand_and_model_is_invalid() -> None:
     assert result.valid is False
     assert "brand: missing" in result.errors
     assert "model: missing" in result.errors
-    assert result.lease is not None
-    assert result.lease.cash_price == 800.0
+    assert result.item is None and result.offer is None and result.lease is None
+    assert result.fields["cash_price"] == 800.0
 
 
-def test_lease_missing_term_is_invalid_and_keeps_what_parsed() -> None:
+def test_lease_missing_term_is_invalid_and_keeps_what_was_read_in_fields() -> None:
     payload = {**_load("lease_valid.json"), "term_weeks": None}
     result = scan("lease", JPEG, FakeGrokClient(payload))
     assert result.valid is False
     assert "term_weeks: missing" in result.errors
-    assert result.lease is not None
-    assert result.lease.weekly_payment == 30.0
-    assert result.lease.cash_price == 800.0
+    assert result.item is None and result.offer is None and result.lease is None
+    assert result.fields["weekly_payment"] == 30.0
+    assert result.fields["cash_price"] == 800.0
+    assert "term_weeks" not in result.fields
     sent = json.loads(result.model_dump_json())
-    assert sent["lease"]["weekly_payment"] == 30.0
-    assert "term_weeks" not in sent["lease"]
+    assert sent["fields"]["brand"] == "Frigidaire"
+    assert sent["lease"] is None
+
+
+def test_lease_keeps_todays_payment_and_the_printed_total() -> None:
+    payload = {**_load("lease_valid.json"), "payment_today": 0.01, "total_of_payments": 1560.0}
+    result = scan("lease", JPEG, FakeGrokClient(payload))
+    assert result.valid is True
+    assert result.lease is not None
+    assert (result.lease.payment_today, result.lease.total_of_payments) == (0.01, 1560.0)
+
+
+def test_a_valid_scan_also_reports_what_was_read_in_fields() -> None:
+    result = scan("listing", JPEG, FakeGrokClient(_load("listing_valid.json")))
+    assert result.valid is True
+    assert result.fields == {k: v for k, v in _load("listing_valid.json").items() if v is not None}
 
 
 def test_listing_valid() -> None:
@@ -138,16 +153,15 @@ def test_listing_valid() -> None:
     assert result.offer.source == "user_listing"
 
 
-def test_label_malformed_keeps_partial_fields() -> None:
+def test_label_malformed_is_invalid_and_returns_no_item() -> None:
     result = scan("label", JPEG, FakeGrokClient(_load("label_malformed.json")))
     assert result.valid is False
     assert any(e.startswith("model:") for e in result.errors)
     assert any(e.startswith("volume_cuft:") for e in result.errors)
-    assert result.item is not None
-    assert result.item.brand == "GE"
-    assert result.item.serial == "FG123456A"
-    assert result.item.attributes == {"product_class": "top_freezer"}
-    assert result.item.model == ""
+    assert result.item is None
+    assert result.fields["brand"] == "GE"
+    assert result.fields["serial"] == "FG123456A"
+    assert result.fields["volume_cuft"] == "eighteen"
 
 
 def test_each_kind_has_its_own_prompt_and_strict_schema() -> None:
