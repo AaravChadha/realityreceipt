@@ -111,3 +111,23 @@ def test_bnpl_interest_from_cached_terms_is_what_is_paid_over_the_price() -> Non
     (line,) = c.lines
     assert line.amount_low > 0
     assert line.amount_low == pytest.approx(sum(c.monthly_low) - 1000, abs=0.001)
+
+
+def test_bnpl_installments_after_month_35_are_left_out_of_the_window() -> None:
+    # 48 payments every 4 weeks: payment k (0 = today) falls in month k * 48 // 52,
+    # so payments 0 to 38 fall in months 0 to 35 and payments 39 to 47 fall after them.
+    terms = BnplTerms(provider="Example", installments=48, interval_weeks=4, apr=0.0, source_id="example_bnpl")
+    c = bnpl(4800, terms)
+    assert len(c.monthly_low) == len(c.monthly_high) == MONTHS
+    assert sum(c.monthly_low) == pytest.approx(3900.0)
+    assert c.monthly_low[35] == 100.0  # payment 38 only; the nine later ones are not piled in here
+    assert c.monthly_low == c.monthly_high
+    assert c.pay_today == 100.0
+    (line,) = c.lines
+    assert line.amount_low == line.amount_high == 0.0  # the method's cost over the price, under the full terms
+    # The formula still states the full schedule, then what the 3 years count.
+    assert line.formula.startswith("48 payments of $100.00 every 4 weeks from today")
+    assert "$4,800.00 in all" in line.formula
+    assert line.formula.endswith("Only the 39 payments due in the first 36 months, $3,900.00, count toward the 3-year total")
+    pay_in_4 = BnplTerms(provider="Example", installments=4, interval_weeks=2, apr=0.0, source_id="example_bnpl")
+    assert "first 36 months" not in bnpl(1000, pay_in_4).lines[0].formula
