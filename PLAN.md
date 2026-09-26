@@ -282,7 +282,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `web/src/components/Receipt.tsx` and `PathCard.tsx`: paths in API order, each with pay today, total over 3 years and cost per year, ranges shown as `$A to $B`, `not estimated` for `null`; a carbon line only when `carbon_kg` is non-null; a visible "Sample data, not a real quote" banner when any path has `"fixture"` in `flags`. `web/src/format.ts`: `money(n)`, `range(low, high)`. `Receipt.test.tsx` renders `contracts/receipt_fridge.json` and finds the banner and all 9 path names; `format.test.ts` checks `range(80, 180) === "$80 to $180"`.
   **Acceptance:** `npm --prefix web test -- Receipt format` passes.
 
-- [ ] **2.9.1 Receipt fits the page and says what is missing (Track C2)** (NEW 2026-09-26, decision 3)
+- [x] **2.9.1 Receipt fits the page and says what is missing (Track C2)** (NEW 2026-09-26, decision 3)
   Remove `Receipt`'s own width, padding and light background so it sits inside the app shell and follows dark mode; give the "What's in this number" toggle a 44px minimum height; show each pinned flag as a plain sentence, with `costs_not_estimated` as a visible note under the headline numbers ("Some costs are not estimated, so the real total may be higher"); label carbon "kg CO2e"; show "up to" beside the PAL path's pay today.
   **Acceptance:** `npm --prefix web test -- Receipt` passes, including tests for the `costs_not_estimated` note, one flag sentence, "CO2e", and "up to" on the PAL path.
 
