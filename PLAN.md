@@ -58,14 +58,26 @@ The option that looks cheapest today often costs the most over time: an old used
 > - **Replacement purchase:** the cheapest cached new offer in the category, added to `monthly_high` at month `ceil(life_low * 12)` and to `monthly_low` at month `ceil(life_high * 12)`, each only when that month is under 36.
 > - **Monthly cash flow:** `monthly_low[36]` and `monthly_high[36]` (index 0 = today), replacing the spec's single `monthly[36]`. Total over 3 years = sum of each array.
 > - **Old unit energy:** its sourced rated figure. Extra draw from aging is `not_estimated`.
-> - **Rent-to-own effective annual cost** = ((total of payments - cash price) / cash price) / (term_weeks / 52). Never labeled APR.
-> - **Sort order:** paths by `total_3yr_high`, ties by `pay_today`. Shop offers by `cost_per_year_high`, `None` last.
+> - ~~**Rent-to-own effective annual cost** = ((total of payments - cash price) / cash price) / (term_weeks / 52). Never labeled APR.~~ → **Verdict (2026-09-26):** the same formula, never labeled APR, shown only on the keep-paying path; the buyout path states its total minus the cash price instead. Annualizing a buyout after a few weeks gave -32% and 706% in review.
+> - ~~**Sort order:** paths by `total_3yr_high`, ties by `pay_today`. Shop offers by `cost_per_year_high`, `None` last.~~ → **Verdict (2026-09-26):** complete paths first, by `total_3yr_high` then `pay_today`; paths flagged `costs_not_estimated` after them in the same order. Shop: complete offers first, then flagged, each by `cost_per_year_high` with `None` last. A blank cost counted as $0 made incomplete paths look cheapest.
 
 > **Decision (2026-09-26):** ~~Contracts frozen by 03:30 EDT.~~ → **Verdict (2026-09-26):** ~~frozen by 04:30 EDT~~ → **Verdict (2026-09-26 14:52):** frozen when the Phase 1 PR merges; no clock time. The team works untimed.
 
 > **Decision (2026-09-26):** An old unit with no rating in ENERGY STAR or the DOE CCD falls back to the DOE standard maximum for its manufacture year, product class and adjusted volume (spec §3), labeled `published` and "up to, when new". Tradeoff: an upper bound when new, not what an aged unit draws; mitigated by the separate `not_estimated` aging line. Revisit if a sourced degradation figure turns up.
 
-> **Decision (2026-09-26):** "Not a wrapper" parity covers brand, model, serial, condition, price, and the optional `product_class` and `volume_cuft`. Energy always comes from lookup by model (or the standard fallback), never from a kWh figure printed on a scanned label, so typed and scanned entries resolve identically. Tradeoff: a label's printed kWh is not used directly; mitigated by the model lookup returning the same rated figure. Revisit never during this event.
+> **Decision (2026-09-26):** "Not a wrapper" parity covers brand, model, serial, condition, price, and the optional `product_class` and `volume_cuft`. ~~Energy always comes from lookup by model (or the standard fallback), never from a kWh figure printed on a scanned label, so typed and scanned entries resolve identically. Tradeoff: a label's printed kWh is not used directly; mitigated by the model lookup returning the same rated figure. Revisit never during this event.~~ → **Verdict (2026-09-26):** a label's printed kWh may be used, as `attributes["label_kwh_per_year"]` (`user_entered`, source `user`), when no rated figure is found. Typed and scanned entry fill the same field, so parity holds. Old models are missing from ENERGY STAR, so without it the old unit's electricity was always blank.
+
+> **Decision (2026-09-26 18:05): fixes from the review** (five reviewers plus a Codex review of main at 08d78ac). Each fix is a follow-up task next to the task it corrects.
+> 1. **Old-unit energy:** after ENERGY STAR, look the model up in DOE's historical refrigerator rating database (1949 to 2021, `rated`); then the label's printed kWh (`user_entered`); then the standard ceiling (adjusted volume only); else `not_estimated`. The DOE data also gives a manufacture year when none is entered. Tasks 2.2.2, 3.3.3.
+> 2. **"Year made"** is an optional field on both entry sections; the scan reads it when printed. Task 2.8.1.
+> 3. **Incomplete paths:** a path missing its electricity, financing or replacement-timing figure is flagged `costs_not_estimated`, says so on screen, and sorts after complete paths. Tasks 3.3.1, 4.2.1, 2.9.1.
+> 4. **Effective annual cost** only on the keep-paying path (see the Verdict above). Task 3.2.1.
+> 5. **Shop filters** keep offers whose delivery time or width is unknown, flagged `delivery_unknown` or `width_unknown`. Task 4.2.1.
+> 6. **Demo address:** the API serves the built web app at one address, deployed behind the team's free .tech domain; the quick tunnel stays as backup; a backup video is recorded. Tasks 2.7.1, 2.11.1.
+> 7. **3-year window:** only payments falling in months 0 to 35 count; later lease or BNPL payments are left out, not moved into month 35 (the full total stays in the line's formula). Supersedes 3.2's `min(35, ...)` bucketing. Tasks 3.1.1, 3.2.1.
+> 8. **Past typical life:** flag `past_typical_life`, insert no replacement, mark replacement timing `not_estimated`. After a replacement inside the window, running cost switches to the replacement unit. Task 3.3.2.
+> 9. **Rated means the brand matches;** several matching rows with different kWh return `None` with the rows as candidates. Task 2.2.1.
+> Tradeoff: about fifteen small tasks across rows tonight; mitigated by each being one row's files with its own acceptance.
 
 ## Index of phases
 
@@ -86,14 +98,14 @@ One row = one session's file set. A person with fewer sessions runs several rows
 | Row | Owner | Edits only | Reads from |
 |---|---|---|---|
 | 0 Operator | repo owner | `.gitignore`, `.github/`, `pytest.ini`, `api/requirements.txt`, `api/app/__init__.py`, `api/.env.example`, `web/package.json`, `web/package-lock.json`, `web/vite.config.ts`, `web/tsconfig*.json`, `web/index.html`, `docs/`, `README.md`, `AGENTS.md`, `.claude/acstack.md`, `.cursor/` | — |
-| A1 Contracts and routes | Track A | `api/app/models.py`, `api/app/main.py`, `contracts/`, `web/src/contracts.ts`, `web/src/contracts.test.ts`, `api/tests/test_contracts.py`, `api/tests/test_health.py`, `api/tests/test_routes.py` | every module's functions below |
+| A1 Contracts and routes | Track A | `api/app/models.py`, `api/app/main.py`, `contracts/`, `web/src/contracts.ts`, `web/src/contracts.test.ts`, `api/tests/test_contracts.py`, `api/tests/test_health.py`, `api/tests/test_routes.py`, `api/tests/test_journey.py` | every module's functions below |
 | A2 Quote and lifecycle | Track A | `api/app/engine/__init__.py`, `api/app/engine/quote.py`, `api/app/engine/lifecycle.py`, `api/app/engine/rank.py`, `api/tests/test_lifecycle.py`, `api/tests/test_slice.py`, `api/tests/test_quote_all_paths.py`, `api/tests/test_rank.py`, `api/tests/test_copy.py` | A3 to A5, B1 |
 | A3 Financing | Track A | `api/app/engine/financing.py`, `api/tests/test_financing.py` | A1 models |
 | A4 Rent-to-own | Track A | `api/app/engine/lease.py`, `api/tests/test_lease.py` | A1 models |
 | A5 Running cost and carbon | Track A | `api/app/engine/running.py`, `api/tests/test_running.py` | A1 models |
 | B1 Sources and repository | Track B | `api/app/repository.py`, `api/app/data/sources.json`, `api/app/data/rates.json`, `api/app/data/bnpl.json`, `api/tests/test_repository.py` | A1 models |
-| B2 Refrigerator profile | Track B | `api/app/data/refrigerator.json`, `api/app/data/energystar_refrigerators.csv`, `api/app/data/doe_standards_refrigerators.json`, `api/tests/test_profile.py` | B1 |
-| B3 Offers and demo materials | Track B | `api/app/data/retailer_cache.json`, `demo/`, `api/tests/test_retailer_cache.py` | B1 |
+| B2 Refrigerator profile | Track B | `api/app/data/refrigerator.json`, `api/app/data/energystar_refrigerators.csv`, `api/app/data/doe_standards_refrigerators.json`, `api/app/data/doe_wap_refrigerators.csv.gz`, `api/tests/test_profile.py` | B1 |
+| B3 Offers and demo materials | Track B | `api/app/data/retailer_cache.json`, `demo/`, `api/tests/test_retailer_cache.py`, `api/tests/test_demo_cards.py` | B1 |
 | B4 Serial decode | Track B | `api/app/serial/`, `api/tests/test_serial.py` | A1 models |
 | C1 Shell, entry and scan UI | Track C | `web/src/App.tsx`, `web/src/main.tsx`, `web/src/api.ts`, `web/src/pages/Entry.tsx`, `web/src/pages/Entry.test.tsx`, `web/src/copy.test.ts`, `web/src/index.css` | A1 contracts |
 | C2 Receipt | Track C | `web/src/components/Receipt.tsx`, `web/src/components/PathCard.tsx`, `web/src/format.ts`, `web/src/components/Receipt.test.tsx`, `web/src/format.test.ts` | A1 contracts |
@@ -117,6 +129,9 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - `api/app/grok/client.py`: `class GrokClient` with `chat_json(system: str, user: str, image_jpeg: bytes | None = None) -> dict`; reads `XAI_API_KEY` and `XAI_MODEL` from `api/.env`. `api/app/grok/scan.py`: `scan(kind: ScanKind, image_jpeg: bytes, client: GrokClient) -> ScanResult`. `api/app/grok/parse.py`: `parse_request(text: str, client: GrokClient) -> ShopFilters`.
 - `api/app/voice/script.py`: `script(paths: list[Path], lang: Literal["en", "es"]) -> str`.
 - Reserved source ids: `user` (typed by the user), `user_listing` (from the user's listing), `user_lease` (from the user's lease). Every other id comes from `api/app/data/sources.json`.
+- **Flags** (pinned 2026-09-26; the web shows each as a plain sentence): `costs_not_estimated`, `past_typical_life`, `test_procedure_changed`, `year_from_serial_low_confidence`, `pal_caps_not_an_offer`, `bnpl_terms_not_an_offer`, `over_budget_today`, `delivery_unknown`, `width_unknown`, `fixture`.
+- **`Item.attributes` keys:** `product_class` (CFR class code, e.g. `"3"`), `volume_cuft` (total volume printed on the label), `adjusted_volume_cuft` (DOE adjusted volume; only this feeds the standard ceiling), `width_in`, `label_kwh_per_year` (kWh printed on the unit's own EnergyGuide label).
+- **Energy lookup order** (3.3.3), used by every path builder: `repo.model_energy` (ENERGY STAR, then DOE historical), then `label_kwh_per_year` (`user_entered`), then `repo.standard_ceiling` with `adjusted_volume_cuft`, else `not_estimated`. Added: `Repository.model_year(brand: str, model: str) -> int | None` (2.2.2).
 
 ## Phases
 
@@ -192,6 +207,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   A number computed from two sourced inputs must name both. `CostLine.other_source_ids: list[str] = []` lists the sources of a line's other inputs (electricity: the rate; `source_id` stays the kWh figure's). `Path.carbon_source_ids: list[str] = []`, required non-empty whenever `carbon_kg` is set (the kWh source and the eGRID source). Mirrored in `web/src/contracts.ts`; `contracts/receipt_fridge.json` regenerated. Tests in `api/tests/test_contracts.py`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py -q` passes, and `npm --prefix web test -- contracts` passes.
 
+- [ ] **1.6 Contract hardening (Track A1)** (NEW 2026-09-26, review)
+  In `api/app/models.py`: `ConfigDict(extra="forbid", allow_inf_nan=False)` on `Contract`; `UpkeepItem` and `RepairRange` require `cost_low <= cost_high`; `Item.mfg_year` between 1940 and the current year; `Lease.term_weeks` at most 260. Document the `Item.attributes` keys from "Fixed interfaces" in the `Item` docstring and in `web/src/contracts.ts`.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py -q` passes, including new tests that reject an infinite price, an upkeep item with low above high, and `mfg_year=1800`.
+
 <a id="phase-2"></a>
 ### [ ] Phase 2 — Vertical slice
 > Goal: a typed fridge model, plus a used listing price, produces a real sourced receipt with `used_as_is` and `new`/`cash` paths, on a real phone over HTTPS. Proves every track connects before widening.
@@ -207,6 +226,14 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `api/app/data/refrigerator.json`: a `CategoryProfile` with a published lifespan range, a published-only upkeep schedule (empty list if none is published), repair ranges with sources, `carbon_applicable: true`. `api/app/data/energystar_refrigerators.csv`: columns `brand,model_number,model_normalized,annual_kwh` from the ENERGY STAR certified refrigerators dataset, filtered to the brands in the demo and the retailer cache (keep the file under 1 MB). `Repository.model_energy` returns `ModelEnergy(source_type="rated", source_id="energystar_refrigerators")` on an exact normalized match; `model_candidates` returns up to 5 prefix matches. `api/tests/test_profile.py`: the profile validates, every `source_id` resolves, a known demo model returns its CSV kWh, and a one-character typo returns `None` with at least one candidate.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_profile.py -q` passes.
 
+- [ ] **2.2.1 Wildcard, brand-matched model lookup (Track B1/B2)** (NEW 2026-09-26, decision 9)
+  Load the full ENERGY STAR certified refrigerators dataset (every row, not a brand subset). In `Repository.model_energy`: treat each `*` or `#` in a dataset model number as one optional letter or digit and match the normalized query against that pattern (a query that itself contains wildcards matches a row with the same pattern); require the brand to match, with a small alias list (GE = GE Appliances); prefer the row with the fewest wildcards; return `None` when the remaining matches disagree on kWh, listing them in `model_candidates`. Never return another brand's row.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_profile.py -q` passes, including tests that a label family (`GTE18FSL****`) and a full retail number built from it both return the family's kWh, that a matching row from another brand returns `None`, and that two matches with different kWh return `None` with both as candidates.
+
+- [ ] **2.2.2 DOE historical ratings for old units (Track B2)** (NEW 2026-09-26, decision 1)
+  Add DOE's refrigerator and freezer energy rating database (the Weatherization Assistance Program search tool's data, 1949 to 2021) as `api/app/data/doe_wap_refrigerators.csv.gz`, with its source in `sources.json`. `model_energy` falls back to it, with the same matching rules, when ENERGY STAR has no match, returning `source_type="rated"` and that source's id. Add `Repository.model_year(brand: str, model: str) -> int | None` from the same data.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_profile.py -q` passes, including a test that the Maytag family on demo card `label-older-maytag-mb2562.png` returns the DOE file's kWh (the figure printed on that label) and a model year.
+
 - [ ] **2.3 Retailer cache (Track B3)**
   `api/app/data/retailer_cache.json`: 8 to 15 real new refrigerator listings recorded by hand, each an `Offer` with `source: "retailer_cache"`, `url`, `retrieved_at`, a `source_id` present in `sources.json`, and an `item_id` whose `Item` (brand, model, `product_class`, `volume_cuft`, `width_in`) is stored alongside. Every model appears in `energystar_refrigerators.csv` or is noted as missing. `api/tests/test_retailer_cache.py`: every offer validates, has a URL and date, and resolves its source.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_retailer_cache.py -q` passes.
@@ -218,6 +245,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [x] **2.4.1 Name the rate's source on the electricity line (Track A5)** (NEW 2026-09-26, needs 1.5)
   In `energy`, set `other_source_ids=[rate.source_id]` on the estimated electricity line (not on the `not_estimated` one). Add a test in `api/tests/test_running.py` asserting it.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_running.py -q` passes, including the new test.
+
+- [ ] **2.4.2 Electricity formula shows the exact rate (Track A5)** (NEW 2026-09-26, review)
+  `running.py`'s `_num` shows up to 6 decimal places, so each electricity formula reproduces its own amount (the rate prints as 0.15641, not 0.1564).
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_running.py -q` passes, including a test that recomputes the per-year amount from the numbers printed in the formula.
 
 - [x] **2.5 Cash path (Track A3)**
   `api/app/engine/financing.py`: `cash` puts the price in month 0 of both arrays, `pay_today = price`, one `purchase` line. `api/tests/test_financing.py`: `cash(800.0, "user_listing")` gives `pay_today == 800.0` and month-0 totals of 800.0.
@@ -231,13 +262,29 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `api/app/main.py`: `POST /quote` calls `quote(req, Repository.load())`; `GET /sources` returns `repo.sources()`; `POST /item` validates and, when brand and serial are present, fills `mfg_year` and `year_confidence` from `decode` once B4 lands. Update `api/tests/test_routes.py` so `/quote` with the slice input returns non-fixture paths.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_routes.py -q` passes.
 
+- [ ] **2.7.1 One address: the API serves the web app (Track A1)** (NEW 2026-09-26, decision 6)
+  In `api/app/main.py`, serve every route under `/api` as well as unprefixed, and when `web/dist` exists, serve it at `/` with `index.html` for unknown non-API paths, so the built app and the API share one address.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_routes.py -q` passes, including a test that, with a temporary `dist` directory, `GET /` returns its `index.html` and `GET /api/health` returns `{"ok": true}`.
+
+- [ ] **2.7.2 Real-data journey test (Track A1)** (NEW 2026-09-26, review)
+  `api/tests/test_journey.py`: through `TestClient` on the real `Repository`, POST `/quote` with a typed fridge whose model is in the ENERGY STAR data plus a used listing; assert non-fixture paths, a `rated` electricity line, and that every source id on every line resolves through `GET /sources`.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_journey.py -q` passes.
+
 - [x] **2.8 App shell, API client and manual entry (Track C1)**
   `web/src/api.ts`: typed wrappers for every route, base path `/api`. `web/src/pages/Entry.tsx`: manual entry for brand, model, serial, condition, optional `product_class` and `volume_cuft`, a used listing price, an optional repair quote, and an optional "I can spend up to $___ today" amount; submit calls `/quote` and shows the receipt. No personal questions. `web/src/copy.test.ts` scans every `.ts` and `.tsx` file under `web/src` except tests and fails on an em dash (U+2014) or the word `APR`. `web/src/pages/Entry.test.tsx` renders the form and finds the brand, model and serial inputs by label.
   **Acceptance:** `npm --prefix web test -- Entry copy` passes.
 
+- [ ] **2.8.1 Show the real receipt; year and label kWh (Track C1)** (NEW 2026-09-26, decisions 1 and 2)
+  In `Entry.tsx`: replace the plain list with `<Receipt paths onLineTap>` and open `<SourceSheet>` from `onLineTap`, fetching `/sources` once; add an optional "Year made" field to both sections (sent as `mfg_year`) and an optional "kWh per year on the yellow label" field to "Your fridge now" (sent as `attributes.label_kwh_per_year`); after a quote, move focus to the results and scroll them into view. In `api.ts`, time requests out after 15 seconds with a plain message.
+  **Acceptance:** `npm --prefix web test -- Entry` passes, including tests that the year and label kWh reach the `/quote` body, that the response renders through `Receipt`, and that tapping a cost line opens the source sheet.
+
 - [x] **2.9 Receipt view (Track C2)**
   `web/src/components/Receipt.tsx` and `PathCard.tsx`: paths in API order, each with pay today, total over 3 years and cost per year, ranges shown as `$A to $B`, `not estimated` for `null`; a carbon line only when `carbon_kg` is non-null; a visible "Sample data, not a real quote" banner when any path has `"fixture"` in `flags`. `web/src/format.ts`: `money(n)`, `range(low, high)`. `Receipt.test.tsx` renders `contracts/receipt_fridge.json` and finds the banner and all 9 path names; `format.test.ts` checks `range(80, 180) === "$80 to $180"`.
   **Acceptance:** `npm --prefix web test -- Receipt format` passes.
+
+- [ ] **2.9.1 Receipt fits the page and says what is missing (Track C2)** (NEW 2026-09-26, decision 3)
+  Remove `Receipt`'s own width, padding and light background so it sits inside the app shell and follows dark mode; give the "What's in this number" toggle a 44px minimum height; show each pinned flag as a plain sentence, with `costs_not_estimated` as a visible note under the headline numbers ("Some costs are not estimated, so the real total may be higher"); label carbon "kg CO2e"; show "up to" beside the PAL path's pay today.
+  **Acceptance:** `npm --prefix web test -- Receipt` passes, including tests for the `costs_not_estimated` note, one flag sentence, "CO2e", and "up to" on the PAL path.
 
 - [x] **2.10 Tap-to-source sheet (Track C3)**
   `web/src/components/SourceSheet.tsx`: tapping any cost line opens a sheet with its label, amount range, formula, source label (`Rated`, `Published`, `You entered`, `Not estimated`) and, from `/sources`, the title, publisher, URL and retrieved date. `SourceSheet.test.tsx` renders one line of each `source_type` and finds the four label texts.
@@ -246,6 +293,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [ ] **2.11 Phone over HTTPS (Track 0 — operator)**
   `docs/runbook.md`: start the API (`api/.venv/bin/uvicorn app.main:app --app-dir api --port 8000`), the web dev server (`npm --prefix web run dev`), and `cloudflared tunnel --url http://localhost:5173`; open the printed `trycloudflare.com` URL on a real phone.
   **Acceptance:** `grep -c -E 'cloudflared tunnel --url|uvicorn app.main:app' docs/runbook.md` prints `2`; by hand, the phone shows the live receipt.
+
+- [ ] **2.11.1 Deploy behind the team's .tech domain (Track 0 — operator)** (NEW 2026-09-26, decision 6; after 2.7.1)
+  Claim the free .tech domain (MLH offer), deploy the single service (the API serving `web/dist`) to a host with the xAI key as an environment variable, point the domain at it following the host's DNS instructions, and keep it awake during judging. The quick tunnel stays as backup. Add a "Deploy" section to `docs/runbook.md`, and record a backup video of the demo.
+  **Acceptance:** `grep -c '^## Deploy' docs/runbook.md` prints `1`; by hand, a phone on mobile data opens `https://<domain>/` and `https://<domain>/api/health` prints `{"ok":true}`.
 
 <a id="phase-3"></a>
 ### [ ] Phase 3 — Full receipt and scan
@@ -257,13 +308,33 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `card`, `pal`, `bnpl` per "Fixed interfaces" and the pinned formulas. Tests in `api/tests/test_financing.py`: `card(1000, RateValue(0.24, ...))` pays 94.56 a month for months 1 to 12 (total 1134.72, within 0.01) with `pay_today == 0`; `pal(1000, ...)` at 28% for 12 months pays 96.50 a month (within 0.01) plus the $20 fee, and returns `None` for a price of 2500; `bnpl(500, None)` returns one `not_estimated` financing line.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_financing.py -q` passes.
 
+- [ ] **3.1.1 BNPL installments outside 36 months (Track A3)** (NEW 2026-09-26, decision 7)
+  In `bnpl`, an installment falling after month 35 is left out of the window arrays instead of added to month 35; the line's formula still states the full schedule.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_financing.py -q` passes, including a test with installments past month 35.
+
 - [x] **3.2 Rent-to-own (Track A4)**
   `api/app/engine/lease.py` per "Fixed interfaces". Weekly payment `w` (1-based) falls in month `min(35, (w - 1) * 12 // 52)`; fees fall in month 0. `cheapest_buyout` tries every week 1 to `term_weeks` and returns the lowest total paid (payments so far plus the buyout amount under the lease's rule; `none` returns the full term). Lines carry `source_id="user_lease"`. `api/tests/test_lease.py`: `effective_annual_cost(2000, 800, 52) == 1.5` and `(2000, 800, 104) == 0.75`; a 52-week, $30-a-week lease with `pct_of_remaining` 0.5 has its cheapest buyout at week 1 for 795.0; no line label or formula contains `APR`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes.
 
+- [ ] **3.2.1 Lease window, buyout pay today and wording (Track A4)** (NEW 2026-09-26, decisions 4 and 7)
+  Weekly payments after month 35 are left out of the window arrays (a 208-week lease at $30 a week counts 156 payments, $4,680; the formula states the full lease total). A buyout in week 1 is included in pay today. `rto_full` keeps the effective annual cost in its formula; `rto_buyout` drops it and states its total minus the cash price ("$X more than the cash price" or "$X less"). A lease with `early_purchase_rule="none"` says "No early purchase terms entered", never "Your lease has no early purchase option".
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including tests for the 208-week lease ($4,680 inside the window), a week-1 buyout's pay today ($795 for task 3.2's example lease), the buyout wording, and the "no terms entered" wording.
+
 - [x] **3.3 All paths in the quote (Track A2)**
   Extend `quote` to all 9 path kinds: `repair` (when `current` is given; repair cost from `repair_quote_*` as `user_entered`, else the profile's repair ranges as `published`; running cost from the current unit), `refurbished` (from a refurbished listing; warranty months shown in a flag), `new` x4 via A3, `rent_to_own` x2 via A4 (when `lease` is given). A path whose inputs are absent is omitted, never invented. Apply flags: `past_typical_life`, `test_procedure_changed` (when comparing a pre-2014 unit with a newer one), `year_from_serial_low_confidence`. `api/tests/test_quote_all_paths.py`: a full request returns 9 paths sorted by `total_3yr_high`; each path's totals equal the sums of its arrays. `api/tests/test_copy.py`: no label, formula or flag in that output contains an em dash, `APR` or `qualif`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py api/tests/test_copy.py -q` passes.
+
+- [ ] **3.3.1 Incomplete paths flagged and sorted last (Track A2)** (NEW 2026-09-26, decision 3)
+  A path whose electricity (for a category that uses energy), financing or replacement timing is `not_estimated` gets the flag `costs_not_estimated`. `quote` sorts complete paths by `total_3yr_high` then `pay_today`, then flagged paths in the same order.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including a test where a rent-to-own path with no electricity figure sorts after a complete new-cash path even though its total is lower.
+
+- [ ] **3.3.2 Replacement and past-typical-life honesty (Track A2)** (NEW 2026-09-26, decision 8)
+  At or past the typical life: flag `past_typical_life`, insert no replacement, and add a `not_estimated` replacement line ("When it will need replacing is not estimated"), so the path is also `costs_not_estimated`. When a replacement falls inside the window, the old unit's running cost and carbon stop at that month and the replacement unit's (its rated figure, or `not_estimated`) run after it.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including tests for a 20-year-old unit (no replacement amount; flags `past_typical_life` and `costs_not_estimated`) and a replacement at month 12 (running cost from month 12 uses the new unit's kWh).
+
+- [ ] **3.3.3 One energy lookup for every path, including the shop (Track A2)** (NEW 2026-09-26, decisions 1 and 2)
+  One function in `quote.py` resolves a unit's kWh in the pinned "Energy lookup order", and every path builder uses it, including `_cash_path`, so `rank` agrees with `quote`. When `mfg_year` is missing, use `repo.model_year` if it returns one. Add `model_year` to the `QuoteRepository` protocol.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py api/tests/test_rank.py -q` passes, including a test that the same used unit gets the same electricity line from `quote` and from `rank`, and a test for each step of the lookup order.
 
 - [x] **3.4 Serial decode (Track B4)**
   `api/app/serial/decode.py`: decoders keyed by brand, only for the brands on the demo cards and in the retailer cache, each rule's `source_id` in `sources.json`. A year code that repeats on a cycle resolves from model era when possible, otherwise returns `year_confidence="low"`. An unknown brand returns `SerialDecode(None, "none", None, "no decoder for brand")`. `api/tests/test_serial.py`: one known serial per supported brand decodes to its year; an unknown brand returns confidence `none`.
@@ -280,6 +351,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [ ] **3.7 Grok scan (Track D1, in Cursor)** ← may start after Phase 1
   `api/app/grok/client.py` and `api/app/grok/scan.py` per "Fixed interfaces". One system prompt per `ScanKind` asking for strict JSON with only the fields printed on the image (label: brand, model, serial, `product_class`, `volume_cuft`; price tag: brand, model, price; lease: every `Lease` field plus `early_purchase_text`; listing: brand, model, price, condition). The response validates into `ScanResult`; on failure `valid=False`, `errors` lists the Pydantic errors, and every field that did parse is kept for the correction form. No number is computed by the model. `api/tests/test_scan.py` uses a fake `GrokClient` returning recorded JSON from `api/tests/fixtures/scan/`: one valid response per kind, and one malformed response that yields `valid=False` with partial fields.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_scan.py -q` passes. The real call is checked by hand in 3.8.
+  **Status (2026-09-26 18:05, review):** also extract `mfg_year` when printed and, from an EnergyGuide label, `label_kwh_per_year`. Per xAI's docs as read in review (not re-verified): the API is OpenAI-compatible with JSON-schema structured output; use a non-reasoning vision model; send JPEG or PNG only, shrunk on the phone to about 1600px.
 
 - [ ] **3.8 Not-a-wrapper test (Track D1, in Cursor)**
   For each demo card from 3.13: record the real Grok response once into `api/tests/fixtures/scan/<card>.json`, and write the typed equivalent into `api/tests/fixtures/typed/<card>.json`. `api/tests/test_not_a_wrapper.py`: for every card, `quote` on the scan result's item equals `quote` on the typed item, compared as JSON.
@@ -305,6 +377,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `demo/cards/`: printable images of real rating labels (at least one pre-2005 unit and one current model), a real rent-to-own listing or lease, and a used-listing screenshot with the seller's name and photos cropped out. `demo/cards/README.md` lists each card's source URL, date, and the fields it shows. Print them.
   **Acceptance:** `test "$(ls demo/cards/*.png demo/cards/*.jpg 2>/dev/null | wc -l)" -ge 3 && echo ok` prints `ok`.
 
+- [ ] **3.13.1 Demo cards that produce the demo (Track B3)** (NEW 2026-09-26, review)
+  Replace or add cards so each scenario runs through the real pipeline: an old unit's EnergyGuide label whose model is in the ENERGY STAR or DOE historical data (the Maytag card, once 2.2.2 lands), a current label whose exact model is in the ENERGY STAR data, a rent-to-own page showing the weekly payment, term, cash price and early purchase terms, and a used listing showing price, brand and model (and year if stated). Record each card's typed equivalent in `demo/cards/cards.json`; `api/tests/test_demo_cards.py` checks that each fridge card's model returns a rated figure and that the lease card has a term and a cash price.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_demo_cards.py -q` passes.
+
 <a id="phase-4"></a>
 ### [ ] Phase 4 — Shop, voice, submit
 > Goal: the Grok shopping request ranks new and used offers by cost per year (Visa), the receipt can be read aloud in English and Spanish (SpaceXAI), and the demo is frozen and submitted.
@@ -318,6 +394,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [x] **4.2 Ranking (Track A2)**
   `api/app/engine/rank.py` per "Fixed interfaces": each offer is quoted with its own `Item` as the `new`/`cash` path (retailer cache) or `used_as_is` (user listing), filtered by `ShopFilters`, sorted by `cost_per_year_high` with `None` last. `api/tests/test_rank.py`: a cheap used offer with 1 year of life left ranks below a new offer with a lower cost per year.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_rank.py -q` passes.
+
+- [ ] **4.2.1 Shop keeps unknowns, flagged (Track A2)** (NEW 2026-09-26, decisions 3 and 5)
+  An offer with no `available_within_days` stays in when `need_within_days` is set, flagged `delivery_unknown`; an offer with no width stays in when `max_width_in` is set, flagged `width_unknown`. Offers flagged `costs_not_estimated` rank after complete ones, then each group by `cost_per_year_high`, `None` last.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_rank.py -q` passes, including tests that a used listing survives "need it within 7 days" with `delivery_unknown`, and that an incomplete offer ranks after a complete one.
 
 - [ ] **4.3 Wire shop routes (Track A1)**
   `POST /shop/parse` calls `parse_request`; `POST /shop/rank` calls `rank` with the retailer cache plus any listings in the request. Tests in `api/tests/test_routes.py` with the fake client.
@@ -342,6 +422,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [ ] **4.8 Demo run sheet and pitch (Track 0 — operator)**
   In Notability: the pitch storyboard and demo run sheet (spec §6), screenshot saved as `docs/notability/02-run-sheet.png`. Rehearse the demo once end to end with a timer.
   **Acceptance:** `ls docs/notability/*.png | wc -l` prints at least `2`.
+
+- [ ] **4.8.1 Stage wording fixes (Track 0 — operator)** (NEW 2026-09-26, review)
+  In `docs/pitch.md`: "ACEEE's 2016 report" instead of "2016 data" (or ACEEE's 2024 update, after confirming its Atlanta low-income column); no "2004 unit" (say what the card shows); "tap any line" instead of "tap any number"; "energy costs equal to X% of income (EIA-estimated)" instead of "spent"; no claim that a refurbished warranty narrows a range or that other categories work today; crop the under-$5,000 bracket from the chart; about 20 seconds of visible AI (scan, filter chips, read-aloud); open with the lease story.
+  **Acceptance:** `grep -c -E '2004 unit|2016 data|[Tt]ap any number' docs/pitch.md` prints `0`.
 
 - [ ] **4.9 Code freeze at Sun 02:00 (Track 0 — operator)**
   Merge nothing new after 02:00 except demo-breaking fixes. Tag the last green `main` commit: `git tag freeze origin/main` then `git push origin freeze`.
