@@ -66,15 +66,16 @@
         "model": "FRTE1936AV",
         "weekly_payment": 33.48,
         "term_weeks": 52,
-        "cash_price": 1196.99
+        "cash_price": 1196.99,
+        "fees": 0,
+        "payment_today": 0.01,
+        "total_of_payments": 1739.88
       },
       "also_printed": {
-        "todays_payment": 0.01,
         "enrollment_fee": "None",
         "ownership_plan": "12 months",
         "monthly_total": 144.99,
-        "cost_of_lease_services": 542.89,
-        "total_cost_of_ownership": 1739.88
+        "cost_of_lease_services": 542.89
       },
       "corrections": [],
       "typed": {
@@ -96,6 +97,9 @@
           "weekly_payment": 33.48,
           "term_weeks": 52,
           "cash_price": 1196.99,
+          "fees": 0,
+          "payment_today": 0.01,
+          "total_of_payments": 1739.88,
           "source_id": "user_lease"
         }
       }

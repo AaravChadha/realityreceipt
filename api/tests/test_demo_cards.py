@@ -25,6 +25,8 @@ LEASE_FIELDS = (
     "early_purchase_rule",
     "early_purchase_text",
     "missed_payment_rule",
+    "payment_today",
+    "total_of_payments",
 )
 
 
@@ -123,3 +125,5 @@ def test_lease_card_has_a_term_and_a_cash_price(card: dict) -> None:
     assert lease.term_weeks == card["printed"]["term_weeks"]
     assert lease.cash_price == card["printed"]["cash_price"]
     assert lease.weekly_payment == card["printed"]["weekly_payment"]
+    assert lease.payment_today == card["printed"]["payment_today"]
+    assert lease.total_of_payments == card["printed"]["total_of_payments"]
