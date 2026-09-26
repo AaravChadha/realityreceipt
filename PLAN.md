@@ -266,7 +266,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   In `api/app/main.py`, serve every route under `/api` as well as unprefixed, and when `web/dist` exists, serve it at `/` with `index.html` for unknown non-API paths, so the built app and the API share one address.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_routes.py -q` passes, including a test that, with a temporary `dist` directory, `GET /` returns its `index.html` and `GET /api/health` returns `{"ok": true}`.
 
-- [ ] **2.7.2 Real-data journey test (Track A1)** (NEW 2026-09-26, review)
+- [x] **2.7.2 Real-data journey test (Track A1)** (NEW 2026-09-26, review)
   `api/tests/test_journey.py`: through `TestClient` on the real `Repository`, POST `/quote` with a typed fridge whose model is in the ENERGY STAR data plus a used listing; assert non-fixture paths, a `rated` electricity line, and that every source id on every line resolves through `GET /sources`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_journey.py -q` passes.
 
