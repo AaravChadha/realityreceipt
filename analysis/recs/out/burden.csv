@@ -1,0 +1,33 @@
+geography,geography_reason,income_code,income_bracket,income_midpoint,tenure,n_unweighted,households_weighted,burden,burden_se,burden_rse_pct,burden_ci95_low,burden_ci95_high,status
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",1,"Less than $5,000",2500.0,Rent,150,1253175,0.53231,0.02712,5.1,0.47804,0.58658,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",1,"Less than $5,000",2500.0,Own,71,594160,0.71187,0.04309,6.1,0.62564,0.7981,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",2,"$5,000 - $7,499",6250.0,Rent,59,548388,0.20985,0.0145,6.9,0.18084,0.23886,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",2,"$5,000 - $7,499",6250.0,Own,35,267292,0.25727,0.02592,10.1,0.20539,0.30914,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",3,"$7,500 - $9,999",8750.0,Rent,60,506085,0.12743,0.01314,10.3,0.10114,0.15372,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",3,"$7,500 - $9,999",8750.0,Own,38,292330,0.20172,0.0196,9.7,0.16249,0.24094,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",4,"$10,000 - $12,499",11250.0,Rent,76,577273,0.11691,0.00645,5.5,0.104,0.12981,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",4,"$10,000 - $12,499",11250.0,Own,100,784930,0.15701,0.00814,5.2,0.14073,0.1733,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",5,"$12,500 - $14,999",13750.0,Rent,44,354509,0.08183,0.00622,7.6,0.06939,0.09427,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",5,"$12,500 - $14,999",13750.0,Own,88,672033,0.11624,0.00581,5.0,0.10463,0.12786,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",6,"$15,000 - $19,999",17500.0,Rent,93,745485,0.07196,0.00373,5.2,0.06449,0.07942,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",6,"$15,000 - $19,999",17500.0,Own,121,923521,0.10304,0.00349,3.4,0.09605,0.11003,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",7,"$20,000 - $24,999",22500.0,Rent,121,1029987,0.0604,0.00279,4.6,0.05482,0.06598,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",7,"$20,000 - $24,999",22500.0,Own,197,1472117,0.078,0.00247,3.2,0.07307,0.08293,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",8,"$25,000 - $29,999",27500.0,Rent,120,1005122,0.05063,0.00324,6.4,0.04414,0.05712,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",8,"$25,000 - $29,999",27500.0,Own,201,1502076,0.06475,0.00203,3.1,0.06068,0.06882,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",9,"$30,000 - $34,999",32500.0,Rent,133,1202639,0.03918,0.00203,5.2,0.03512,0.04323,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",9,"$30,000 - $34,999",32500.0,Own,216,1535790,0.05525,0.00138,2.5,0.05249,0.05802,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",10,"$35,000 - $39,999",37500.0,Rent,93,764840,0.03932,0.00248,6.3,0.03437,0.04428,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",10,"$35,000 - $39,999",37500.0,Own,199,1495518,0.05028,0.0016,3.2,0.04707,0.05349,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",11,"$40,000 - $49,999",45000.0,Rent,165,1384674,0.03088,0.00113,3.7,0.02861,0.03314,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",11,"$40,000 - $49,999",45000.0,Own,347,2509572,0.04073,0.00099,2.4,0.03875,0.0427,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",12,"$50,000 - $59,999",55000.0,Rent,119,1099549,0.02273,0.00106,4.7,0.0206,0.02486,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",12,"$50,000 - $59,999",55000.0,Own,406,2917240,0.03552,0.0008,2.2,0.03393,0.03712,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",13,"$60,000 - $74,999",67500.0,Rent,140,1110657,0.02076,0.00105,5.1,0.01865,0.02286,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",13,"$60,000 - $74,999",67500.0,Own,523,3655530,0.02873,0.00058,2.0,0.02757,0.02989,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",14,"$75,000 - $99,999",87500.0,Rent,143,1166804,0.016,0.00072,4.5,0.01456,0.01744,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",14,"$75,000 - $99,999",87500.0,Own,592,3958921,0.02373,0.00047,2.0,0.02279,0.02467,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",15,"$100,000 - $149,999",125000.0,Rent,106,751144,0.01228,0.00091,7.4,0.01046,0.01409,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",15,"$100,000 - $149,999",125000.0,Own,727,4711743,0.01761,0.0003,1.7,0.017,0.01822,estimated
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",16,"$150,000 or more",,Rent,80,508532,,,,,,not estimated: open top bracket has no midpoint
+South Census region,"South Census region, not Georgia: 17 of 30 Georgia cells have fewer than 10 households",16,"$150,000 or more",,Own,781,4981457,,,,,,not estimated: open top bracket has no midpoint
