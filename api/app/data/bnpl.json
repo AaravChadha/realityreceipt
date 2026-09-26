@@ -6,13 +6,5 @@
     "apr": 0.0,
     "source_id": "afterpay_pay_in_4"
   },
-  "source": {
-    "id": "afterpay_pay_in_4",
-    "title": "How does Afterpay work? (Pay in 4)",
-    "publisher": "Afterpay",
-    "url": "https://developers.afterpay.com/afterpay-button-documentation/guides/about-afterpay/how-does-afterpay-work",
-    "retrieved_date": "2026-09-26",
-    "notes": "Quoted from the page: 'We split the total order amount into 4 instalments, taken automatically every 2 weeks.' 'The customer pays the first instalment at the time of purchase.' 'When paying in four installments, there is always 0% interest and never additional fees when they pay on time.' Confirmed on https://www.afterpay.com/en-US/how-it-works: 4 installments, first payment upfront, generally over six weeks, interest-free at partner brands."
-  },
   "notes": "apr is a fraction and is 0.0 because the interest is 0% when paid on time. Late fees are not modeled. Neither page states a minimum or maximum order amount, and Afterpay says spending limits differ by shopper, so this file does not claim that any given refrigerator price qualifies. BnplTerms has no field for a limit; whoever shows the BNPL path should say the terms apply only when the shopper is approved for that amount."
 }

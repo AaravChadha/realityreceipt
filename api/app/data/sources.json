@@ -78,5 +78,21 @@
     "url": "https://data.energystar.gov/Active-Specifications/ENERGY-STAR-Certified-Residential-Refrigerators/p5st-her9",
     "retrieved_date": "2026-09-26",
     "notes": "Dataset p5st-her9; metadata at https://data.energystar.gov/api/views/p5st-her9.json returned name 'ENERGY STAR Certified Residential Refrigerators'. Model rows are recorded in energystar_refrigerators.csv (task 2.2)."
+  },
+  {
+    "id": "doe_standards_refrigerators",
+    "title": "10 CFR 430.32(a), Energy conservation standards for refrigerators, refrigerator-freezers and freezers",
+    "publisher": "U.S. Department of Energy, in the Code of Federal Regulations",
+    "url": "https://www.govinfo.gov/content/pkg/CFR-2013-title10-vol3/xml/CFR-2013-title10-vol3-sec430-32.xml",
+    "retrieved_date": "2026-09-26",
+    "notes": "1993 and 2001 periods read from the 2004 edition (https://www.govinfo.gov/content/pkg/CFR-2004-title10-vol3/xml/CFR-2004-title10-vol3-sec430-32.xml); 2001 and 2014 periods from the 2013 edition (URL above). The 2014 equations for classes 1, 1A, 3, 3I, 4 and 5 were also compared with the current eCFR text (https://www.ecfr.gov/current/title-10/chapter-II/subchapter-D/part-430/subpart-C/section-430.32). The other 2014 classes come from the 2013 edition only."
+  },
+  {
+    "id": "afterpay_pay_in_4",
+    "title": "How does Afterpay work? (Pay in 4)",
+    "publisher": "Afterpay",
+    "url": "https://developers.afterpay.com/afterpay-button-documentation/guides/about-afterpay/how-does-afterpay-work",
+    "retrieved_date": "2026-09-26",
+    "notes": "Quoted from the page: 'We split the total order amount into 4 instalments, taken automatically every 2 weeks.' 'The customer pays the first instalment at the time of purchase.' 'When paying in four installments, there is always 0% interest and never additional fees when they pay on time.' Confirmed on https://www.afterpay.com/en-US/how-it-works: 4 installments, first payment upfront, generally over six weeks, interest-free at partner brands."
   }
 ]

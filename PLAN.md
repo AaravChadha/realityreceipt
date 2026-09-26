@@ -269,11 +269,11 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `api/app/serial/decode.py`: decoders keyed by brand, only for the brands on the demo cards and in the retailer cache, each rule's `source_id` in `sources.json`. A year code that repeats on a cycle resolves from model era when possible, otherwise returns `year_confidence="low"`. An unknown brand returns `SerialDecode(None, "none", None, "no decoder for brand")`. `api/tests/test_serial.py`: one known serial per supported brand decodes to its year; an unknown brand returns confidence `none`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_serial.py -q` passes.
 
-- [ ] **3.5 Standard ceiling for old units (Track B2)**
+- [x] **3.5 Standard ceiling for old units (Track B2)**
   `api/app/data/doe_standards_refrigerators.json`: for the product classes on the demo cards, each DOE standard period with its maximum-energy formula in adjusted volume, sourced. `Repository.standard_ceiling` returns `ModelEnergy(source_type="published", source_id=...)`. `quote` (A2) uses it only when `model_energy` returns `None` and year, class and volume are known. Test in `api/tests/test_profile.py`: a 2004 unit of a demo class returns the formula's value for its volume.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_profile.py -q` passes.
 
-- [ ] **3.6 BNPL terms, optional (Track B1)**
+- [x] **3.6 BNPL terms, optional (Track B1)**
   If one provider publishes pay-in-installment terms, record them in `api/app/data/bnpl.json` with URL and date and return them from `bnpl_terms()`; otherwise `bnpl_terms()` returns `None` and the BNPL path stays `not_estimated`. Test in `api/tests/test_repository.py` either way.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_repository.py -q` passes.
 

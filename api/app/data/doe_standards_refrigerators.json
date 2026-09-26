@@ -1,13 +1,5 @@
 {
-  "source_id": "cfr_430_32_refrigerators",
-  "source": {
-    "id": "cfr_430_32_refrigerators",
-    "title": "10 CFR 430.32(a), Energy conservation standards for refrigerators, refrigerator-freezers and freezers",
-    "publisher": "U.S. Department of Energy, in the Code of Federal Regulations",
-    "url": "https://www.govinfo.gov/content/pkg/CFR-2013-title10-vol3/xml/CFR-2013-title10-vol3-sec430-32.xml",
-    "retrieved_date": "2026-09-26",
-    "notes": "1993 and 2001 periods read from the 2004 edition (https://www.govinfo.gov/content/pkg/CFR-2004-title10-vol3/xml/CFR-2004-title10-vol3-sec430-32.xml); 2001 and 2014 periods from the 2013 edition (URL above). The 2014 equations for classes 1, 1A, 3, 3I, 4 and 5 were also compared with the current eCFR text (https://www.ecfr.gov/current/title-10/chapter-II/subchapter-D/part-430/subpart-C/section-430.32). Not yet compared: the remaining 2014 classes against the current eCFR."
-  },
+  "source_id": "doe_standards_refrigerators",
   "unit": "kWh per year, maximum energy use when new",
   "formula": "kwh_per_year = slope * AV + intercept",
   "volume_basis": "AV is the total adjusted volume in cubic feet as defined by the DOE test procedure appendices, computed from the fresh-food and freezer compartment volumes. It is not the total refrigerated volume printed on most labels; for a refrigerator-freezer AV is larger. Whoever calls standard_ceiling must pass AV, or accept and label the difference.",

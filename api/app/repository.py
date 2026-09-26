@@ -7,7 +7,9 @@ empty answer (`None`, `[]`, or `KeyError` for `profile`), never a guess.
 """
 
 import csv
+import datetime
 import json
+import math
 import pathlib
 import re
 from dataclasses import dataclass, field
@@ -46,11 +48,15 @@ class _EnergyRow:
 
 @dataclass(frozen=True)
 class _Standard:
-    """One DOE standard period: max kWh/yr = kwh_per_cuft * volume + kwh_base."""
+    """One DOE standard period: max kWh/yr = kwh_per_cuft * volume + kwh_base.
+
+    `to_date` is the last day the period applies to units made then, or None
+    while it is still in force.
+    """
 
     product_class: str
-    from_year: int
-    to_year: int | None
+    from_date: datetime.date
+    to_date: datetime.date | None
     kwh_per_cuft: float
     kwh_base: float
     source_id: str
@@ -96,7 +102,19 @@ class Repository:
 
         standards_file = data_dir / "doe_standards_refrigerators.json"
         if standards_file.exists():
-            repo._standards = [_Standard(**s) for s in json.loads(standards_file.read_text(encoding="utf-8"))["standards"]]
+            raw = json.loads(standards_file.read_text(encoding="utf-8"))
+            repo._standards = [
+                _Standard(
+                    product_class=product_class,
+                    from_date=datetime.date.fromisoformat(p["manufactured_from"]),
+                    to_date=datetime.date.fromisoformat(p["manufactured_to"]) if p["manufactured_to"] else None,
+                    kwh_per_cuft=p["slope"],
+                    kwh_base=p["intercept"],
+                    source_id=raw["source_id"],
+                )
+                for product_class, entry in raw["classes"].items()
+                for p in entry["periods"]
+            ]
 
         cache_file = data_dir / "retailer_cache.json"
         if cache_file.exists():
@@ -106,7 +124,7 @@ class Repository:
 
         bnpl_file = data_dir / "bnpl.json"
         if bnpl_file.exists():
-            repo._bnpl = BnplTerms.model_validate_json(bnpl_file.read_text(encoding="utf-8"))
+            repo._bnpl = BnplTerms.model_validate(json.loads(bnpl_file.read_text(encoding="utf-8"))["terms"])
 
         return repo
 
@@ -142,14 +160,32 @@ class Repository:
         return []
 
     def standard_ceiling(self, mfg_year: int, product_class: str, volume_cuft: float) -> ModelEnergy | None:
-        for s in self._standards:
-            if s.product_class == product_class and s.from_year <= mfg_year and (s.to_year is None or mfg_year <= s.to_year):
-                return ModelEnergy(
-                    kwh_per_year=round(s.kwh_per_cuft * volume_cuft + s.kwh_base, 1),
-                    source_type="published",
-                    source_id=s.source_id,
-                )
-        return None
+        """The DOE maximum kWh/yr for a unit made in `mfg_year`: an upper bound when new, not a measurement.
+
+        `volume_cuft` must be the DOE adjusted volume, which for a refrigerator-freezer is
+        larger than the label's total volume; a label volume understates the ceiling.
+        Standards change on 2001-07-01 and 2014-09-15, and only the year is known, so in
+        those years the higher of the two applicable ceilings is returned. Each standard is
+        rounded to the nearest kWh, halves up, as 10 CFR 430.32(a) directs. A year before
+        the first standard, an unknown class, or a volume that is not positive gives None.
+        """
+        if volume_cuft <= 0:
+            return None
+        first, last = datetime.date(mfg_year, 1, 1), datetime.date(mfg_year, 12, 31)
+        klass = product_class.strip().upper()
+        hits = [
+            s
+            for s in self._standards
+            if s.product_class == klass and s.from_date <= last and (s.to_date is None or first <= s.to_date)
+        ]
+        if not hits:
+            return None
+        top = max(hits, key=lambda s: s.kwh_per_cuft * volume_cuft + s.kwh_base)
+        return ModelEnergy(
+            kwh_per_year=float(math.floor(top.kwh_per_cuft * volume_cuft + top.kwh_base + 0.5)),
+            source_type="published",
+            source_id=top.source_id,
+        )
 
     def new_offers(self, category: str) -> list[Offer]:
         return [
