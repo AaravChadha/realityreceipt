@@ -126,5 +126,29 @@
     "url": "https://developers.afterpay.com/afterpay-button-documentation/guides/about-afterpay/how-does-afterpay-work",
     "retrieved_date": "2026-09-26",
     "notes": "Quoted from the page: 'We split the total order amount into 4 instalments, taken automatically every 2 weeks.' 'The customer pays the first instalment at the time of purchase.' 'When paying in four installments, there is always 0% interest and never additional fees when they pay on time.' Confirmed on https://www.afterpay.com/en-US/how-it-works: 4 installments, first payment upfront, generally over six weeks, interest-free at partner brands."
+  },
+  {
+    "id": "ge_serial_dating",
+    "title": "GE Appliance - How to Determine the Age or Manufacture Date",
+    "publisher": "GE Appliances",
+    "url": "https://products.geappliances.com/appliance/gea-support-search-content?contentId=16195",
+    "retrieved_date": "2026-09-26",
+    "notes": "Quoted: 'Our serial numbers begin with two letters, followed by six numbers, with a letter at the end.' The first letter is the month (A January, D February, F March, G April, H May, L June, M July, R August, S September, T October, V November, Z December) and the second letter the year, which 'rotates approximately every 12 years'. Year order from 1980 (G, H, L, M, R, S, T, V, Z, A, D, F) taken from https://www.electrical-forensics.com/MajorAppliances/GeDateCodes.html and checked against GE's own letters for 2015 to 2026 (F, G, H, L, M, R, S, T, V, Z, A, D). Hotpoint, GE Profile, Cafe and Monogram use the same code."
+  },
+  {
+    "id": "whirlpool_serial_dating",
+    "title": "Whirlpool Date Codes",
+    "publisher": "Dr. Ray Franco, PhD, PE (electrical-forensics.com), a third-party reference",
+    "url": "https://www.electrical-forensics.com/MajorAppliances/WhirlpoolDateCodes.html",
+    "retrieved_date": "2026-09-26",
+    "notes": "Whirlpool serial: 1st letter manufacturing division, 2nd character year code, next two digits week, then the unit number. Letters X and A to J mean 1990 to 1999 and 2020 to 2029; K, L, M, P, R, S, T, U, W, Y mean 2000 to 2009; digits mean the 1970s, 1980s and 2010s. Worked example on the page: Kenmore refrigerator 106.9712611, serial EB1719162, made in week 17 of 1992. The same year table appears on Sears PartsDirect for Kenmore 106 refrigerators (https://www.searspartsdirect.com/diy/article/how-to-find-the-age-of-your-kenmore-refrigerator). A third party's tables, not Whirlpool's own; only the nine-character form is decoded because the page and other references disagree on the ten-character form."
+  },
+  {
+    "id": "electrolux_serial_dating",
+    "title": "Electrolux Date Codes (Frigidaire, Gibson, Kelvinator, White-Westinghouse)",
+    "publisher": "Dr. Ray Franco, PhD, PE (electrical-forensics.com), a third-party reference",
+    "url": "https://www.electrical-forensics.com/MajorAppliances/ElectroluxDateCodes.html",
+    "retrieved_date": "2026-09-26",
+    "notes": "Ten-character serial: 1st manufacturing facility, 2nd product (A refrigerator, B freezer), 3rd last digit of the year, 4th and 5th week, 6th to 10th unit number. Quoted: 'The first digit of the year (the decade) is not in the serial number or model number.' Worked example on the page: LA81503430 is a refrigerator made in week 15 of 1998. A third party's reading, not Frigidaire's own."
   }
 ]
