@@ -235,7 +235,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `web/src/api.ts`: typed wrappers for every route, base path `/api`. `web/src/pages/Entry.tsx`: manual entry for brand, model, serial, condition, optional `product_class` and `volume_cuft`, a used listing price, an optional repair quote, and an optional "I can spend up to $___ today" amount; submit calls `/quote` and shows the receipt. No personal questions. `web/src/copy.test.ts` scans every `.ts` and `.tsx` file under `web/src` except tests and fails on an em dash (U+2014) or the word `APR`. `web/src/pages/Entry.test.tsx` renders the form and finds the brand, model and serial inputs by label.
   **Acceptance:** `npm --prefix web test -- Entry copy` passes.
 
-- [ ] **2.9 Receipt view (Track C2)**
+- [x] **2.9 Receipt view (Track C2)**
   `web/src/components/Receipt.tsx` and `PathCard.tsx`: paths in API order, each with pay today, total over 3 years and cost per year, ranges shown as `$A to $B`, `not estimated` for `null`; a carbon line only when `carbon_kg` is non-null; a visible "Sample data, not a real quote" banner when any path has `"fixture"` in `flags`. `web/src/format.ts`: `money(n)`, `range(low, high)`. `Receipt.test.tsx` renders `contracts/receipt_fridge.json` and finds the banner and all 9 path names; `format.test.ts` checks `range(80, 180) === "$80 to $180"`.
   **Acceptance:** `npm --prefix web test -- Receipt format` passes.
 
