@@ -188,6 +188,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `web/src/contracts.ts`: hand-written types mirroring every model in 1.1, exported string-literal unions for each `Literal`, and an exported `PATH_KEYS` array of every `Path` field. `web/src/contracts.test.ts` reads `../../contracts/receipt_fridge.json` and asserts each path's keys equal `PATH_KEYS` as a set and each line's `source_type` is one of the four values.
   **Acceptance:** `npm --prefix web test -- contracts` passes, and `npm --prefix web run build` exits `0`.
 
+- [x] **1.5 Source ids for multi-input numbers (Track A1)** (NEW 2026-09-26, raised by row A5 after 2.4)
+  A number computed from two sourced inputs must name both. `CostLine.other_source_ids: list[str] = []` lists the sources of a line's other inputs (electricity: the rate; `source_id` stays the kWh figure's). `Path.carbon_source_ids: list[str] = []`, required non-empty whenever `carbon_kg` is set (the kWh source and the eGRID source). Mirrored in `web/src/contracts.ts`; `contracts/receipt_fridge.json` regenerated. Tests in `api/tests/test_contracts.py`.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py -q` passes, and `npm --prefix web test -- contracts` passes.
+
 <a id="phase-2"></a>
 ### [ ] Phase 2 — Vertical slice
 > Goal: a typed fridge model, plus a used listing price, produces a real sourced receipt with `used_as_is` and `new`/`cash` paths, on a real phone over HTTPS. Proves every track connects before widening.
@@ -197,6 +201,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [ ] **2.1 Sources, rates and repository (Track B1)** ← start here; unblocks A2
   Verify each against its primary document, then record it. `api/app/data/sources.json`: a `Source` list with `energystar_refrigerators`, `doe_ccd`, `ga_power_residential_tariff`, `egrid_georgia`, `frb_g19`, `ncua_pals_ii`, plus lifespan, upkeep and repair sources as B2 finds them. `api/app/data/rates.json`: `{key: {value, source_id, notes}}` for the six rate keys in "Fixed interfaces"; `notes` records the Georgia Power tier, season and riders used, the eGRID rate type used (spec §7: consider non-baseload), and which G.19 series. `api/app/repository.py` implements the `Repository` interface and `normalize_model`, loading from `api/app/data/` via a path relative to the module file. `api/tests/test_repository.py`: every rate's `source_id` resolves in `sources()`; `normalize_model("GTE18-GTH/RWW") == "GTE18GTHRWW"`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_repository.py -q` passes.
+  **Status (2026-09-26):** landed in #7, then reverted in #8 at its owner's request; the work is kept on `feature/2.1-sources-rates-repository`. Relands once its data is checked.
 
 - [ ] **2.2 Refrigerator profile and model energy (Track B2)**
   `api/app/data/refrigerator.json`: a `CategoryProfile` with a published lifespan range, a published-only upkeep schedule (empty list if none is published), repair ranges with sources, `carbon_applicable: true`. `api/app/data/energystar_refrigerators.csv`: columns `brand,model_number,model_normalized,annual_kwh` from the ENERGY STAR certified refrigerators dataset, filtered to the brands in the demo and the retailer cache (keep the file under 1 MB). `Repository.model_energy` returns `ModelEnergy(source_type="rated", source_id="energystar_refrigerators")` on an exact normalized match; `model_candidates` returns up to 5 prefix matches. `api/tests/test_profile.py`: the profile validates, every `source_id` resolves, a known demo model returns its CSV kWh, and a one-character typo returns `None` with at least one candidate.
@@ -210,12 +215,16 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `api/app/engine/running.py` per "Fixed interfaces". `energy`: monthly cost = `kwh_per_year / 12 * rate.value` in every month 0 to 35; one `running` line with the kWh source label and a `formula` string. `aging_line`: a `running` line labeled "Extra use from age", `not_estimated`. `carbon_kg`: `kwh_per_year * kg_per_kwh.value * months / 12`. `upkeep`: each item's cost at every `every_months`. `api/tests/test_running.py`: 600 kWh at $0.15 gives $7.50 a month and $270.00 over the 36 months; carbon for 600 kWh at 0.4 kg over 36 months is 720 kg.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_running.py -q` passes.
 
+- [ ] **2.4.1 Name the rate's source on the electricity line (Track A5)** (NEW 2026-09-26, needs 1.5)
+  In `energy`, set `other_source_ids=[rate.source_id]` on the estimated electricity line (not on the `not_estimated` one). Add a test in `api/tests/test_running.py` asserting it.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_running.py -q` passes, including the new test.
+
 - [x] **2.5 Cash path (Track A3)**
   `api/app/engine/financing.py`: `cash` puts the price in month 0 of both arrays, `pay_today = price`, one `purchase` line. `api/tests/test_financing.py`: `cash(800.0, "user_listing")` gives `pay_today == 800.0` and month-0 totals of 800.0.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_financing.py -q` passes.
 
 - [ ] **2.6 Lifecycle and the slice quote (Track A2)**
-  `api/app/engine/lifecycle.py` and `api/app/engine/quote.py` per "Fixed interfaces" and the pinned formulas. For the slice, `quote` builds `used_as_is` (from a `user_listing` offer and its item) and `new`/`cash` (the cheapest `repo.new_offers("refrigerator")`), each with energy from `model_energy` (else an energy line `not_estimated`), the aging line for used items, carbon, cost per year from the profile lifespan, replacement when life ends inside 36 months, and paths sorted by `total_3yr_high`. `api/tests/test_lifecycle.py`: `remaining_life(12, LifespanRange(10, 15, ...)) == (0, 3)`; `cost_per_year(1200, 1800, 100, 150, 10, 15) == (1200/15 + 100, 1800/10 + 150)`. `api/tests/test_slice.py`: a typed demo fridge `Item` plus a used offer through `quote` returns both groups, every line's `source_id` is `user`, `user_listing` or in `repo.sources()`, and no path has `"fixture"` in `flags`.
+  `api/app/engine/lifecycle.py` and `api/app/engine/quote.py` per "Fixed interfaces" and the pinned formulas. For the slice, `quote` builds `used_as_is` (from a `user_listing` offer and its item) and `new`/`cash` (the cheapest `repo.new_offers("refrigerator")`), each with energy from `model_energy` (else an energy line `not_estimated`), the aging line for used items, carbon with `carbon_source_ids = [kWh source, egrid rate source]` (task 1.5), cost per year from the profile lifespan, replacement when life ends inside 36 months, and paths sorted by `total_3yr_high`. `api/tests/test_lifecycle.py`: `remaining_life(12, LifespanRange(10, 15, ...)) == (0, 3)`; `cost_per_year(1200, 1800, 100, 150, 10, 15) == (1200/15 + 100, 1800/10 + 150)`. `api/tests/test_slice.py`: a typed demo fridge `Item` plus a used offer through `quote` returns both groups, every line's `source_id` is `user`, `user_listing` or in `repo.sources()`, and no path has `"fixture"` in `flags`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lifecycle.py api/tests/test_slice.py -q` passes.
 
 - [ ] **2.7 Wire the real routes (Track A1)**

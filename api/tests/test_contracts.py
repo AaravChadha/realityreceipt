@@ -41,6 +41,18 @@ def test_fixture_covers_the_edge_cases(paths: list[Path]) -> None:
     assert any(line.kind == "replacement" for p in paths for line in p.lines)
 
 
+def test_every_input_of_a_multi_input_number_is_sourced(paths: list[Path]) -> None:
+    electricity = [ln for p in paths for ln in p.lines if ln.label.startswith("Electricity") and ln.source_type != "not_estimated"]
+    assert electricity and all(ln.other_source_ids for ln in electricity)
+    assert all(len(p.carbon_source_ids) == 2 for p in paths if p.carbon_kg is not None)
+
+
+def test_carbon_without_sources_is_rejected(paths: list[Path]) -> None:
+    unsourced = paths[0].model_dump() | {"carbon_kg": 100.0, "carbon_source_ids": []}
+    with pytest.raises(ValidationError):
+        Path.model_validate(unsourced)
+
+
 def test_not_estimated_with_an_amount_is_rejected() -> None:
     with pytest.raises(ValidationError):
         CostLine(kind="running", label="x", amount_low=1.0, amount_high=None, period="year",

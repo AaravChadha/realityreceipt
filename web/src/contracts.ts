@@ -84,8 +84,11 @@ export interface CostLine {
   amount_high: number | null
   period: Period
   source_type: SourceType
+  /** The main input's source (for electricity, the kWh figure). */
   source_id: string | null
   formula: string
+  /** Sources of the formula's other inputs (for electricity, the rate). */
+  other_source_ids: string[]
 }
 
 export interface Path {
@@ -103,6 +106,8 @@ export interface Path {
   monthly_low: number[]
   monthly_high: number[]
   carbon_kg: number | null
+  /** Non-empty whenever carbon_kg is set: the kWh source and the grid emission rate source. */
+  carbon_source_ids: string[]
   lines: CostLine[]
   flags: string[]
 }
@@ -121,6 +126,7 @@ export const PATH_KEYS = [
   'monthly_low',
   'monthly_high',
   'carbon_kg',
+  'carbon_source_ids',
   'lines',
   'flags',
 ] as const satisfies readonly (keyof Path)[]
