@@ -1,0 +1,530 @@
+{
+  "source_id": "doe_standards_refrigerators",
+  "unit": "kWh per year, maximum energy use when new",
+  "formula": "kwh_per_year = slope * AV + intercept",
+  "volume_basis": "AV is the total adjusted volume in cubic feet as defined by the DOE test procedure appendices, computed from the fresh-food and freezer compartment volumes. It is not the total refrigerated volume printed on most labels; for a refrigerator-freezer AV is larger. Whoever calls standard_ceiling must pass AV, or accept and label the difference.",
+  "rounding": "10 CFR 430.32(a) rounds each standard to the nearest kWh per year, rounding a halfway value up.",
+  "scope": "Refrigerators and refrigerator-freezers up to 39 cubic feet. Freezer classes are left out on purpose. Units manufactured before 1993-01-01 have no entry here and get no ceiling. Compact classes 11 to 15 use the 1993 equations of the matching full-size class for units made before 2001-07-01, as footnote a of the 2004 table says. Class names are stored per period because the wording changed: from 2001-07-01 to 2014-09-14, class 3 also covers all-refrigerators with automatic defrost (class 3A from 2014-09-15), and class 1 also covers manual-defrost all-refrigerators (class 1A from 2014-09-15).",
+  "classes": {
+    "1": {
+      "periods": [
+        {
+          "name": "Refrigerators and Refrigerator-freezers with manual defrost",
+          "manufactured_from": "1993-01-01",
+          "manufactured_to": "2001-06-30",
+          "slope": 13.5,
+          "intercept": 299.0
+        },
+        {
+          "name": "Refrigerators and Refrigerator-freezers with manual defrost",
+          "manufactured_from": "2001-07-01",
+          "manufactured_to": "2014-09-14",
+          "slope": 8.82,
+          "intercept": 248.4
+        },
+        {
+          "name": "Refrigerator-freezers and refrigerators other than all-refrigerators with manual defrost",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 7.99,
+          "intercept": 225.0
+        }
+      ]
+    },
+    "1A": {
+      "periods": [
+        {
+          "name": "All-refrigerators - manual defrost",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 6.79,
+          "intercept": 193.6
+        }
+      ]
+    },
+    "2": {
+      "periods": [
+        {
+          "name": "Refrigerator-Freezer - partial automatic defrost",
+          "manufactured_from": "1993-01-01",
+          "manufactured_to": "2001-06-30",
+          "slope": 10.4,
+          "intercept": 398.0
+        },
+        {
+          "name": "Refrigerator-Freezer - partial automatic defrost",
+          "manufactured_from": "2001-07-01",
+          "manufactured_to": "2014-09-14",
+          "slope": 8.82,
+          "intercept": 248.4
+        },
+        {
+          "name": "Refrigerator-freezers - partial automatic defrost",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 7.99,
+          "intercept": 225.0
+        }
+      ]
+    },
+    "3": {
+      "periods": [
+        {
+          "name": "Refrigerator-Freezers - automatic defrost with top-mounted freezer without through-the-door ice service and all-refrigerators - automatic defrost",
+          "manufactured_from": "1993-01-01",
+          "manufactured_to": "2001-06-30",
+          "slope": 16.0,
+          "intercept": 355.0
+        },
+        {
+          "name": "Refrigerator-Freezers - automatic defrost with top-mounted freezer without through-the-door ice service and all-refrigerators - automatic defrost",
+          "manufactured_from": "2001-07-01",
+          "manufactured_to": "2014-09-14",
+          "slope": 9.8,
+          "intercept": 276.0
+        },
+        {
+          "name": "Refrigerator-freezers - automatic defrost with top-mounted freezer without an automatic icemaker",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 8.07,
+          "intercept": 233.7
+        }
+      ]
+    },
+    "3-BI": {
+      "periods": [
+        {
+          "name": "Built-in refrigerator-freezer - automatic defrost with top-mounted freezer without an automatic icemaker",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 9.15,
+          "intercept": 264.9
+        }
+      ]
+    },
+    "3A": {
+      "periods": [
+        {
+          "name": "All-refrigerators - automatic defrost",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 7.07,
+          "intercept": 201.6
+        }
+      ]
+    },
+    "3A-BI": {
+      "periods": [
+        {
+          "name": "Built-in All-refrigerators - automatic defrost",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 8.02,
+          "intercept": 228.5
+        }
+      ]
+    },
+    "3I": {
+      "periods": [
+        {
+          "name": "Refrigerator-freezers - automatic defrost with top-mounted freezer with an automatic icemaker without through-the-door ice service",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 8.07,
+          "intercept": 317.7
+        }
+      ]
+    },
+    "3I-BI": {
+      "periods": [
+        {
+          "name": "Built-in refrigerator-freezers - automatic defrost with top-mounted freezer with an automatic icemaker without through-the-door ice service",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 9.15,
+          "intercept": 348.9
+        }
+      ]
+    },
+    "4": {
+      "periods": [
+        {
+          "name": "Refrigerator-Freezers - automatic defrost with side-mounted freezer without through-the-door ice service",
+          "manufactured_from": "1993-01-01",
+          "manufactured_to": "2001-06-30",
+          "slope": 11.8,
+          "intercept": 501.0
+        },
+        {
+          "name": "Refrigerator-Freezers - automatic defrost with side-mounted freezer without through-the-door ice service",
+          "manufactured_from": "2001-07-01",
+          "manufactured_to": "2014-09-14",
+          "slope": 4.91,
+          "intercept": 507.5
+        },
+        {
+          "name": "Refrigerator-freezers - automatic defrost with side-mounted freezer without an automatic icemaker",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 8.51,
+          "intercept": 297.8
+        }
+      ]
+    },
+    "4-BI": {
+      "periods": [
+        {
+          "name": "Built-In Refrigerator-freezers - automatic defrost with side-mounted freezer without an automatic icemaker",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 10.22,
+          "intercept": 357.4
+        }
+      ]
+    },
+    "4I": {
+      "periods": [
+        {
+          "name": "Refrigerator-freezers - automatic defrost with side-mounted freezer with an automatic icemaker without through-the-door ice service",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 8.51,
+          "intercept": 381.8
+        }
+      ]
+    },
+    "4I-BI": {
+      "periods": [
+        {
+          "name": "Built-In Refrigerator-freezers - automatic defrost with side-mounted freezer with an automatic icemaker without through-the-door ice service",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 10.22,
+          "intercept": 441.4
+        }
+      ]
+    },
+    "5": {
+      "periods": [
+        {
+          "name": "Refrigerator-Freezers - automatic defrost with bottom-mounted freezer without through-the-door ice service",
+          "manufactured_from": "1993-01-01",
+          "manufactured_to": "2001-06-30",
+          "slope": 16.5,
+          "intercept": 367.0
+        },
+        {
+          "name": "Refrigerator-Freezers - automatic defrost with bottom-mounted freezer without through-the-door ice service",
+          "manufactured_from": "2001-07-01",
+          "manufactured_to": "2014-09-14",
+          "slope": 4.6,
+          "intercept": 459.0
+        },
+        {
+          "name": "Refrigerator-freezers - automatic defrost with bottom-mounted freezer without an automatic icemaker",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 8.85,
+          "intercept": 317.0
+        }
+      ]
+    },
+    "5-BI": {
+      "periods": [
+        {
+          "name": "Built-In Refrigerator-freezers - automatic defrost with bottom-mounted freezer without an automatic icemaker",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 9.4,
+          "intercept": 336.9
+        }
+      ]
+    },
+    "5A": {
+      "periods": [
+        {
+          "name": "Refrigerator-freezer - automatic defrost with bottom-mounted freezer with through-the-door ice service",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 9.25,
+          "intercept": 475.4
+        }
+      ]
+    },
+    "5A-BI": {
+      "periods": [
+        {
+          "name": "Built-in refrigerator-freezer - automatic defrost with bottom-mounted freezer with through-the-door ice service",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 9.83,
+          "intercept": 499.9
+        }
+      ]
+    },
+    "5I": {
+      "periods": [
+        {
+          "name": "Refrigerator-freezers - automatic defrost with bottom-mounted freezer with an automatic icemaker without through-the-door ice service",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 8.85,
+          "intercept": 401.0
+        }
+      ]
+    },
+    "5I-BI": {
+      "periods": [
+        {
+          "name": "Built-In Refrigerator-freezers - automatic defrost with bottom-mounted freezer with an automatic icemaker without through-the-door ice service",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 9.4,
+          "intercept": 420.9
+        }
+      ]
+    },
+    "6": {
+      "periods": [
+        {
+          "name": "Refrigerator-Freezers - automatic defrost with top-mounted freezer with through-the-door ice service",
+          "manufactured_from": "1993-01-01",
+          "manufactured_to": "2001-06-30",
+          "slope": 17.6,
+          "intercept": 391.0
+        },
+        {
+          "name": "Refrigerator-Freezers - automatic defrost with top-mounted freezer with through-the-door ice service",
+          "manufactured_from": "2001-07-01",
+          "manufactured_to": "2014-09-14",
+          "slope": 10.2,
+          "intercept": 356.0
+        },
+        {
+          "name": "Refrigerator-freezers - automatic defrost with top-mounted freezer with through-the-door ice service",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 8.4,
+          "intercept": 385.4
+        }
+      ]
+    },
+    "7": {
+      "periods": [
+        {
+          "name": "Refrigerator-Freezers - automatic defrost with side-mounted freezer with through-the-door ice service",
+          "manufactured_from": "1993-01-01",
+          "manufactured_to": "2001-06-30",
+          "slope": 16.3,
+          "intercept": 527.0
+        },
+        {
+          "name": "Refrigerator-Freezers - automatic defrost with side-mounted freezer with through-the-door ice service",
+          "manufactured_from": "2001-07-01",
+          "manufactured_to": "2014-09-14",
+          "slope": 10.1,
+          "intercept": 406.0
+        },
+        {
+          "name": "Refrigerator-freezers - automatic defrost with side-mounted freezer with through-the-door ice service",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 8.54,
+          "intercept": 432.8
+        }
+      ]
+    },
+    "7-BI": {
+      "periods": [
+        {
+          "name": "Built-In Refrigerator-freezers - automatic defrost with side-mounted freezer with through-the-door ice service",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 10.25,
+          "intercept": 502.6
+        }
+      ]
+    },
+    "11": {
+      "periods": [
+        {
+          "name": "Compact Refrigerators and Refrigerator-Freezers with Manual Defrost",
+          "manufactured_from": "1993-01-01",
+          "manufactured_to": "2001-06-30",
+          "slope": 13.5,
+          "intercept": 299.0
+        },
+        {
+          "name": "Compact Refrigerators and Refrigerator-Freezers with Manual Defrost",
+          "manufactured_from": "2001-07-01",
+          "manufactured_to": "2014-09-14",
+          "slope": 10.7,
+          "intercept": 299.0
+        },
+        {
+          "name": "Compact refrigerator-freezers and refrigerators other than all-refrigerators with manual defrost",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 9.03,
+          "intercept": 252.3
+        }
+      ]
+    },
+    "11A": {
+      "periods": [
+        {
+          "name": "Compact all-refrigerators - manual defrost",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 7.84,
+          "intercept": 219.1
+        }
+      ]
+    },
+    "12": {
+      "periods": [
+        {
+          "name": "Compact Refrigerator-Freezer - partial automatic defrost",
+          "manufactured_from": "1993-01-01",
+          "manufactured_to": "2001-06-30",
+          "slope": 10.4,
+          "intercept": 398.0
+        },
+        {
+          "name": "Compact Refrigerator-Freezer - partial automatic defrost",
+          "manufactured_from": "2001-07-01",
+          "manufactured_to": "2014-09-14",
+          "slope": 7.0,
+          "intercept": 398.0
+        },
+        {
+          "name": "Compact refrigerator-freezers - partial automatic defrost",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 5.91,
+          "intercept": 335.8
+        }
+      ]
+    },
+    "13": {
+      "periods": [
+        {
+          "name": "Compact Refrigerator-Freezers - automatic defrost with top-mounted freezer and compact all-refrigerators - automatic defrost",
+          "manufactured_from": "1993-01-01",
+          "manufactured_to": "2001-06-30",
+          "slope": 16.0,
+          "intercept": 355.0
+        },
+        {
+          "name": "Compact Refrigerator-Freezers - automatic defrost with top-mounted freezer and compact all-refrigerators - automatic defrost",
+          "manufactured_from": "2001-07-01",
+          "manufactured_to": "2014-09-14",
+          "slope": 12.7,
+          "intercept": 355.0
+        },
+        {
+          "name": "Compact refrigerator-freezers - automatic defrost with top-mounted freezer",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 11.8,
+          "intercept": 339.2
+        }
+      ]
+    },
+    "13A": {
+      "periods": [
+        {
+          "name": "Compact all-refrigerators - automatic defrost",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 9.17,
+          "intercept": 259.3
+        }
+      ]
+    },
+    "13I": {
+      "periods": [
+        {
+          "name": "Compact refrigerator-freezers - automatic defrost with top-mounted freezer with an automatic icemaker",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 11.8,
+          "intercept": 423.2
+        }
+      ]
+    },
+    "14": {
+      "periods": [
+        {
+          "name": "Compact Refrigerator-Freezers - automatic defrost with side-mounted freezer",
+          "manufactured_from": "1993-01-01",
+          "manufactured_to": "2001-06-30",
+          "slope": 11.8,
+          "intercept": 501.0
+        },
+        {
+          "name": "Compact Refrigerator-Freezers - automatic defrost with side-mounted freezer",
+          "manufactured_from": "2001-07-01",
+          "manufactured_to": "2014-09-14",
+          "slope": 7.6,
+          "intercept": 501.0
+        },
+        {
+          "name": "Compact refrigerator-freezers - automatic defrost with side-mounted freezer",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 6.82,
+          "intercept": 456.9
+        }
+      ]
+    },
+    "14I": {
+      "periods": [
+        {
+          "name": "Compact refrigerator-freezers - automatic defrost with side-mounted freezer with an automatic icemaker",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 6.82,
+          "intercept": 540.9
+        }
+      ]
+    },
+    "15": {
+      "periods": [
+        {
+          "name": "Compact Refrigerator-Freezers - automatic defrost with bottom-mounted freezer",
+          "manufactured_from": "1993-01-01",
+          "manufactured_to": "2001-06-30",
+          "slope": 16.5,
+          "intercept": 367.0
+        },
+        {
+          "name": "Compact Refrigerator-Freezers - automatic defrost with bottom-mounted freezer",
+          "manufactured_from": "2001-07-01",
+          "manufactured_to": "2014-09-14",
+          "slope": 13.1,
+          "intercept": 367.0
+        },
+        {
+          "name": "Compact refrigerator-freezers - automatic defrost with bottom-mounted freezer",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 11.8,
+          "intercept": 339.2
+        }
+      ]
+    },
+    "15I": {
+      "periods": [
+        {
+          "name": "Compact refrigerator-freezers - automatic defrost with bottom-mounted freezer with an automatic icemaker",
+          "manufactured_from": "2014-09-15",
+          "manufactured_to": null,
+          "slope": 11.8,
+          "intercept": 423.2
+        }
+      ]
+    }
+  }
+}
