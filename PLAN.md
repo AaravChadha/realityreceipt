@@ -142,11 +142,11 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `.github/workflows/ci.yml`, one job named `ci`, on `pull_request` and on `push` to `main`: checkout; `actions/setup-python` 3.12; `python -m venv api/.venv && api/.venv/bin/pip install -r api/requirements.txt`; `api/.venv/bin/python -m pytest api/tests analysis -q`; `actions/setup-node` 20; `npm --prefix web ci`; `npm --prefix web test`; `npm --prefix web run build`.
   **Acceptance:** `grep -c -E 'npm --prefix web run build|pytest api/tests' .github/workflows/ci.yml` prints `2`.
 
-- [ ] **0.5 Publish `main` (Track 0 — operator, by hand)**
+- [x] **0.5 Publish `main` (Track 0 — operator, by hand)**
   Create a private GitHub repo `realityreceipt` (GitHub UI, or `gh repo create realityreceipt --private`). Add the remote yourself (`git remote add origin <url>`; sessions may not edit `.git/config`), then `git push origin main`. Invite the three teammates as collaborators.
   **Acceptance:** `test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$(git rev-parse main)" && echo synced` prints `synced`.
 
-- [ ] **0.6 Protect `main` (Track 0 — operator, by hand)**
+- [x] **0.6 Protect `main` (Track 0 — operator, by hand)**
   In every clone, install the local hook that refuses commits on `main`:
   `h="$(git rev-parse --git-common-dir)/hooks/pre-commit"; printf '%s\n' '#!/bin/sh' '[ "$(git symbolic-ref -q HEAD)" = refs/heads/main ] && { echo "refused: no commits on main; branch and open a PR"; exit 1; }' 'exit 0' > "$h"; chmod +x "$h"`.
   In GitHub settings: branch rule on `main` requiring a pull request (0 approvals) and the `ci` status check; allow squash merging only; enable "Allow auto-merge".
