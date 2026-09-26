@@ -14,6 +14,10 @@ import type {
 
 export const API_BASE = '/api'
 
+// A request with no full answer after this long is stopped (PLAN.md task 2.8.1).
+export const TIMEOUT_MS = 15_000
+export const TIMEOUT_MESSAGE = 'No answer after 15 seconds. Check your connection and try again.'
+
 export class ApiError extends Error {
   readonly status: number
 
@@ -38,13 +42,23 @@ function detailText(body: unknown): string | null {
   return null
 }
 
+// The timer covers reading the body too, so a response that stalls halfway also stops.
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, init)
-  if (!res.ok) {
-    const body: unknown = await res.json().catch(() => null)
-    throw new ApiError(res.status, detailText(body) ?? `Request failed (${res.status})`)
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+  try {
+    const res = await fetch(`${API_BASE}${path}`, { ...init, signal: controller.signal })
+    if (!res.ok) {
+      const body: unknown = await res.json().catch(() => null)
+      throw new ApiError(res.status, detailText(body) ?? `Request failed (${res.status})`)
+    }
+    return (await res.json()) as T
+  } catch (err) {
+    if (controller.signal.aborted) throw new Error(TIMEOUT_MESSAGE)
+    throw err
+  } finally {
+    clearTimeout(timer)
   }
-  return (await res.json()) as T
 }
 
 function postJson<T>(path: string, body: unknown): Promise<T> {

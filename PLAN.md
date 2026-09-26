@@ -274,7 +274,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `web/src/api.ts`: typed wrappers for every route, base path `/api`. `web/src/pages/Entry.tsx`: manual entry for brand, model, serial, condition, optional `product_class` and `volume_cuft`, a used listing price, an optional repair quote, and an optional "I can spend up to $___ today" amount; submit calls `/quote` and shows the receipt. No personal questions. `web/src/copy.test.ts` scans every `.ts` and `.tsx` file under `web/src` except tests and fails on an em dash (U+2014) or the word `APR`. `web/src/pages/Entry.test.tsx` renders the form and finds the brand, model and serial inputs by label.
   **Acceptance:** `npm --prefix web test -- Entry copy` passes.
 
-- [ ] **2.8.1 Show the real receipt; year and label kWh (Track C1)** (NEW 2026-09-26, decisions 1 and 2)
+- [x] **2.8.1 Show the real receipt; year and label kWh (Track C1)** (NEW 2026-09-26, decisions 1 and 2)
   In `Entry.tsx`: replace the plain list with `<Receipt paths onLineTap>` and open `<SourceSheet>` from `onLineTap`, fetching `/sources` once; add an optional "Year made" field to both sections (sent as `mfg_year`) and an optional "kWh per year on the yellow label" field to "Your fridge now" (sent as `attributes.label_kwh_per_year`); after a quote, move focus to the results and scroll them into view. In `api.ts`, time requests out after 15 seconds with a plain message.
   **Acceptance:** `npm --prefix web test -- Entry` passes, including tests that the year and label kWh reach the `/quote` body, that the response renders through `Receipt`, and that tapping a cost line opens the source sheet.
 
