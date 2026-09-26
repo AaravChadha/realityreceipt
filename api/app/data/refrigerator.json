@@ -1,0 +1,14 @@
+{
+  "category": "refrigerator",
+  "energy_dataset_refs": ["energystar_refrigerators"],
+  "usage_assumption": "A refrigerator runs around the clock all year, so the annual kWh on the ENERGY STAR listing is used as the year's use, and monthly cost is that figure divided by 12.",
+  "upkeep_schedule": [],
+  "repair_ranges": [],
+  "lifespan_range": {
+    "low_years": 13,
+    "high_years": 13,
+    "source_id": "nahb_life_expectancy"
+  },
+  "carbon_applicable": true,
+  "end_of_life_notes": "Lifespan is a single published figure, 13 years for a standard refrigerator on first-owner use (NAHB and Bank of America Home Equity, 2007), so its low and high are equal. No published upkeep interval or cost was found, so the upkeep schedule is empty. No repair cost range has been recorded yet because no primary source for one could be read."
+}
