@@ -198,7 +198,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 > **Build order:** B1 (2.1) and A5 (2.4) and A3 (2.5) and C1 (2.8) start at once → B2 (2.2), B3 (2.3) → A2 (2.6) → A1 (2.7) → C2 (2.9), C3 (2.10) → operator (2.11). C tracks build against the `/quote` stub until 2.7 lands.
 > **Exit criterion:** `api/.venv/bin/python -m pytest api/tests/test_slice.py -q` passes, and by hand: a phone on the tunnel URL shows the live receipt with no "Sample data" banner.
 
-- [ ] **2.1 Sources, rates and repository (Track B1)** ← start here; unblocks A2
+- [x] **2.1 Sources, rates and repository (Track B1)** ← start here; unblocks A2
   Verify each against its primary document, then record it. `api/app/data/sources.json`: a `Source` list with `energystar_refrigerators`, `doe_ccd`, `ga_power_residential_tariff`, `egrid_georgia`, `frb_g19`, `ncua_pals_ii`, plus lifespan, upkeep and repair sources as B2 finds them. `api/app/data/rates.json`: `{key: {value, source_id, notes}}` for the six rate keys in "Fixed interfaces"; `notes` records the Georgia Power tier, season and riders used, the eGRID rate type used (spec §7: consider non-baseload), and which G.19 series. `api/app/repository.py` implements the `Repository` interface and `normalize_model`, loading from `api/app/data/` via a path relative to the module file. `api/tests/test_repository.py`: every rate's `source_id` resolves in `sources()`; `normalize_model("GTE18-GTH/RWW") == "GTE18GTHRWW"`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_repository.py -q` passes.
   **Status (2026-09-26):** landed in #7, then reverted in #8 at its owner's request; the work is kept on `feature/2.1-sources-rates-repository`. Relands once its data is checked.
