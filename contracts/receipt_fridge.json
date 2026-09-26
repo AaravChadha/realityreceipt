@@ -87,6 +87,10 @@
       8.25
     ],
     "carbon_kg": 792.0,
+    "carbon_source_ids": [
+      "doe_standards_refrigerators",
+      "egrid_georgia"
+    ],
     "lines": [
       {
         "kind": "repair",
@@ -96,7 +100,8 @@
         "period": "once",
         "source_type": "user_entered",
         "source_id": "user",
-        "formula": "Quote you entered"
+        "formula": "Quote you entered",
+        "other_source_ids": []
       },
       {
         "kind": "running",
@@ -106,7 +111,10 @@
         "period": "year",
         "source_type": "published",
         "source_id": "doe_standards_refrigerators",
-        "formula": "660 kWh/yr DOE maximum for 2004 x $0.15/kWh"
+        "formula": "660 kWh/yr DOE maximum for 2004 x $0.15/kWh",
+        "other_source_ids": [
+          "ga_power_residential_tariff"
+        ]
       },
       {
         "kind": "running",
@@ -116,7 +124,8 @@
         "period": "year",
         "source_type": "not_estimated",
         "source_id": null,
-        "formula": "No published source for how much more an aged unit draws"
+        "formula": "No published source for how much more an aged unit draws",
+        "other_source_ids": []
       },
       {
         "kind": "replacement",
@@ -126,7 +135,8 @@
         "period": "once",
         "source_type": "published",
         "source_id": "fixture_retailer",
-        "formula": "Cheapest cached new offer, at end of expected life"
+        "formula": "Cheapest cached new offer, at end of expected life",
+        "other_source_ids": []
       }
     ],
     "flags": [
@@ -222,6 +232,10 @@
       6.5
     ],
     "carbon_kg": 624.0,
+    "carbon_source_ids": [
+      "energystar_refrigerators",
+      "egrid_georgia"
+    ],
     "lines": [
       {
         "kind": "purchase",
@@ -231,7 +245,8 @@
         "period": "once",
         "source_type": "user_entered",
         "source_id": "user_listing",
-        "formula": "Price on your listing"
+        "formula": "Price on your listing",
+        "other_source_ids": []
       },
       {
         "kind": "running",
@@ -241,7 +256,10 @@
         "period": "year",
         "source_type": "rated",
         "source_id": "energystar_refrigerators",
-        "formula": "520 kWh/yr x $0.15/kWh"
+        "formula": "520 kWh/yr x $0.15/kWh",
+        "other_source_ids": [
+          "ga_power_residential_tariff"
+        ]
       },
       {
         "kind": "running",
@@ -251,7 +269,8 @@
         "period": "year",
         "source_type": "not_estimated",
         "source_id": null,
-        "formula": "No published source for how much more an aged unit draws"
+        "formula": "No published source for how much more an aged unit draws",
+        "other_source_ids": []
       },
       {
         "kind": "replacement",
@@ -261,7 +280,8 @@
         "period": "once",
         "source_type": "published",
         "source_id": "fixture_retailer",
-        "formula": "Cheapest cached new offer, at end of expected life"
+        "formula": "Cheapest cached new offer, at end of expected life",
+        "other_source_ids": []
       }
     ],
     "flags": [
@@ -356,6 +376,10 @@
       5.62
     ],
     "carbon_kg": 540.0,
+    "carbon_source_ids": [
+      "energystar_refrigerators",
+      "egrid_georgia"
+    ],
     "lines": [
       {
         "kind": "purchase",
@@ -365,7 +389,8 @@
         "period": "once",
         "source_type": "user_entered",
         "source_id": "user_listing",
-        "formula": "Price on your listing"
+        "formula": "Price on your listing",
+        "other_source_ids": []
       },
       {
         "kind": "running",
@@ -375,7 +400,10 @@
         "period": "year",
         "source_type": "rated",
         "source_id": "energystar_refrigerators",
-        "formula": "450 kWh/yr x $0.15/kWh"
+        "formula": "450 kWh/yr x $0.15/kWh",
+        "other_source_ids": [
+          "ga_power_residential_tariff"
+        ]
       }
     ],
     "flags": [
@@ -471,6 +499,10 @@
       4.75
     ],
     "carbon_kg": 456.0,
+    "carbon_source_ids": [
+      "energystar_refrigerators",
+      "egrid_georgia"
+    ],
     "lines": [
       {
         "kind": "purchase",
@@ -480,7 +512,8 @@
         "period": "once",
         "source_type": "published",
         "source_id": "fixture_retailer",
-        "formula": "Cached retailer price"
+        "formula": "Cached retailer price",
+        "other_source_ids": []
       },
       {
         "kind": "running",
@@ -490,7 +523,10 @@
         "period": "year",
         "source_type": "rated",
         "source_id": "energystar_refrigerators",
-        "formula": "380 kWh/yr x $0.15/kWh"
+        "formula": "380 kWh/yr x $0.15/kWh",
+        "other_source_ids": [
+          "ga_power_residential_tariff"
+        ]
       }
     ],
     "flags": [
@@ -585,6 +621,10 @@
       4.75
     ],
     "carbon_kg": 456.0,
+    "carbon_source_ids": [
+      "energystar_refrigerators",
+      "egrid_georgia"
+    ],
     "lines": [
       {
         "kind": "purchase",
@@ -594,7 +634,8 @@
         "period": "once",
         "source_type": "published",
         "source_id": "fixture_retailer",
-        "formula": "Cached retailer price"
+        "formula": "Cached retailer price",
+        "other_source_ids": []
       },
       {
         "kind": "running",
@@ -604,7 +645,10 @@
         "period": "year",
         "source_type": "rated",
         "source_id": "energystar_refrigerators",
-        "formula": "380 kWh/yr x $0.15/kWh"
+        "formula": "380 kWh/yr x $0.15/kWh",
+        "other_source_ids": [
+          "ga_power_residential_tariff"
+        ]
       },
       {
         "kind": "financing",
@@ -614,7 +658,8 @@
         "period": "window",
         "source_type": "published",
         "source_id": "frb_g19",
-        "formula": "12 equal payments at the G.19 rate"
+        "formula": "12 equal payments at the G.19 rate",
+        "other_source_ids": []
       }
     ],
     "flags": [
@@ -709,6 +754,10 @@
       4.75
     ],
     "carbon_kg": 456.0,
+    "carbon_source_ids": [
+      "energystar_refrigerators",
+      "egrid_georgia"
+    ],
     "lines": [
       {
         "kind": "purchase",
@@ -718,7 +767,8 @@
         "period": "once",
         "source_type": "published",
         "source_id": "fixture_retailer",
-        "formula": "Cached retailer price"
+        "formula": "Cached retailer price",
+        "other_source_ids": []
       },
       {
         "kind": "running",
@@ -728,7 +778,10 @@
         "period": "year",
         "source_type": "rated",
         "source_id": "energystar_refrigerators",
-        "formula": "380 kWh/yr x $0.15/kWh"
+        "formula": "380 kWh/yr x $0.15/kWh",
+        "other_source_ids": [
+          "ga_power_residential_tariff"
+        ]
       },
       {
         "kind": "financing",
@@ -738,7 +791,8 @@
         "period": "window",
         "source_type": "not_estimated",
         "source_id": null,
-        "formula": "No provider terms cached"
+        "formula": "No provider terms cached",
+        "other_source_ids": []
       }
     ],
     "flags": [
@@ -833,6 +887,10 @@
       4.75
     ],
     "carbon_kg": 456.0,
+    "carbon_source_ids": [
+      "energystar_refrigerators",
+      "egrid_georgia"
+    ],
     "lines": [
       {
         "kind": "purchase",
@@ -842,7 +900,8 @@
         "period": "once",
         "source_type": "published",
         "source_id": "fixture_retailer",
-        "formula": "Cached retailer price"
+        "formula": "Cached retailer price",
+        "other_source_ids": []
       },
       {
         "kind": "running",
@@ -852,7 +911,10 @@
         "period": "year",
         "source_type": "rated",
         "source_id": "energystar_refrigerators",
-        "formula": "380 kWh/yr x $0.15/kWh"
+        "formula": "380 kWh/yr x $0.15/kWh",
+        "other_source_ids": [
+          "ga_power_residential_tariff"
+        ]
       },
       {
         "kind": "financing",
@@ -862,7 +924,8 @@
         "period": "window",
         "source_type": "published",
         "source_id": "ncua_pals_ii",
-        "formula": "12 payments at the 28% cap plus the $20 fee cap"
+        "formula": "12 payments at the 28% cap plus the $20 fee cap",
+        "other_source_ids": []
       }
     ],
     "flags": [
@@ -958,6 +1021,10 @@
       4.75
     ],
     "carbon_kg": 456.0,
+    "carbon_source_ids": [
+      "energystar_refrigerators",
+      "egrid_georgia"
+    ],
     "lines": [
       {
         "kind": "financing",
@@ -967,7 +1034,8 @@
         "period": "window",
         "source_type": "user_entered",
         "source_id": "user_lease",
-        "formula": "78 weekly payments of $28.33 from your lease"
+        "formula": "78 weekly payments of $28.33 from your lease",
+        "other_source_ids": []
       },
       {
         "kind": "running",
@@ -977,7 +1045,10 @@
         "period": "year",
         "source_type": "rated",
         "source_id": "energystar_refrigerators",
-        "formula": "380 kWh/yr x $0.15/kWh"
+        "formula": "380 kWh/yr x $0.15/kWh",
+        "other_source_ids": [
+          "ga_power_residential_tariff"
+        ]
       }
     ],
     "flags": [
@@ -1073,6 +1144,10 @@
       4.75
     ],
     "carbon_kg": 456.0,
+    "carbon_source_ids": [
+      "energystar_refrigerators",
+      "egrid_georgia"
+    ],
     "lines": [
       {
         "kind": "financing",
@@ -1082,7 +1157,8 @@
         "period": "window",
         "source_type": "user_entered",
         "source_id": "user_lease",
-        "formula": "Cheapest buyout week under your lease's early purchase rule"
+        "formula": "Cheapest buyout week under your lease's early purchase rule",
+        "other_source_ids": []
       },
       {
         "kind": "running",
@@ -1092,7 +1168,10 @@
         "period": "year",
         "source_type": "rated",
         "source_id": "energystar_refrigerators",
-        "formula": "380 kWh/yr x $0.15/kWh"
+        "formula": "380 kWh/yr x $0.15/kWh",
+        "other_source_ids": [
+          "ga_power_residential_tariff"
+        ]
       }
     ],
     "flags": [

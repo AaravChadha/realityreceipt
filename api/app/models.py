@@ -75,6 +75,9 @@ class Lease(Contract):
 
 
 class CostLine(Contract):
+    """`source_type` and `source_id` describe the line's main input (for electricity, the kWh
+    figure); `other_source_ids` lists the sources of the formula's other inputs (the rate)."""
+
     kind: CostKind
     label: str
     amount_low: float | None
@@ -83,6 +86,7 @@ class CostLine(Contract):
     source_type: SourceType
     source_id: str | None
     formula: str
+    other_source_ids: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _blank_exactly_when_not_estimated(self) -> "CostLine":
@@ -114,8 +118,15 @@ class Path(Contract):
     monthly_low: list[float] = Field(min_length=MONTHS, max_length=MONTHS)
     monthly_high: list[float] = Field(min_length=MONTHS, max_length=MONTHS)
     carbon_kg: float | None
+    carbon_source_ids: list[str] = Field(default_factory=list)
     lines: list[CostLine]
     flags: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _carbon_is_sourced(self) -> "Path":
+        if self.carbon_kg is not None and not self.carbon_source_ids:
+            raise ValueError("a carbon figure needs carbon_source_ids (the kWh source and the grid emission rate source)")
+        return self
 
 
 class UpkeepItem(Contract):
