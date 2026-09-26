@@ -25,6 +25,17 @@ def test_energy_has_one_running_line_with_the_kwh_source() -> None:
     assert "600 kWh/yr" in line.formula and "$0.15/kWh" in line.formula
 
 
+def test_energy_names_the_rate_source_only_when_estimated() -> None:
+    ceiling = ModelEnergy(kwh_per_year=660, source_type="published", source_id="doe_standards_refrigerators")
+    unknown = ModelEnergy(kwh_per_year=0, source_type="not_estimated", source_id="none")
+    for kwh in (RATED_600, ceiling):
+        [line] = energy(kwh, RATE).lines
+        assert line.source_id == kwh.source_id
+        assert line.other_source_ids == ["ga_power_residential_tariff"]
+    [blank] = energy(unknown, RATE).lines
+    assert blank.other_source_ids == []
+
+
 def test_energy_published_ceiling_is_labeled_up_to_when_new() -> None:
     ceiling = ModelEnergy(kwh_per_year=660, source_type="published", source_id="doe_standards_refrigerators")
     [line] = energy(ceiling, RATE).lines
