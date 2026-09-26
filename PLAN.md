@@ -161,12 +161,12 @@ One row = one session's file set. A person with fewer sessions runs several rows
   **Acceptance:** `git check-ignore -q api/.env && echo ignored` prints `ignored`, and `ls docs/notability/*.png | wc -l` prints at least `1`.
 
 <a id="phase-1"></a>
-### [ ] Phase 1 — Contracts (A1)
+### [x] Phase 1 — Contracts (A1)
 > Goal: every track builds against the same models, routes and sample receipt. After this PR merges, a contract change needs the A1 owner and a message to the whole team.
 > **Build order:** 1.1 → 1.2 → 1.3 → 1.4, landed as one PR the moment all four pass, to unblock Tracks A, B, C and D.
 > **Exit criterion:** `api/.venv/bin/python -m pytest api/tests -q` passes with `test_contracts.py` included, and `npm --prefix web test` passes with `contracts.test.ts` included.
 
-- [ ] **1.1 Models (Track A1)** ← start here; unblocks everyone
+- [x] **1.1 Models (Track A1)** ← start here; unblocks everyone
   `api/app/models.py`, Pydantic v2, every model with `model_config = ConfigDict(extra="forbid")`.
   - Literals: `SourceType = Literal["rated", "published", "user_entered", "not_estimated"]`; `CostKind = Literal["purchase", "financing", "running", "upkeep", "repair", "replacement", "end_of_life"]`; `Condition = Literal["new", "used_as_is", "refurbished"]`; `OfferSource = Literal["retailer_cache", "user_listing", "price_tag"]`; `ScanKind = Literal["label", "price_tag", "lease", "listing"]`; `PathGroup = Literal["repair", "used_as_is", "refurbished", "new", "rent_to_own"]`; `PaymentMethod = Literal["cash", "card", "bnpl", "pal", "rto_full", "rto_buyout"]`.
   - Spec models (BRIEF.md "Data model") with deltas. `Item`: as spec; `attributes` keys used: `product_class`, `volume_cuft`, `width_in`. `Offer`: add `url: str | None`, `source_id: str`, `available_within_days: int | None`. `Lease`: `early_purchase_rule: Literal["pct_of_remaining", "cash_price_minus_pct_paid", "none"]`, `early_purchase_pct: float | None`, `early_purchase_text: str`, `missed_payment_rule: str`, `source_id: str`. `CostLine`: `amount_low` and `amount_high` are `float | None`, and a validator requires both `None` exactly when `source_type == "not_estimated"`. `Path`: add `group: PathGroup`; `payment_method: PaymentMethod | None`; `monthly_low` and `monthly_high`, each `list[float]` of length 36, replacing `monthly`; `cost_per_year_low/high` and `expected_life_low/high` are `float | None`. `CategoryProfile`: `upkeep_schedule: list[UpkeepItem]`, `repair_ranges: list[RepairRange]`, `lifespan_range: LifespanRange | None`.
@@ -174,16 +174,17 @@ One row = one session's file set. A person with fewer sessions runs several rows
   - Requests and responses: `QuoteRequest(current: Item | None = None, items: list[Item] = [], offers: list[Offer] = [], lease: Lease | None = None, repair_quote_low: float | None = None, repair_quote_high: float | None = None, budget_today: float | None = None, usage_adjust: float | None = None)` (`current` is "the one you have" and enables the repair path); `ScanResult(kind: ScanKind, valid: bool, errors: list[str], item: Item | None, offer: Offer | None, lease: Lease | None)`; `ShopFilters(category: str | None, budget_today: float | None, need_within_days: int | None, max_width_in: float | None, conditions: list[Condition])`; `RankedOffer(offer: Offer, path: Path)`; `VoiceRequest(paths: list[Path], lang: Literal["en", "es"])`.
   - Money is dollars as `float`, rounded to cents by the engine.
   **Acceptance:** `api/.venv/bin/python -c "import sys; sys.path.insert(0, 'api'); from app.models import Item, Offer, Lease, CostLine, Path, CategoryProfile, Source, Contribution, RateValue, ModelEnergy, BnplTerms, SerialDecode, QuoteRequest, ScanResult, ShopFilters, RankedOffer, VoiceRequest; print('ok')"` prints `ok`.
+  **Status (2026-09-26):** also in the contract, beyond the text above: `Period = Literal["once", "month", "year", "window"]` for `CostLine.period`; `SellerType = Literal["retailer", "private", "refurbisher", "rent_to_own"]` for `Offer.seller_type`; `YearConfidence` shared by `Item` and `SerialDecode`; `CategoryProfile.end_of_life_notes`; request bodies `ShopParseRequest(text)` and `ShopRankRequest(filters, offers, items)`. Validators: an estimated `CostLine` needs both amounts, `low <= high`, and a `source_id`; a `Lease` needs `early_purchase_pct` exactly when its rule is not `none`. `Offer.retrieved_at` and `Source.retrieved_date` are dates (ISO strings in JSON).
 
-- [ ] **1.2 Sample receipt (Track A1)**
+- [x] **1.2 Sample receipt (Track A1)**
   `contracts/receipt_fridge.json`: a hand-built `list[Path]` for one refrigerator with 9 paths: `repair`; `used_as_is`; `refurbished`; `new` x4 (`cash`, `card`, `bnpl`, `pal`); `rent_to_own` x2 (`rto_full`, `rto_buyout`). It includes at least one line of each `source_type`, one `null` cost per year, one `replacement` line, and `"fixture"` in every path's `flags`, so it can never pass as real data. Numbers are placeholders.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py -q` passes (written in 1.3).
 
-- [ ] **1.3 Contract tests and route stubs (Track A1)**
+- [x] **1.3 Contract tests and route stubs (Track A1)**
   `api/tests/test_contracts.py`: loads `contracts/receipt_fridge.json` with `TypeAdapter(list[Path])`; asserts every `monthly_low` and `monthly_high` has length 36, every `not_estimated` line has `None` amounts, all 5 groups are present, every path has `"fixture"` in `flags`, and a `CostLine` with `source_type="not_estimated"` and `amount_low=1.0` raises `ValidationError`. In `api/app/main.py`, stub every route so other tracks can call them now: `POST /quote` returns the fixture; `POST /scan` (multipart `kind` + `image`) returns `ScanResult(valid=False, errors=["not implemented"])`; `POST /item` echoes a valid `Item`; `POST /shop/parse` returns an empty `ShopFilters`; `POST /shop/rank` returns `[]`; `GET /categories` returns `["refrigerator"]`; `GET /sources` returns `[]`. `api/tests/test_routes.py` calls each stub through `TestClient` and validates the response model.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests -q` reports no failures and at least 9 passed.
 
-- [ ] **1.4 TypeScript mirror (Track A1)** ← unblocks Track C
+- [x] **1.4 TypeScript mirror (Track A1)** ← unblocks Track C
   `web/src/contracts.ts`: hand-written types mirroring every model in 1.1, exported string-literal unions for each `Literal`, and an exported `PATH_KEYS` array of every `Path` field. `web/src/contracts.test.ts` reads `../../contracts/receipt_fridge.json` and asserts each path's keys equal `PATH_KEYS` as a set and each line's `source_type` is one of the four values.
   **Acceptance:** `npm --prefix web test -- contracts` passes, and `npm --prefix web run build` exits `0`.
 
