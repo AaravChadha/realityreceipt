@@ -213,6 +213,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   In `api/app/models.py`: `ConfigDict(extra="forbid", allow_inf_nan=False)` on `Contract`; `UpkeepItem` and `RepairRange` require `cost_low <= cost_high`; `Item.mfg_year` between 1940 and the current year; `Lease.term_weeks` at most 260. Document the `Item.attributes` keys from "Fixed interfaces" in the `Item` docstring and in `web/src/contracts.ts`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py -q` passes, including new tests that reject an infinite price, an upkeep item with low above high, and `mfg_year=1800`.
 
+- [x] **1.7 Scan results and printed lease numbers (Track A1)** (NEW 2026-09-26, Codex review of #33 and #39)
+  `ScanResult.fields: dict[str, str | float | int | bool | None]` carries every value read, valid or not, to pre-fill the correction form; `item`, `offer` and `lease` are set only when `valid` (validator), and a valid scan has no errors. `Lease.payment_today` and `Lease.total_of_payments` (optional, `>= 0`) hold a lease's own printed numbers. Mirrored in `web/src/contracts.ts`.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py -q` passes, including tests that an invalid scan cannot carry a lease, that a partial scan's JSON round-trips through `ScanResult`, and that a lease keeps its printed numbers.
+
 <a id="phase-2"></a>
 ### [ ] Phase 2 — Vertical slice
 > Goal: a typed fridge model, plus a used listing price, produces a real sourced receipt with `used_as_is` and `new`/`cash` paths, on a real phone over HTTPS. Proves every track connects before widening.
@@ -310,7 +314,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `card`, `pal`, `bnpl` per "Fixed interfaces" and the pinned formulas. Tests in `api/tests/test_financing.py`: `card(1000, RateValue(0.24, ...))` pays 94.56 a month for months 1 to 12 (total 1134.72, within 0.01) with `pay_today == 0`; `pal(1000, ...)` at 28% for 12 months pays 96.50 a month (within 0.01) plus the $20 fee, and returns `None` for a price of 2500; `bnpl(500, None)` returns one `not_estimated` financing line.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_financing.py -q` passes.
 
-- [ ] **3.1.1 BNPL installments outside 36 months (Track A3)** (NEW 2026-09-26, decision 7)
+- [x] **3.1.1 BNPL installments outside 36 months (Track A3)** (NEW 2026-09-26, decision 7)
   In `bnpl`, an installment falling after month 35 is left out of the window arrays instead of added to month 35; the line's formula still states the full schedule.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_financing.py -q` passes, including a test with installments past month 35.
 
@@ -321,6 +325,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [x] **3.2.1 Lease window, buyout pay today and wording (Track A4)** (NEW 2026-09-26, decisions 4 and 7)
   Weekly payments after month 35 are left out of the window arrays (a 208-week lease at $30 a week counts 156 payments, $4,680; the formula states the full lease total). A buyout in week 1 is included in pay today. `rto_full` keeps the effective annual cost in its formula; `rto_buyout` drops it and states its total minus the cash price ("$X more than the cash price" or "$X less"). A lease with `early_purchase_rule="none"` says "No early purchase terms entered", never "Your lease has no early purchase option".
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including tests for the 208-week lease ($4,680 inside the window), a week-1 buyout's pay today ($795 for task 3.2's example lease), the buyout wording, and the "no terms entered" wording.
+
+- [ ] **3.2.2 Use the lease's own printed numbers (Track A4)** (NEW 2026-09-26, needs 1.7)
+  When `lease.payment_today` is set it is pay today (and month 0's payment) instead of the first weekly payment; when `lease.total_of_payments` is set it is the full-term total, spread evenly over the weeks in the window, and the effective annual cost uses it. Both formulas say the figure is "as printed on your lease".
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including a test with the Aaron's demo card's numbers (52 weeks, $33.48 a week, $0.01 today, $1,739.88 total, $1,196.99 cash): pay today is $0.01, the full-term total is $1,739.88, and the effective annual cost is 45%.
 
 - [x] **3.3 All paths in the quote (Track A2)**
   Extend `quote` to all 9 path kinds: `repair` (when `current` is given; repair cost from `repair_quote_*` as `user_entered`, else the profile's repair ranges as `published`; running cost from the current unit), `refurbished` (from a refurbished listing; warranty months shown in a flag), `new` x4 via A3, `rent_to_own` x2 via A4 (when `lease` is given). A path whose inputs are absent is omitted, never invented. Apply flags: `past_typical_life`, `test_procedure_changed` (when comparing a pre-2014 unit with a newer one), `year_from_serial_low_confidence`. `api/tests/test_quote_all_paths.py`: a full request returns 9 paths sorted by `total_3yr_high`; each path's totals equal the sums of its arrays. `api/tests/test_copy.py`: no label, formula or flag in that output contains an em dash, `APR` or `qualif`.
@@ -366,6 +374,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [ ] **3.10 Capture, upload and correction (Track C1)**
   In `Entry.tsx`: a "Scan" button using `<input type="file" accept="image/*" capture="environment">`, an "Upload saved image" button, and a kind picker (label, price tag, lease, listing). A scan result, valid or not, pre-fills the same manual form for correction; the user confirms before quoting. A lease form with every `Lease` field. `Entry.test.tsx`: an invalid `ScanResult` with a parsed brand pre-fills the brand field and shows the errors.
   **Acceptance:** `npm --prefix web test -- Entry` passes.
+  **Status (2026-09-26, task 1.7):** pre-fill the correction form from `ScanResult.fields`; `item`, `offer` and `lease` arrive only when the scan is valid.
 
 - [ ] **3.11 Budget, flags and motion (Track C2)**
   In `Receipt.tsx`: paths whose `pay_today` exceeds the "spend up to" amount are dimmed with "More than you can spend today" (never hidden); flags render as plain sentences; a Framer Motion print-in animation on first render, off under `prefers-reduced-motion`. `Receipt.test.tsx` covers the dimming.

@@ -3,7 +3,7 @@ import pathlib
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from app.models import MONTHS, CostLine, Item, Lease, Offer, Path, RepairRange, UpkeepItem
+from app.models import MONTHS, CostLine, Item, Lease, Offer, Path, RepairRange, ScanResult, UpkeepItem
 
 FIXTURE = pathlib.Path(__file__).resolve().parents[2] / "contracts" / "receipt_fridge.json"
 
@@ -99,3 +99,25 @@ def test_manufacture_year_must_be_plausible() -> None:
 def test_lease_term_is_bounded() -> None:
     with pytest.raises(ValidationError):
         Lease(weekly_payment=30, term_weeks=261, cash_price=700)
+
+
+def test_an_invalid_scan_carries_fields_not_objects() -> None:
+    lease = Lease(weekly_payment=33.48, term_weeks=52, cash_price=1196.99)
+    with pytest.raises(ValidationError):
+        ScanResult(kind="lease", valid=False, errors=["term_weeks: missing"], lease=lease)
+    partial = ScanResult(kind="lease", valid=False, errors=["term_weeks: missing"],
+                         fields={"weekly_payment": 33.48, "term_weeks": None, "cash_price": 1196.99})
+    assert ScanResult.model_validate_json(partial.model_dump_json()) == partial
+
+
+def test_a_valid_scan_has_no_errors() -> None:
+    with pytest.raises(ValidationError):
+        ScanResult(kind="label", valid=True, errors=["model: missing"])
+
+
+def test_a_lease_keeps_its_printed_numbers() -> None:
+    lease = Lease(weekly_payment=33.48, term_weeks=52, cash_price=1196.99,
+                  payment_today=0.01, total_of_payments=1739.88)
+    assert (lease.payment_today, lease.total_of_payments) == (0.01, 1739.88)
+    with pytest.raises(ValidationError):
+        Lease(weekly_payment=33.48, term_weeks=52, cash_price=1196.99, total_of_payments=-1)
