@@ -4,22 +4,26 @@ Agent instructions for this repo, for every tool (Claude Code, Cursor, Codex, or
 
 ## Team workflow (this repo, until Sun 2026-09-27 08:00 EDT)
 
-Four people on four machines, each running several sessions. For this repo these rules replace any personal "one integrator merges everything" rule.
+Four people on four machines, each running several agent sessions. For this repo these rules replace any personal "one integrator merges everything" rule.
+
+**The agent runs every command; the person only approves.** Nobody copies commands by hand. Before a command that creates a worktree, installs something, commits, pushes, opens a PR or merges, the agent says in one line what it will run and why, then waits for approval: the tool's permission prompt, or the person typing "go". Anything else from the person is not approval.
 
 1. **GitHub `main` is the only integration point.** Work reaches it only through a pull request, squash-merged when the `ci` check passes. No review is required. Each person merges their own sessions' PRs. Never commit on `main` (a local hook refuses it), never force-push, never rewrite `main`.
-2. **One session = one task = one branch = one worktree**, branched from fresh `origin/main`:
+2. **One session = one task = one branch = one worktree**, branched from fresh `origin/main`. The agent creates it as its first step and does all the task's work inside it:
    `git fetch origin` then `git worktree add .claude/worktrees/<task-id> -b feature/<task-id>-<slug> origin/main`
-   Open that folder in your tool. In it, once: `python3 -m venv api/.venv`, then `api/.venv/bin/pip install -r api/requirements.txt`, then `npm --prefix web ci`.
+   then, inside it: `python3 -m venv api/.venv`, `api/.venv/bin/pip install -r api/requirements.txt`, `npm --prefix web ci`.
 3. **Take a task by its ID from `PLAN.md`** and do only that task. Edit only the files your row owns in `PLAN.md` "File ownership". A change in another row's file is a request to that row's owner, not an edit.
-4. **Done means the task's `**Acceptance:**` command passes**, run from the repo root. Tick only that task's box in `PLAN.md`, in the same commit. Commit subject: `task <id>: <what>`. No AI attribution trailers.
-5. **Land it:** `git push origin feature/<task-id>-<slug>`, then `gh pr create --fill`, with the acceptance command and its output in the PR body, then `gh pr merge --squash --auto`. It merges itself when CI passes.
+4. **Done means the task's `**Acceptance:**` command passes**, run from the worktree root. Tick only that task's box in `PLAN.md`, in the same commit. Commit subject: `task <id>: <what>`. No AI attribution trailers.
+5. **Land it (the agent, with approval):** `git push origin feature/<task-id>-<slug>`; `gh pr create --fill` with the acceptance command and its output in the PR body; `gh pr merge --squash --auto`. It merges itself when CI passes. The agent reports the PR URL; if CI fails, it reads the failing check and fixes it on the same branch.
 6. **Before building on another track's work, check it is on `origin/main`** (`git fetch origin` then `git log origin/main --oneline`).
 7. **Dependencies and contracts have one owner each.** A new package is a request to the operator (Track 0). A change to `api/app/models.py`, `contracts/` or `web/src/contracts.ts` goes through the A1 owner with a message to the whole team first.
 8. **Secrets:** keys live only in `api/.env` (gitignored). Never paste a key into a committed file, a PR body or a log.
 
-**Claude Code sessions** run `/do <task-id>` in the worktree for steps 3 and 4, then step 5. **Other agents (Cursor, Codex, ...)** get this prompt:
+**First time on a machine** (the agent does it, with approval): install the no-commits-on-main hook from `PLAN.md` task 0.6, confirm `gh auth status` succeeds, and for Claude Code install acstack (`git clone https://github.com/AaravChadha/acstack.git ~/acstack`, then `~/acstack/setup`).
 
-> Read AGENTS.md and PLAN.md. Do only task `<task-id>`. Edit only the files that task's track owns in PLAN.md "File ownership". Run the task's Acceptance command from the repo root; if it fails, stop and show the output. If it passes, tick only that task's checkbox in PLAN.md, commit as `task <task-id>: <what>`, push the branch, and open a PR with the acceptance output in its body.
+**Claude Code sessions:** set up the worktree (step 2), run `/do <task-id>` inside it for steps 3 and 4 (`/do` stops at the commit), then land it (step 5) on the person's approval. **Other agents (Cursor, Codex, ...)** get this prompt:
+
+> Read AGENTS.md and PLAN.md. Do only task `<task-id>`. First create your own worktree and branch as AGENTS.md step 2 says, and do all work inside it. Edit only the files that task's row owns in PLAN.md "File ownership". Run the task's Acceptance command from the worktree root and show me the output; if it fails, fix the code, never weaken the test. When it passes, tick only that task's checkbox in PLAN.md, commit as `task <task-id>: <what>`, then land it as AGENTS.md step 5 says. Before every command that needs approval, tell me what you will run and wait for my OK or "go".
 
 <!-- BEGIN:acstack-referrals -->
 ## Typed-only skills
