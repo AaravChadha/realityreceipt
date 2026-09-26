@@ -1,4 +1,5 @@
 import csv
+import gzip
 import json
 import pathlib
 import shutil
@@ -44,13 +45,14 @@ def test_csv_shape() -> None:
     assert path.stat().st_size < 1_000_000
     with path.open(newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
-    assert rows
+    assert len(rows) >= 4000, "the full ENERGY STAR dataset, not a brand subset"
     assert list(rows[0]) == ["brand", "model_number", "model_normalized", "annual_kwh"]
-    keys = [(r["brand"], r["model_normalized"]) for r in rows]
-    assert len(keys) == len(set(keys)), "one row per brand and model"
+    keys = [(r["brand"], r["model_normalized"], r["annual_kwh"]) for r in rows]
+    assert len(keys) == len(set(keys)), "one row per brand, model and kWh"
     for r in rows:
-        assert r["model_normalized"] == normalize_model(r["model_number"]).rstrip("*")
+        assert r["model_normalized"] == normalize_model(r["model_number"])
         assert float(r["annual_kwh"]) > 0
+    assert not any("Ã" in r["brand"] for r in rows), "brand names are decoded as UTF-8"
 
 
 def test_known_demo_model_returns_its_csv_kwh(repo: Repository) -> None:
@@ -65,6 +67,74 @@ def test_one_character_typo_misses_with_candidates(repo: Repository) -> None:
     candidates = repo.model_candidates("GBE17HYQ")
     assert 1 <= len(candidates) <= 5
     assert any(c.startswith("GBE17HY") for c in candidates)
+
+
+def test_label_family_and_a_retail_number_built_from_it_return_the_familys_kwh(repo: Repository) -> None:
+    family = repo.model_energy("GE", "GTE18FSL****")
+    assert family is not None
+    assert (family.kwh_per_year, family.source_type, family.source_id) == (363.0, "rated", "energystar_refrigerators")
+    assert repo.model_energy("GE", "GTE18FSLRWW") == family
+    assert repo.model_energy("GE", "GTE18FSL") == family, "every wildcard may be blank"
+    assert repo.model_energy("GE", "GTE18FSLRWWXY") is None, "one wildcard too many"
+
+
+def test_another_brands_row_is_never_returned(repo: Repository) -> None:
+    assert repo.model_energy("LG", "GTE18FSLRWW") is None
+    assert repo.model_energy("Whirlpool", "GBE17HYR") is None
+    assert repo.model_energy("", "GBE17HYR") is None
+    assert "GTE18FSL****" in repo.model_candidates("GTE18FSLRWW"), "candidates are hints, not answers"
+
+
+def test_brand_names_match_without_regard_to_case_punctuation_or_the_ge_alias(repo: Repository) -> None:
+    assert repo.model_energy("GE Appliances", "GBE17HYR") == repo.model_energy("GE", "GBE17HYR")
+    assert repo.model_energy("g.e.", "GBE17HYR") == repo.model_energy("GE", "GBE17HYR")
+    assert repo.model_energy("GEA", "GBE17HYR") is None
+    assert repo.model_energy("GE Profile", "GBE17HYR") is None, "a sub-brand is not an alias"
+
+
+def test_a_model_listed_at_two_kwh_is_not_guessed(repo: Repository) -> None:
+    # GTE18DCN**** appears at 359 and 443 kWh.
+    assert repo.model_energy("GE", "GTE18DCN****") is None
+    assert repo.model_energy("GE", "GTE18DCNRWW") is None
+    assert "GTE18DCN****" in repo.model_candidates("GTE18DCNRWW")
+
+
+def _repo_with(tmp_path: pathlib.Path, rows: list[tuple[str, str, float]]) -> Repository:
+    for name in ("sources.json", "rates.json"):
+        shutil.copy(DATA_DIR / name, tmp_path / name)
+    lines = ["brand,model_number,model_normalized,annual_kwh"]
+    lines += [f"{b},{m},{normalize_model(m)},{k}" for b, m, k in rows]
+    (tmp_path / "energystar_refrigerators.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return Repository.load(tmp_path)
+
+
+def test_two_matches_with_different_kwh_return_none_with_both_as_candidates(tmp_path: pathlib.Path) -> None:
+    repo = _repo_with(tmp_path, [("Acme", "AB12*", 300), ("Acme", "AB1*3", 350)])
+    assert repo.model_energy("Acme", "AB123") is None
+    assert sorted(repo.model_candidates("AB123")) == ["AB1*3", "AB12*"]
+
+
+def test_matches_that_agree_on_kwh_return_it(tmp_path: pathlib.Path) -> None:
+    repo = _repo_with(tmp_path, [("Acme", "AB12*", 300), ("Acme", "AB1*3", 300)])
+    hit = repo.model_energy("Acme", "AB123")
+    assert hit is not None and hit.kwh_per_year == 300.0
+
+
+def test_the_row_with_the_fewest_wildcards_wins(tmp_path: pathlib.Path) -> None:
+    repo = _repo_with(tmp_path, [("Acme", "AB123", 300), ("Acme", "AB12*", 350), ("Acme", "AB***", 400)])
+    assert repo.model_energy("Acme", "AB123").kwh_per_year == 300.0
+    assert repo.model_energy("Acme", "AB124").kwh_per_year == 350.0
+    assert repo.model_energy("Acme", "AB1").kwh_per_year == 400.0
+
+
+def test_hash_is_one_optional_character_and_a_query_with_wildcards_needs_the_same_pattern(tmp_path: pathlib.Path) -> None:
+    repo = _repo_with(tmp_path, [("Acme", "AB12#C", 300), ("Acme", "AB99C", 310)])
+    assert repo.model_energy("Acme", "AB12C").kwh_per_year == 300.0
+    assert repo.model_energy("Acme", "AB127C").kwh_per_year == 300.0
+    assert repo.model_energy("Acme", "AB1277C") is None
+    assert repo.model_energy("Acme", "AB12#C").kwh_per_year == 300.0
+    assert repo.model_energy("Acme", "AB12*C") is None, "a different pattern is not the same model"
+    assert repo.model_energy("Acme", "AB9#C") is None, "a wildcard query does not match a concrete row"
 
 
 def test_2004_unit_returns_the_formula_value_for_its_volume(repo: Repository) -> None:
@@ -132,3 +202,112 @@ def test_every_period_is_plausible_and_sourced(repo: Repository) -> None:
             assert 100 < p["intercept"] < 600, (product_class, p)
             assert p["name"].strip(), (product_class, p)
             assert p["manufactured_to"] is None or p["manufactured_from"] < p["manufactured_to"]
+
+
+# DOE historical ratings (task 2.2.2)
+
+MAYTAG_LABEL = DATA_DIR.parents[2] / "demo" / "cards" / "label-older-maytag-mb2562.png"
+
+
+def test_doe_file_shape() -> None:
+    with gzip.open(DATA_DIR / "doe_wap_refrigerators.csv.gz", "rt", newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert len(rows) > 90_000
+    assert list(rows[0]) == ["brand", "model_number", "model_normalized", "year", "annual_kwh"]
+    keys = [(r["brand"].casefold(), r["model_normalized"], r["year"], r["annual_kwh"]) for r in rows]
+    assert len(keys) == len(set(keys)), "one row per brand, model, year and kWh"
+    for r in rows:
+        assert r["model_normalized"] == normalize_model(r["model_number"])
+        assert 1949 <= int(r["year"]) <= 2021
+        assert 0 < float(r["annual_kwh"]) < 5000
+
+
+def test_the_doe_source_is_recorded_and_used_by_the_profile(repo: Repository, profile: CategoryProfile) -> None:
+    assert "doe_wap_refrigerators" in {s.id for s in repo.sources()}
+    assert "doe_wap_refrigerators" in profile.energy_dataset_refs
+
+
+def test_the_maytag_family_on_the_demo_card_returns_the_doe_kwh_and_a_year(repo: Repository) -> None:
+    assert MAYTAG_LABEL.exists(), "demo card label-older-maytag-mb2562.png"
+    # The card's family is MB*2562***; DOE lists Maytag MB*2562HE* at 505 kWh (the figure on the label) for 2005 to 2009.
+    hit = repo.model_energy("Maytag", "MB*2562***")
+    assert hit is not None
+    assert (hit.kwh_per_year, hit.source_type, hit.source_id) == (505.0, "rated", "doe_wap_refrigerators")
+    assert repo.model_year("Maytag", "MB*2562***") == 2009
+    assert repo.model_energy("Maytag", "MB*2562HE*") == hit
+    assert repo.model_energy("maytag", "mbb-2562 he") == hit, "a full retail number built from the family"
+
+
+def test_the_doe_lookup_is_brand_matched_and_never_guesses(repo: Repository) -> None:
+    assert repo.model_energy("Whirlpool", "MB*2562***") is None
+    assert repo.model_year("Whirlpool", "MB*2562***") is None
+    assert repo.model_energy("Maytag", "MB*2562") is None, "a family with no trailing wildcards needs the same pattern"
+    assert repo.model_energy("Maytag", "ZZZ999") is None
+    assert repo.model_year("Maytag", "ZZZ999") is None
+    assert repo.model_year("Maytag", "MBF2562HE") == 2005, "a different unit in the same family has its own rating and year"
+    assert repo.model_energy("Maytag", "MBF2562HE").kwh_per_year == 488.0
+
+
+def test_energy_star_wins_and_an_ambiguous_energy_star_model_does_not_fall_back(repo: Repository) -> None:
+    assert repo.model_energy("GE", "GBE17HYR").source_id == "energystar_refrigerators"
+    # GTE18DCN**** is at 359 and 443 kWh in ENERGY STAR, and DOE also lists it: still no figure.
+    assert repo.model_energy("GE", "GTE18DCN****") is None
+
+
+def test_the_cafe_accent_does_not_matter(repo: Repository) -> None:
+    assert repo.model_energy("Café", "CYE22TP4MW2") == repo.model_energy("Cafe", "CYE22TP4MW2")
+
+
+def _repo_with_doe(tmp_path: pathlib.Path, es: list[tuple[str, str, float]], doe: list[tuple[str, str, int, float]]) -> Repository:
+    repo_dir = tmp_path
+    for name in ("sources.json", "rates.json"):
+        shutil.copy(DATA_DIR / name, repo_dir / name)
+    lines = ["brand,model_number,model_normalized,annual_kwh"] + [f"{b},{m},{normalize_model(m)},{k}" for b, m, k in es]
+    (repo_dir / "energystar_refrigerators.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    lines = ["brand,model_number,model_normalized,year,annual_kwh"]
+    lines += [f"{b},{m},{normalize_model(m)},{y},{k}" for b, m, y, k in doe]
+    with gzip.open(repo_dir / "doe_wap_refrigerators.csv.gz", "wt", newline="", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    return Repository.load(repo_dir)
+
+
+def test_doe_is_the_fallback_only_when_energy_star_has_no_match(tmp_path: pathlib.Path) -> None:
+    repo = _repo_with_doe(tmp_path, [("Acme", "AB12*", 300)], [("Acme", "AB12*", 1999, 400), ("Acme", "CD34", 1990, 500)])
+    assert repo.model_energy("Acme", "AB123").source_id == "energystar_refrigerators"
+    assert repo.model_energy("Acme", "AB123").kwh_per_year == 300.0
+    assert repo.model_energy("Acme", "CD34").source_id == "doe_wap_refrigerators"
+    assert repo.model_year("Acme", "CD34") == 1990
+    assert repo.model_year("Acme", "AB123") == 1999, "the year comes from DOE even when ENERGY STAR gives the kWh"
+
+
+def test_doe_rows_that_disagree_on_kwh_return_none_but_still_have_a_year(tmp_path: pathlib.Path) -> None:
+    repo = _repo_with_doe(tmp_path, [], [("Acme", "CD34", 1990, 500), ("Acme", "CD34", 1993, 450), ("Acme", "CD34", 1995, 450)])
+    assert repo.model_energy("Acme", "CD34") is None
+    assert repo.model_candidates("CD34") == ["CD34"]
+    assert repo.model_year("Acme", "CD34") == 1995
+
+
+def test_a_family_matches_by_core_and_trailing_room_only(tmp_path: pathlib.Path) -> None:
+    doe = [("Acme", "MB*2562HE*", 2005, 505), ("Acme", "MB*2562HEXYZ", 2006, 999), ("Acme", "MB*2562KE*", 2007, 480)]
+    repo = _repo_with_doe(tmp_path, [], doe)
+    # MB*2562*** adds room for three characters: HE* and KE* fit, HEXYZ does not, and they disagree.
+    assert repo.model_energy("Acme", "MB*2562***") is None
+    assert repo.model_candidates("MB*2562***")[:2] == ["MB*2562HE*", "MB*2562KE*"], "the family's matches come first"
+    (tmp_path / "one").mkdir()
+    only_one = _repo_with_doe(tmp_path / "one", [], doe[:1])
+    assert only_one.model_energy("Acme", "MB*2562***").kwh_per_year == 505.0
+    assert only_one.model_energy("Acme", "MB*2562**") is None, "two trailing wildcards leave no room for HE*"
+    assert only_one.model_energy("Acme", "MB*2562HE*").kwh_per_year == 505.0, "an identical pattern needs no family rule"
+
+
+def test_an_identical_pattern_beats_the_family_rule(tmp_path: pathlib.Path) -> None:
+    repo = _repo_with_doe(tmp_path, [("Acme", "MB*2562***", 300), ("Acme", "MB*2562HE*", 505)], [])
+    assert repo.model_energy("Acme", "MB*2562***").kwh_per_year == 300.0
+
+
+def test_a_missing_doe_file_gives_no_year(tmp_path: pathlib.Path) -> None:
+    for name in ("sources.json", "rates.json"):
+        shutil.copy(DATA_DIR / name, tmp_path / name)
+    repo = Repository.load(tmp_path)
+    assert repo.model_year("Maytag", "MB*2562***") is None
+    assert repo.model_energy("Maytag", "MB*2562***") is None

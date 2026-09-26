@@ -1,11 +1,12 @@
-"""`quote` with every kind of path (PLAN.md task 3.3), against a fake repository."""
+"""`quote` with every kind of path (PLAN.md tasks 3.3 and 3.3.1), against a fake repository."""
 
 from dataclasses import dataclass, field
 from datetime import date
 
 import pytest
 
-from app.engine.quote import quote
+from app.engine.quote import INCOMPLETE, quote
+from app.engine.rank import rank
 from app.models import (
     MONTHS,
     BnplTerms,
@@ -19,6 +20,7 @@ from app.models import (
     QuoteRequest,
     RateValue,
     RepairRange,
+    ShopFilters,
     Source,
     UpkeepItem,
 )
@@ -72,6 +74,7 @@ class FakeRepo:
     energy: dict[str, float] = field(default_factory=lambda: {"OLD123": 600.0, "REF789": 450.0, "RTO111": 400.0, "NEW456": 380.0})
     catalog: dict[str, Item] = field(default_factory=lambda: {NEW.id: NEW})
     ceiling_calls: list[tuple[int, str, float]] = field(default_factory=list)
+    energy_refs: list[str] = field(default_factory=lambda: ["energystar_refrigerators"])
 
     def rate(self, key: str) -> RateValue:
         return RATES[key]
@@ -79,7 +82,7 @@ class FakeRepo:
     def profile(self, category: str) -> CategoryProfile:
         return CategoryProfile(
             category=category,
-            energy_dataset_refs=["energystar_refrigerators"],
+            energy_dataset_refs=self.energy_refs,
             usage_assumption="Runs all the time",
             upkeep_schedule=[UpkeepItem(label="Clean coils", cost_low=0, cost_high=20, every_months=12, source_id="upkeep_src")],
             repair_ranges=self.repairs,
@@ -132,12 +135,80 @@ ALL_KINDS = {
 }
 
 
-def test_full_request_returns_nine_paths_sorted_by_total_high() -> None:
+def sort_keys(paths: list[Path]) -> list[tuple[bool, float, float]]:
+    return [(INCOMPLETE in p.flags, p.total_3yr_high, p.pay_today) for p in paths]
+
+
+def test_full_request_returns_nine_paths_complete_ones_first() -> None:
     paths = quote(full_request(), FakeRepo())
     assert len(paths) == 9
     assert {(p.group, p.payment_method) for p in paths} == ALL_KINDS
-    keys = [(p.total_3yr_high, p.pay_today) for p in paths]
-    assert keys == sorted(keys)
+    # Complete paths by total (high end), then pay today; then the flagged ones in the same order.
+    assert sort_keys(paths) == sorted(sort_keys(paths))
+    # Buy now pay later with no cached terms is the only path with a blank cost here.
+    assert [(p.group, p.payment_method) for p in paths if INCOMPLETE in p.flags] == [("new", "bnpl")]
+    assert paths[-1].payment_method == "bnpl"
+
+
+def test_incomplete_rent_to_own_sorts_after_complete_new_cash() -> None:
+    # The lease's unit is not in the request, so neither lease path has an electricity figure.
+    paths = quote(full_request(offers=[USED_OFFER, REFURB_OFFER]), FakeRepo())
+    new_cash, buyout = pick(paths, "new", "cash"), pick(paths, "rent_to_own", "rto_buyout")
+    assert buyout.lines[2].source_type == "not_estimated"  # payments, fees, then electricity
+    assert INCOMPLETE in buyout.flags and INCOMPLETE not in new_cash.flags
+    assert buyout.total_3yr_high < new_cash.total_3yr_high  # $855.00 against $1,110.00
+    assert paths.index(buyout) > paths.index(new_cash)
+    assert sort_keys(paths) == sorted(sort_keys(paths))
+
+
+def test_equal_totals_sort_by_pay_today() -> None:
+    # With 0% terms, buy now pay later totals the same as cash but pays less today.
+    paths = quote(full_request(), FakeRepo(bnpl=TERMS))
+    cash, bnpl = pick(paths, "new", "cash"), pick(paths, "new", "bnpl")
+    assert bnpl.total_3yr_high == cash.total_3yr_high and bnpl.pay_today < cash.pay_today
+    assert paths.index(bnpl) < paths.index(cash)
+
+
+def test_ranked_offers_carry_the_flag() -> None:
+    # `rank` builds its paths with `quote`'s `_cash_path`, so it gets the same flag.
+    repo = FakeRepo(energy={k: v for k, v in FakeRepo().energy.items() if k != "OLD123"})
+    [blank, rated] = [rank(ShopFilters(), [offer], [USED, NEW], repo)[0].path for offer in (USED_OFFER, NEW_OFFERS[1])]
+    assert INCOMPLETE in blank.flags
+    assert INCOMPLETE not in rated.flags
+
+
+def test_blank_electricity_flags_the_path() -> None:
+    repo = FakeRepo(energy={k: v for k, v in FakeRepo().energy.items() if k != "OLD123"})
+    used = pick(quote(full_request(), repo), "used_as_is", "cash")
+    assert used.lines[1].source_type == "not_estimated"
+    assert INCOMPLETE in used.flags
+
+
+def test_blank_electricity_does_not_count_for_a_category_without_energy_data() -> None:
+    repo = FakeRepo(energy={k: v for k, v in FakeRepo().energy.items() if k != "OLD123"}, energy_refs=[])
+    used = pick(quote(full_request(), repo), "used_as_is", "cash")
+    assert used.lines[1].source_type == "not_estimated"
+    assert INCOMPLETE not in used.flags
+
+
+def test_blank_financing_flags_the_path_and_cached_terms_do_not() -> None:
+    assert INCOMPLETE in pick(quote(full_request(), FakeRepo()), "new", "bnpl").flags
+    assert INCOMPLETE not in pick(quote(full_request(), FakeRepo(bnpl=TERMS)), "new", "bnpl").flags
+
+
+def test_blank_replacement_flags_the_path() -> None:
+    # 8 years into a 10 to 15 year life: replaced at month 24 at the high end, and no new offer prices it.
+    paths = quote(QuoteRequest(items=[USED], offers=[USED_OFFER]), FakeRepo(new=[]))
+    [used] = paths
+    [line] = [line for line in used.lines if line.kind == "replacement"]
+    assert line.source_type == "not_estimated"
+    assert INCOMPLETE in used.flags
+
+
+def test_the_blank_aging_line_alone_does_not_flag_a_path() -> None:
+    used = pick(quote(full_request(), FakeRepo()), "used_as_is", "cash")
+    assert any(line.label == "Extra use from age" and line.source_type == "not_estimated" for line in used.lines)
+    assert INCOMPLETE not in used.flags
 
 
 @pytest.mark.parametrize("terms", [None, TERMS])

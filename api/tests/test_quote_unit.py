@@ -6,7 +6,7 @@ from datetime import date
 import pytest
 
 from app.engine.financing import USER_SOURCE_IDS
-from app.engine.quote import quote
+from app.engine.quote import INCOMPLETE, quote
 from app.models import (
     MONTHS,
     CategoryProfile,
@@ -95,7 +95,9 @@ def test_slice_returns_both_groups_sorted_by_total_high() -> None:
     cash_paths = [p for p in paths if p.payment_method == "cash"]
     assert [p.group for p in cash_paths] == ["new", "used_as_is"]
     assert cash_paths[0].total_3yr_high <= cash_paths[1].total_3yr_high
-    assert [p.total_3yr_high for p in paths] == sorted(p.total_3yr_high for p in paths)
+    # Since task 3.3.1, paths flagged `costs_not_estimated` sort after the complete ones.
+    keys = [(INCOMPLETE in p.flags, p.total_3yr_high, p.pay_today) for p in paths]
+    assert keys == sorted(keys)
 
 
 def test_used_path_past_typical_life() -> None:
