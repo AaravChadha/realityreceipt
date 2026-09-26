@@ -288,7 +288,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   In `Receipt.tsx`: paths whose `pay_today` exceeds the "spend up to" amount are dimmed with "More than you can spend today" (never hidden); flags render as plain sentences; a Framer Motion print-in animation on first render, off under `prefers-reduced-motion`. `Receipt.test.tsx` covers the dimming.
   **Acceptance:** `npm --prefix web test -- Receipt` passes.
 
-- [ ] **3.12 RECS finding (Track D4)** ← may start after Phase 0
+- [x] **3.12 RECS finding (Track D4)** ← may start after Phase 0
   `analysis/recs/VARIABLES.md`: the verified RECS 2020 variable names (income, `KOWNRENT`, total energy cost, household weight, replicate weights, state or region) and the replicate-weight variance formula, each quoted from the EIA codebook or methodology page with its URL. `analysis/recs/burden.py`: energy burden (energy cost / income) by income bracket x renter status, weighted, with replicate-weight standard errors and unweighted n per cell; income from bracket midpoints, the open top bracket reported as not estimated; Georgia if every cell has enough cases, otherwise South, stated in the output. Writes `analysis/recs/out/burden.csv` and `analysis/recs/out/burden.png` (both committed; the raw microdata is not). `analysis/recs/test_burden.py` checks the weighted mean and the replicate SE on a 6-row synthetic frame with hand-computed answers.
   **Acceptance:** `api/.venv/bin/python -m pytest analysis -q` passes, and `test -f analysis/recs/out/burden.csv && test -f analysis/recs/out/burden.png && echo ok` prints `ok`.
 
