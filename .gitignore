@@ -1,0 +1,28 @@
+/.claude/worktrees/
+/.claude/.cc-writes/
+/.claude/settings.local.json
+.DS_Store
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.venv/
+.next/
+# one anchored line per folder that holds a package.json:
+/web/node_modules/
+# build output, anchored at its real path:
+/web/dist/
+.env
+.env.*
+!.env.example
+.envrc
+secrets.toml
+*.pem
+*.key
+*serviceAccount*.json
+*service-account*.json
+# databases the app creates when it runs; commit seed data as SQL or CSV:
+*.db
+*.sqlite
+*.sqlite3

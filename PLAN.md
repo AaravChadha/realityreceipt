@@ -1,0 +1,405 @@
+# RealityReceipt
+### HackGT 13 | code freeze Sun 2026-09-27 02:00 EDT | Devpost deadline Sun 08:00 EDT
+
+> **Purpose of this document.** The living plan: phases, tasks, and the command that proves each task is done. `BRIEF.md` is the frozen problem statement. The build spec (`docs/RealityReceipt_Build_Spec.pdf`) is the source of truth for product rules. How sessions branch, land and ask for changes is in `AGENTS.md` "Team workflow".
+>
+> **Cross-cutting constraints (every phase, every session, every tool):**
+> - Only extraction uses AI. No number on the receipt is produced or changed by a model. Everything after extraction is deterministic and has a test.
+> - "Not a wrapper": typing brand, model and serial gives the identical receipt to scanning the label.
+> - Every cost line carries exactly one source label (`rated`, `published`, `user_entered`, `not_estimated`) and a formula. `not_estimated` means blank, never guessed.
+> - Estimates are ranges, never single points. Repairs are labeled ranges with no failure probabilities.
+> - Nothing is fetched live during the demo. No scraping. No sign-up, no income or personal questions. Checkout links out; never fake a payment.
+> - Wording in the UI and on stage (spec §6): "effective annual cost", never "APR"; never say a user qualifies for a loan or assistance; no absolute claims; no em dashes in user-facing copy.
+> - Secrets live only in `api/.env`, which is gitignored. `api/.env.example` holds the variable names with empty values.
+
+**Gate verdict (2026-09-26):** Challenged in writing: the spec's single-sequence build order, the one-machine merge lane, the undefined formulas, the "only the first step uses AI" wording, the OCR fallback and the optional stack pieces, and the unnamed first category. Changed: scope stays at spec items 1 to 8 (item 9 conditional) because four people each run several sessions, with Sat 12:00 EDT as an integration checkpoint; integration is PR + squash on GitHub instead of the acstack hackathon lane; the formulas are pinned below; the OCR fallback, PWA, live camera viewfinder and SQLite are cut; refrigerators are the first category. Accepted as-is: the spec's architecture (AI only at the edges, a deterministic engine, a category as data), the data model and API with the deltas in task 1.1, the sponsor entries, and every spec §6 stage rule.
+
+**Status (2026-09-26 14:52 EDT):** build had not started; 12 hours passed between the gate and this plan. The team works untimed, as fast as possible, in the priority order below. The Sat 12:00 checkpoint becomes the Phase 2 exit criterion. Fixed times remain the code freeze (Sun 02:00) and the Devpost deadline (Sun 08:00).
+
+## Problem
+
+The option that looks cheapest today often costs the most over time: an old used unit that is expensive to run, a rent-to-own lease that totals several times the cash price, a purchase on high-interest credit. Stores sort by sticker price, which hides running costs, interest, lease terms and lifespan, and lower-income households are the most exposed.
+
+## Solution
+
+1. Scan or type an appliance's label, a price tag, a lease or a used listing. No sign-up, no personal questions.
+2. See every way to get the item side by side: repair, used, refurbished, new (cash, card, buy now pay later, credit union PAL), rent-to-own.
+3. Each path shows three numbers, pay today, total over 3 years and cost per year of use, sorted by true cost.
+4. Tap any number for its source and formula. A carbon line sits next to the cost line.
+5. Ask in plain words ("about $300, small space, need it this week") and get new and used offers ranked by cost per year.
+
+## Tech Stack
+
+| Layer | Choice | Reason |
+|---|---|---|
+| API | FastAPI + Pydantic v2, Python 3.12 in CI | Strict schemas are the contract; `TestClient` gives acceptance checks without a running server |
+| Data | Committed JSON and CSV in `api/app/data/`, loaded into memory by `api/app/repository.py` | No database to break; the repository interface still allows a TigerData swap |
+| AI | Grok vision and text over HTTPS with `httpx`; Grok Voice | SpaceXAI challenge; no vendor SDK to install |
+| Web | React + Vite + TypeScript, Tailwind, Framer Motion | Spec stack, minus the PWA |
+| Tests | pytest (`api/tests`, `analysis`), vitest + Testing Library (`web/src`) | Every task's acceptance is a test run |
+| Phone | `cloudflared` quick tunnel to the Vite dev server | Phone cameras need HTTPS |
+| Evidence | pandas + matplotlib in `analysis/recs/` | RECS 2020 weighted analysis |
+
+## Decisions (from the gate)
+
+> **Decision (2026-09-26):** Integration is GitHub `main` via small PRs, squash-merged when CI passes. Each person merges their own sessions' PRs; no review, no single integrator. Tradeoff: a few minutes of CI per landing and no human review; mitigated by per-session file ownership and by running the task's acceptance before opening the PR. Revisit when CI takes over 10 minutes.
+
+> **Decision (2026-09-26):** No `acstack:hackathon-lane` block in AGENTS.md. The lane's own scope is one machine, one clone; we are four machines. Tradeoff: `/do` stops at a local commit and the person pushes and opens the PR; mitigated by the push-and-PR steps in AGENTS.md "Team workflow". Revisit never during this event.
+
+> **Decision (2026-09-26):** The first category is refrigerators. They run all the time, so the rated annual kWh is the usage (no usage-hours assumption), and they are electric only (no gas vs electric split). Tradeoff: the ~2014 test procedure change (spec §7) makes old and new ratings not directly comparable; mitigated by a receipt flag on any comparison across it. Revisit when items 1 to 8 are solid (spec item 9).
+
+> **Decision (2026-09-26):** Cut the PaddleOCR + OpenCV fallback, the PWA, the live getUserMedia viewfinder and SQLite. The scan fallback is the manual correction form, pre-filled with whatever parsed, plus an upload button. The camera path is `<input type="file" accept="image/*" capture="environment">`. Tradeoff: no offline install and no live viewfinder; mitigated by full-resolution stills and a TigerData-ready repository interface. Revisit if a track finishes early.
+
+> **Decision (2026-09-26): formulas pinned.** Every one is shown when its number is tapped.
+> - **Cost per year of use:** low = purchase total low / life high + annual cost low; high = purchase total high / life low + annual cost high. "Purchase total" includes financing; "annual cost" is running plus upkeep per year. `None` (shown "not estimated") when no published lifespan exists, and the high end is `None` when remaining life low is 0 (flag `past_typical_life`).
+> - **Credit card:** Federal Reserve G.19 "accounts assessed interest" rate, paid off in 12 equal monthly payments starting month 1. Pay today = 0.
+> - **PAL:** NCUA PALs II caps as the ceiling: 28% interest, 12 months, $20 application fee, only for prices up to $2,000. Low = high = cost at the caps, labeled "up to". Never implies the user can get one.
+> - **Buy now pay later:** `not_estimated`, unless one provider's published terms are cached with URL and retrieval date.
+> - **Replacement purchase:** the cheapest cached new offer in the category, added to `monthly_high` at month `ceil(life_low * 12)` and to `monthly_low` at month `ceil(life_high * 12)`, each only when that month is under 36.
+> - **Monthly cash flow:** `monthly_low[36]` and `monthly_high[36]` (index 0 = today), replacing the spec's single `monthly[36]`. Total over 3 years = sum of each array.
+> - **Old unit energy:** its sourced rated figure. Extra draw from aging is `not_estimated`.
+> - **Rent-to-own effective annual cost** = ((total of payments - cash price) / cash price) / (term_weeks / 52). Never labeled APR.
+> - **Sort order:** paths by `total_3yr_high`, ties by `pay_today`. Shop offers by `cost_per_year_high`, `None` last.
+
+> **Decision (2026-09-26):** ~~Contracts frozen by 03:30 EDT.~~ → **Verdict (2026-09-26):** ~~frozen by 04:30 EDT~~ → **Verdict (2026-09-26 14:52):** frozen when the Phase 1 PR merges; no clock time. The team works untimed.
+
+> **Decision (2026-09-26):** An old unit with no rating in ENERGY STAR or the DOE CCD falls back to the DOE standard maximum for its manufacture year, product class and adjusted volume (spec §3), labeled `published` and "up to, when new". Tradeoff: an upper bound when new, not what an aged unit draws; mitigated by the separate `not_estimated` aging line. Revisit if a sourced degradation figure turns up.
+
+> **Decision (2026-09-26):** "Not a wrapper" parity covers brand, model, serial, condition, price, and the optional `product_class` and `volume_cuft`. Energy always comes from lookup by model (or the standard fallback), never from a kWh figure printed on a scanned label, so typed and scanned entries resolve identically. Tradeoff: a label's printed kWh is not used directly; mitigated by the model lookup returning the same rated figure. Revisit never during this event.
+
+## Index of phases
+
+Phases are milestones, not time slots. A task in a later phase starts as soon as its inputs are on `origin/main`; Track D's scan and RECS work can start right after Phase 1.
+
+| Phase | Goal | Exit criterion |
+|---|---|---|
+| [0 Setup](#phase-0) | Scaffold, CI and hook on GitHub `main`; every clone passes | `gh run list --workflow ci.yml --branch main --limit 1 --json conclusion -q '.[0].conclusion'` prints `success` |
+| [1 Contracts](#phase-1) | Models, route stubs and a sample receipt that every track builds against | `api/.venv/bin/python -m pytest api/tests -q` and `npm --prefix web test` pass |
+| [2 Vertical slice](#phase-2) | Typed fridge model gives a sourced receipt on a real phone | `api/.venv/bin/python -m pytest api/tests/test_slice.py -q` passes, plus the phone check |
+| [3 Full receipt and scan](#phase-3) | All paths, the lease, serial decode, Grok scan equal to typed entry, RECS finding | `api/.venv/bin/python -m pytest api/tests analysis -q` passes with `test_not_a_wrapper.py` included |
+| [4 Shop, voice, submit](#phase-4) | Grok shopping request, voice, demo hardened, frozen at 02:00, submitted | CI green on the `freeze` tag, submission checklist ticked |
+
+## File ownership
+
+One row = one session's file set. A person with fewer sessions runs several rows in order. A session edits only its row's files; for a change in another row, ask that row's owner. Tests live next to the owner: a row owns the test files named in its tasks.
+
+| Row | Owner | Edits only | Reads from |
+|---|---|---|---|
+| 0 Operator | repo owner | `.gitignore`, `.github/`, `pytest.ini`, `api/requirements.txt`, `api/app/__init__.py`, `api/.env.example`, `web/package.json`, `web/package-lock.json`, `web/vite.config.ts`, `web/tsconfig*.json`, `web/index.html`, `docs/`, `README.md`, `AGENTS.md`, `.claude/acstack.md`, `.cursor/` | — |
+| A1 Contracts and routes | Track A | `api/app/models.py`, `api/app/main.py`, `contracts/`, `web/src/contracts.ts`, `web/src/contracts.test.ts`, `api/tests/test_contracts.py`, `api/tests/test_health.py`, `api/tests/test_routes.py` | every module's functions below |
+| A2 Quote and lifecycle | Track A | `api/app/engine/__init__.py`, `api/app/engine/quote.py`, `api/app/engine/lifecycle.py`, `api/app/engine/rank.py`, `api/tests/test_lifecycle.py`, `api/tests/test_slice.py`, `api/tests/test_quote_all_paths.py`, `api/tests/test_rank.py`, `api/tests/test_copy.py` | A3 to A5, B1 |
+| A3 Financing | Track A | `api/app/engine/financing.py`, `api/tests/test_financing.py` | A1 models |
+| A4 Rent-to-own | Track A | `api/app/engine/lease.py`, `api/tests/test_lease.py` | A1 models |
+| A5 Running cost and carbon | Track A | `api/app/engine/running.py`, `api/tests/test_running.py` | A1 models |
+| B1 Sources and repository | Track B | `api/app/repository.py`, `api/app/data/sources.json`, `api/app/data/rates.json`, `api/app/data/bnpl.json`, `api/tests/test_repository.py` | A1 models |
+| B2 Refrigerator profile | Track B | `api/app/data/refrigerator.json`, `api/app/data/energystar_refrigerators.csv`, `api/app/data/doe_standards_refrigerators.json`, `api/tests/test_profile.py` | B1 |
+| B3 Offers and demo materials | Track B | `api/app/data/retailer_cache.json`, `demo/`, `api/tests/test_retailer_cache.py` | B1 |
+| B4 Serial decode | Track B | `api/app/serial/`, `api/tests/test_serial.py` | A1 models |
+| C1 Shell, entry and scan UI | Track C | `web/src/App.tsx`, `web/src/main.tsx`, `web/src/api.ts`, `web/src/pages/Entry.tsx`, `web/src/pages/Entry.test.tsx`, `web/src/copy.test.ts`, `web/src/index.css` | A1 contracts |
+| C2 Receipt | Track C | `web/src/components/Receipt.tsx`, `web/src/components/PathCard.tsx`, `web/src/format.ts`, `web/src/components/Receipt.test.tsx`, `web/src/format.test.ts` | A1 contracts |
+| C3 Source sheet | Track C | `web/src/components/SourceSheet.tsx`, `web/src/components/SourceSheet.test.tsx` | C2's `format.ts` |
+| C4 Shop | Track C | `web/src/pages/Shop.tsx`, `web/src/pages/Shop.test.tsx` | C2, A1 contracts |
+| D1 Grok scan | Track D, **in Cursor** | `api/app/grok/__init__.py`, `api/app/grok/client.py`, `api/app/grok/scan.py`, `api/tests/test_scan.py`, `api/tests/test_not_a_wrapper.py`, `api/tests/fixtures/` | A1 models, A2 `quote` |
+| D2 Grok request parsing | Track D, **in Cursor** | `api/app/grok/parse.py`, `api/tests/test_parse.py` | D1's `client.py` |
+| D3 Voice | Track D, **in Cursor** | `api/app/voice/`, `api/tests/test_voice.py` | A1 models |
+| D4 RECS finding | Track D | `analysis/` | — |
+
+`PLAN.md` is shared: each task ticks only its own box, in its own PR. New tasks go in through the operator. `BRIEF.md` is frozen. A new dependency is a request to the operator.
+
+**Fixed interfaces** (names other rows code against; change only through the A1 owner):
+- `api/app/engine/financing.py`: `cash(price: float, source_id: str) -> Contribution`; `card(price: float, apr: RateValue, months: int = 12) -> Contribution`; `pal(price: float, rate_cap: RateValue, fee_cap: RateValue, max_amount: RateValue, months: int = 12) -> Contribution | None`; `bnpl(price: float, terms: BnplTerms | None) -> Contribution`.
+- `api/app/engine/lease.py`: `rto_full(lease: Lease) -> Contribution`; `cheapest_buyout(lease: Lease) -> tuple[int, float]` (week, total paid); `rto_buyout(lease: Lease) -> Contribution`; `effective_annual_cost(total_payments: float, cash_price: float, term_weeks: int) -> float`.
+- `api/app/engine/running.py`: `energy(kwh: ModelEnergy, rate: RateValue, months: int = 36) -> Contribution`; `aging_line() -> CostLine`; `carbon_kg(kwh_per_year: float, kg_per_kwh: RateValue, months: int = 36) -> float`; `upkeep(schedule: list[UpkeepItem], months: int = 36) -> Contribution`.
+- `api/app/engine/lifecycle.py`: `remaining_life(age_years: float | None, lifespan: LifespanRange | None) -> tuple[float | None, float | None]`; `cost_per_year(purchase_low: float, purchase_high: float, annual_low: float, annual_high: float, life_low: float | None, life_high: float | None) -> tuple[float | None, float | None]`; `replacement(offer: Offer, life_low: float | None, life_high: float | None) -> Contribution`; `combine(parts: list[Contribution]) -> Contribution`.
+- `api/app/engine/quote.py`: `quote(req: QuoteRequest, repo: Repository) -> list[Path]`. `api/app/engine/rank.py`: `rank(filters: ShopFilters, offers: list[Offer], items: list[Item], repo: Repository) -> list[RankedOffer]`.
+- `api/app/repository.py`: `Repository.load() -> Repository`; methods `sources() -> list[Source]`, `source(id: str) -> Source`, `rate(key: str) -> RateValue` with keys `ga_power_marginal_per_kwh`, `egrid_ga_kg_per_kwh`, `g19_card_apr_assessed`, `pal_rate_cap`, `pal_fee_cap`, `pal_max_amount`; `profile(category: str) -> CategoryProfile`; `model_energy(brand: str, model: str) -> ModelEnergy | None`; `model_candidates(model: str) -> list[str]`; `standard_ceiling(mfg_year: int, product_class: str, volume_cuft: float) -> ModelEnergy | None`; `new_offers(category: str) -> list[Offer]`; `bnpl_terms() -> BnplTerms | None`. Module function `normalize_model(s: str) -> str` (uppercase; drop spaces, `-`, `/`, `.`).
+- `api/app/serial/decode.py`: `decode(brand: str, serial: str) -> SerialDecode`.
+- `api/app/grok/client.py`: `class GrokClient` with `chat_json(system: str, user: str, image_jpeg: bytes | None = None) -> dict`; reads `XAI_API_KEY` and `XAI_MODEL` from `api/.env`. `api/app/grok/scan.py`: `scan(kind: ScanKind, image_jpeg: bytes, client: GrokClient) -> ScanResult`. `api/app/grok/parse.py`: `parse_request(text: str, client: GrokClient) -> ShopFilters`.
+- `api/app/voice/script.py`: `script(paths: list[Path], lang: Literal["en", "es"]) -> str`.
+- Reserved source ids: `user` (typed by the user), `user_listing` (from the user's listing), `user_lease` (from the user's lease). Every other id comes from `api/app/data/sources.json`.
+
+## Phases
+
+<a id="phase-0"></a>
+### [ ] Phase 0 — Setup (operator)
+> Goal: GitHub `main` holds the scaffold, the test setup, CI and these docs, so every session's worktree starts complete.
+> **Build order:** 0.1 → 0.2 → 0.3 → 0.4 → 0.5 → 0.6 → 0.7 → 0.8. Tasks 0.1 to 0.4 are committed directly on `main` in the main checkout (the only commits ever made there); 0.6 then installs the hook that refuses any further commit on `main`.
+> **Exit criterion:** `gh run list --workflow ci.yml --branch main --limit 1 --json conclusion -q '.[0].conclusion'` prints `success`.
+
+- [x] **0.1 Commit the docs (Track 0 — operator)** ← start here
+  Put the spec at `docs/RealityReceipt_Build_Spec.pdf`. Commit `BRIEF.md`, `PLAN.md`, `AGENTS.md`, `CLAUDE.md`, `LEARNINGS.md`, `.gitignore`, `.claude/acstack.md` and the PDF as `task 0.1: planning docs and repo config`.
+  **Acceptance:** `git ls-files BRIEF.md PLAN.md AGENTS.md CLAUDE.md .gitignore .claude/acstack.md docs/RealityReceipt_Build_Spec.pdf | wc -l` prints `7`.
+
+- [ ] **0.2 Scaffold the API (Track 0 — operator)**
+  `api/app/__init__.py` (empty); `api/app/main.py` with `app = FastAPI()` and `GET /health` returning `{"ok": true}`; `api/tests/test_health.py` calling it through `fastapi.testclient.TestClient`; root `pytest.ini` with `[pytest]`, `pythonpath = api analysis`, `testpaths = api/tests analysis`. Create `api/.venv` with `python3 -m venv api/.venv`, install `fastapi uvicorn pydantic pytest httpx python-multipart python-dotenv pandas matplotlib`, then pin every package with `api/.venv/bin/pip freeze > api/requirements.txt`. `api/.env.example` holds two lines, `XAI_API_KEY=` and `XAI_MODEL=`.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests -q` prints `1 passed`, and `test "$(grep -c '==' api/requirements.txt)" -gt 5 && echo pinned` prints `pinned`.
+
+- [ ] **0.3 Scaffold the web app (Track 0 — operator)**
+  `npm create vite@latest web -- --template react-ts`; add `tailwindcss`, `@tailwindcss/vite`, `framer-motion`, and dev dependencies `vitest`, `jsdom`, `@testing-library/react`, `@testing-library/jest-dom`. In `web/vite.config.ts`: the Tailwind plugin; `server.proxy` sending `/api` to `http://localhost:8000` with the `/api` prefix stripped; `server.allowedHosts: ['.trycloudflare.com']`; `test.environment: 'jsdom'`. `web/package.json` scripts: `"test": "vitest run"`, `"build": "tsc -b && vite build"`. Add `web/src/smoke.test.ts` asserting `1 + 1 === 2`. Commit `web/package-lock.json`. Delete any unanchored `dist` or `node_modules` line from `web/.gitignore`; the root `.gitignore` covers both.
+  **Acceptance:** `npm --prefix web test` exits `0` with `1 passed`, and `npm --prefix web run build` exits `0`.
+
+- [ ] **0.4 Add CI (Track 0 — operator)**
+  `.github/workflows/ci.yml`, one job named `ci`, on `pull_request` and on `push` to `main`: checkout; `actions/setup-python` 3.12; `python -m venv api/.venv && api/.venv/bin/pip install -r api/requirements.txt`; `api/.venv/bin/python -m pytest api/tests analysis -q`; `actions/setup-node` 20; `npm --prefix web ci`; `npm --prefix web test`; `npm --prefix web run build`.
+  **Acceptance:** `grep -c -E 'npm --prefix web run build|pytest api/tests' .github/workflows/ci.yml` prints `2`.
+
+- [ ] **0.5 Publish `main` (Track 0 — operator, by hand)**
+  Create a private GitHub repo `realityreceipt` (GitHub UI, or `gh repo create realityreceipt --private`). Add the remote yourself (`git remote add origin <url>`; sessions may not edit `.git/config`), then `git push origin main`. Invite the three teammates as collaborators.
+  **Acceptance:** `test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$(git rev-parse main)" && echo synced` prints `synced`.
+
+- [ ] **0.6 Protect `main` (Track 0 — operator, by hand)**
+  In every clone, install the local hook that refuses commits on `main`:
+  `h="$(git rev-parse --git-common-dir)/hooks/pre-commit"; printf '%s\n' '#!/bin/sh' '[ "$(git symbolic-ref -q HEAD)" = refs/heads/main ] && { echo "refused: no commits on main; branch and open a PR"; exit 1; }' 'exit 0' > "$h"; chmod +x "$h"`.
+  In GitHub settings: branch rule on `main` requiring a pull request (0 approvals) and the `ci` status check; allow squash merging only; enable "Allow auto-merge".
+  **Acceptance:** `test -x "$(git rev-parse --git-common-dir)/hooks/pre-commit" && echo hook` prints `hook`, and `gh api 'repos/{owner}/{repo}/branches/main/protection' --jq '.required_status_checks.contexts[]'` prints `ci`.
+
+- [ ] **0.7 Teammate clones (Track 0 — each teammate)** ← unblocks Tracks A to D
+  Each teammate clones the repo, installs the 0.6 hook, runs the worktree setup from AGENTS.md "Team workflow", and for Claude Code installs acstack (`git clone https://github.com/AaravChadha/acstack.git ~/acstack && ~/acstack/setup`). Cursor and Codex users confirm their agent reads `AGENTS.md`; if Cursor does not, the operator adds `.cursor/rules/agents.mdc` pointing at it.
+  **Acceptance:** in each clone, `api/.venv/bin/python -m pytest api/tests -q` prints `1 passed` and `npm --prefix web run build` exits `0`.
+
+- [ ] **0.8 Keys and Notability (Track 0 — operator)**
+  Put a working key and model name in `api/.env` (`XAI_API_KEY=...`, `XAI_MODEL=...`, a vision-capable Grok model from xAI's docs) on every machine that runs the API. Start Notability now: an architecture sketch, screenshot saved to `docs/notability/01-architecture.png`.
+  **Acceptance:** `git check-ignore -q api/.env && echo ignored` prints `ignored`, and `ls docs/notability/*.png | wc -l` prints at least `1`.
+
+<a id="phase-1"></a>
+### [ ] Phase 1 — Contracts (A1)
+> Goal: every track builds against the same models, routes and sample receipt. After this PR merges, a contract change needs the A1 owner and a message to the whole team.
+> **Build order:** 1.1 → 1.2 → 1.3 → 1.4, landed as one PR the moment all four pass, to unblock Tracks A, B, C and D.
+> **Exit criterion:** `api/.venv/bin/python -m pytest api/tests -q` passes with `test_contracts.py` included, and `npm --prefix web test` passes with `contracts.test.ts` included.
+
+- [ ] **1.1 Models (Track A1)** ← start here; unblocks everyone
+  `api/app/models.py`, Pydantic v2, every model with `model_config = ConfigDict(extra="forbid")`.
+  - Literals: `SourceType = Literal["rated", "published", "user_entered", "not_estimated"]`; `CostKind = Literal["purchase", "financing", "running", "upkeep", "repair", "replacement", "end_of_life"]`; `Condition = Literal["new", "used_as_is", "refurbished"]`; `OfferSource = Literal["retailer_cache", "user_listing", "price_tag"]`; `ScanKind = Literal["label", "price_tag", "lease", "listing"]`; `PathGroup = Literal["repair", "used_as_is", "refurbished", "new", "rent_to_own"]`; `PaymentMethod = Literal["cash", "card", "bnpl", "pal", "rto_full", "rto_buyout"]`.
+  - Spec models (BRIEF.md "Data model") with deltas. `Item`: as spec; `attributes` keys used: `product_class`, `volume_cuft`, `width_in`. `Offer`: add `url: str | None`, `source_id: str`, `available_within_days: int | None`. `Lease`: `early_purchase_rule: Literal["pct_of_remaining", "cash_price_minus_pct_paid", "none"]`, `early_purchase_pct: float | None`, `early_purchase_text: str`, `missed_payment_rule: str`, `source_id: str`. `CostLine`: `amount_low` and `amount_high` are `float | None`, and a validator requires both `None` exactly when `source_type == "not_estimated"`. `Path`: add `group: PathGroup`; `payment_method: PaymentMethod | None`; `monthly_low` and `monthly_high`, each `list[float]` of length 36, replacing `monthly`; `cost_per_year_low/high` and `expected_life_low/high` are `float | None`. `CategoryProfile`: `upkeep_schedule: list[UpkeepItem]`, `repair_ranges: list[RepairRange]`, `lifespan_range: LifespanRange | None`.
+  - New models: `UpkeepItem(label: str, cost_low: float, cost_high: float, every_months: int, source_id: str)`; `RepairRange(label: str, cost_low: float, cost_high: float, source_id: str)`; `LifespanRange(low_years: float, high_years: float, source_id: str)`; `Contribution(pay_today: float, monthly_low: list[float], monthly_high: list[float], lines: list[CostLine])`; `RateValue(value: float, source_id: str)`; `ModelEnergy(kwh_per_year: float, source_type: SourceType, source_id: str)`; `BnplTerms(provider: str, installments: int, interval_weeks: int, apr: float, source_id: str)`; `SerialDecode(mfg_year: int | None, year_confidence: Literal["high", "low", "none"], source_id: str | None, note: str)`.
+  - Requests and responses: `QuoteRequest(current: Item | None = None, items: list[Item] = [], offers: list[Offer] = [], lease: Lease | None = None, repair_quote_low: float | None = None, repair_quote_high: float | None = None, budget_today: float | None = None, usage_adjust: float | None = None)` (`current` is "the one you have" and enables the repair path); `ScanResult(kind: ScanKind, valid: bool, errors: list[str], item: Item | None, offer: Offer | None, lease: Lease | None)`; `ShopFilters(category: str | None, budget_today: float | None, need_within_days: int | None, max_width_in: float | None, conditions: list[Condition])`; `RankedOffer(offer: Offer, path: Path)`; `VoiceRequest(paths: list[Path], lang: Literal["en", "es"])`.
+  - Money is dollars as `float`, rounded to cents by the engine.
+  **Acceptance:** `api/.venv/bin/python -c "import sys; sys.path.insert(0, 'api'); from app.models import Item, Offer, Lease, CostLine, Path, CategoryProfile, Source, Contribution, RateValue, ModelEnergy, BnplTerms, SerialDecode, QuoteRequest, ScanResult, ShopFilters, RankedOffer, VoiceRequest; print('ok')"` prints `ok`.
+
+- [ ] **1.2 Sample receipt (Track A1)**
+  `contracts/receipt_fridge.json`: a hand-built `list[Path]` for one refrigerator with 9 paths: `repair`; `used_as_is`; `refurbished`; `new` x4 (`cash`, `card`, `bnpl`, `pal`); `rent_to_own` x2 (`rto_full`, `rto_buyout`). It includes at least one line of each `source_type`, one `null` cost per year, one `replacement` line, and `"fixture"` in every path's `flags`, so it can never pass as real data. Numbers are placeholders.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py -q` passes (written in 1.3).
+
+- [ ] **1.3 Contract tests and route stubs (Track A1)**
+  `api/tests/test_contracts.py`: loads `contracts/receipt_fridge.json` with `TypeAdapter(list[Path])`; asserts every `monthly_low` and `monthly_high` has length 36, every `not_estimated` line has `None` amounts, all 5 groups are present, every path has `"fixture"` in `flags`, and a `CostLine` with `source_type="not_estimated"` and `amount_low=1.0` raises `ValidationError`. In `api/app/main.py`, stub every route so other tracks can call them now: `POST /quote` returns the fixture; `POST /scan` (multipart `kind` + `image`) returns `ScanResult(valid=False, errors=["not implemented"])`; `POST /item` echoes a valid `Item`; `POST /shop/parse` returns an empty `ShopFilters`; `POST /shop/rank` returns `[]`; `GET /categories` returns `["refrigerator"]`; `GET /sources` returns `[]`. `api/tests/test_routes.py` calls each stub through `TestClient` and validates the response model.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests -q` reports no failures and at least 9 passed.
+
+- [ ] **1.4 TypeScript mirror (Track A1)** ← unblocks Track C
+  `web/src/contracts.ts`: hand-written types mirroring every model in 1.1, exported string-literal unions for each `Literal`, and an exported `PATH_KEYS` array of every `Path` field. `web/src/contracts.test.ts` reads `../../contracts/receipt_fridge.json` and asserts each path's keys equal `PATH_KEYS` as a set and each line's `source_type` is one of the four values.
+  **Acceptance:** `npm --prefix web test -- contracts` passes, and `npm --prefix web run build` exits `0`.
+
+<a id="phase-2"></a>
+### [ ] Phase 2 — Vertical slice
+> Goal: a typed fridge model, plus a used listing price, produces a real sourced receipt with `used_as_is` and `new`/`cash` paths, on a real phone over HTTPS. Proves every track connects before widening.
+> **Build order:** B1 (2.1) and A5 (2.4) and A3 (2.5) and C1 (2.8) start at once → B2 (2.2), B3 (2.3) → A2 (2.6) → A1 (2.7) → C2 (2.9), C3 (2.10) → operator (2.11). C tracks build against the `/quote` stub until 2.7 lands.
+> **Exit criterion:** `api/.venv/bin/python -m pytest api/tests/test_slice.py -q` passes, and by hand: a phone on the tunnel URL shows the live receipt with no "Sample data" banner.
+
+- [ ] **2.1 Sources, rates and repository (Track B1)** ← start here; unblocks A2
+  Verify each against its primary document, then record it. `api/app/data/sources.json`: a `Source` list with `energystar_refrigerators`, `doe_ccd`, `ga_power_residential_tariff`, `egrid_georgia`, `frb_g19`, `ncua_pals_ii`, plus lifespan, upkeep and repair sources as B2 finds them. `api/app/data/rates.json`: `{key: {value, source_id, notes}}` for the six rate keys in "Fixed interfaces"; `notes` records the Georgia Power tier, season and riders used, the eGRID rate type used (spec §7: consider non-baseload), and which G.19 series. `api/app/repository.py` implements the `Repository` interface and `normalize_model`, loading from `api/app/data/` via a path relative to the module file. `api/tests/test_repository.py`: every rate's `source_id` resolves in `sources()`; `normalize_model("GTE18-GTH/RWW") == "GTE18GTHRWW"`.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_repository.py -q` passes.
+
+- [ ] **2.2 Refrigerator profile and model energy (Track B2)**
+  `api/app/data/refrigerator.json`: a `CategoryProfile` with a published lifespan range, a published-only upkeep schedule (empty list if none is published), repair ranges with sources, `carbon_applicable: true`. `api/app/data/energystar_refrigerators.csv`: columns `brand,model_number,model_normalized,annual_kwh` from the ENERGY STAR certified refrigerators dataset, filtered to the brands in the demo and the retailer cache (keep the file under 1 MB). `Repository.model_energy` returns `ModelEnergy(source_type="rated", source_id="energystar_refrigerators")` on an exact normalized match; `model_candidates` returns up to 5 prefix matches. `api/tests/test_profile.py`: the profile validates, every `source_id` resolves, a known demo model returns its CSV kWh, and a one-character typo returns `None` with at least one candidate.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_profile.py -q` passes.
+
+- [ ] **2.3 Retailer cache (Track B3)**
+  `api/app/data/retailer_cache.json`: 8 to 15 real new refrigerator listings recorded by hand, each an `Offer` with `source: "retailer_cache"`, `url`, `retrieved_at`, a `source_id` present in `sources.json`, and an `item_id` whose `Item` (brand, model, `product_class`, `volume_cuft`, `width_in`) is stored alongside. Every model appears in `energystar_refrigerators.csv` or is noted as missing. `api/tests/test_retailer_cache.py`: every offer validates, has a URL and date, and resolves its source.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_retailer_cache.py -q` passes.
+
+- [ ] **2.4 Running cost and carbon (Track A5)**
+  `api/app/engine/running.py` per "Fixed interfaces". `energy`: monthly cost = `kwh_per_year / 12 * rate.value` in every month 0 to 35; one `running` line with the kWh source label and a `formula` string. `aging_line`: a `running` line labeled "Extra use from age", `not_estimated`. `carbon_kg`: `kwh_per_year * kg_per_kwh.value * months / 12`. `upkeep`: each item's cost at every `every_months`. `api/tests/test_running.py`: 600 kWh at $0.15 gives $7.50 a month and $270.00 over the 36 months; carbon for 600 kWh at 0.4 kg over 36 months is 720 kg.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_running.py -q` passes.
+
+- [ ] **2.5 Cash path (Track A3)**
+  `api/app/engine/financing.py`: `cash` puts the price in month 0 of both arrays, `pay_today = price`, one `purchase` line. `api/tests/test_financing.py`: `cash(800.0, "user_listing")` gives `pay_today == 800.0` and month-0 totals of 800.0.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_financing.py -q` passes.
+
+- [ ] **2.6 Lifecycle and the slice quote (Track A2)**
+  `api/app/engine/lifecycle.py` and `api/app/engine/quote.py` per "Fixed interfaces" and the pinned formulas. For the slice, `quote` builds `used_as_is` (from a `user_listing` offer and its item) and `new`/`cash` (the cheapest `repo.new_offers("refrigerator")`), each with energy from `model_energy` (else an energy line `not_estimated`), the aging line for used items, carbon, cost per year from the profile lifespan, replacement when life ends inside 36 months, and paths sorted by `total_3yr_high`. `api/tests/test_lifecycle.py`: `remaining_life(12, LifespanRange(10, 15, ...)) == (0, 3)`; `cost_per_year(1200, 1800, 100, 150, 10, 15) == (1200/15 + 100, 1800/10 + 150)`. `api/tests/test_slice.py`: a typed demo fridge `Item` plus a used offer through `quote` returns both groups, every line's `source_id` is `user`, `user_listing` or in `repo.sources()`, and no path has `"fixture"` in `flags`.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lifecycle.py api/tests/test_slice.py -q` passes.
+
+- [ ] **2.7 Wire the real routes (Track A1)**
+  `api/app/main.py`: `POST /quote` calls `quote(req, Repository.load())`; `GET /sources` returns `repo.sources()`; `POST /item` validates and, when brand and serial are present, fills `mfg_year` and `year_confidence` from `decode` once B4 lands. Update `api/tests/test_routes.py` so `/quote` with the slice input returns non-fixture paths.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_routes.py -q` passes.
+
+- [ ] **2.8 App shell, API client and manual entry (Track C1)**
+  `web/src/api.ts`: typed wrappers for every route, base path `/api`. `web/src/pages/Entry.tsx`: manual entry for brand, model, serial, condition, optional `product_class` and `volume_cuft`, a used listing price, an optional repair quote, and an optional "I can spend up to $___ today" amount; submit calls `/quote` and shows the receipt. No personal questions. `web/src/copy.test.ts` scans every `.ts` and `.tsx` file under `web/src` except tests and fails on an em dash (U+2014) or the word `APR`. `web/src/pages/Entry.test.tsx` renders the form and finds the brand, model and serial inputs by label.
+  **Acceptance:** `npm --prefix web test -- Entry copy` passes.
+
+- [ ] **2.9 Receipt view (Track C2)**
+  `web/src/components/Receipt.tsx` and `PathCard.tsx`: paths in API order, each with pay today, total over 3 years and cost per year, ranges shown as `$A to $B`, `not estimated` for `null`; a carbon line only when `carbon_kg` is non-null; a visible "Sample data, not a real quote" banner when any path has `"fixture"` in `flags`. `web/src/format.ts`: `money(n)`, `range(low, high)`. `Receipt.test.tsx` renders `contracts/receipt_fridge.json` and finds the banner and all 9 path names; `format.test.ts` checks `range(80, 180) === "$80 to $180"`.
+  **Acceptance:** `npm --prefix web test -- Receipt format` passes.
+
+- [ ] **2.10 Tap-to-source sheet (Track C3)**
+  `web/src/components/SourceSheet.tsx`: tapping any cost line opens a sheet with its label, amount range, formula, source label (`Rated`, `Published`, `You entered`, `Not estimated`) and, from `/sources`, the title, publisher, URL and retrieved date. `SourceSheet.test.tsx` renders one line of each `source_type` and finds the four label texts.
+  **Acceptance:** `npm --prefix web test -- SourceSheet` passes.
+
+- [ ] **2.11 Phone over HTTPS (Track 0 — operator)**
+  `docs/runbook.md`: start the API (`api/.venv/bin/uvicorn app.main:app --app-dir api --port 8000`), the web dev server (`npm --prefix web run dev`), and `cloudflared tunnel --url http://localhost:5173`; open the printed `trycloudflare.com` URL on a real phone.
+  **Acceptance:** `grep -c -E 'cloudflared tunnel --url|uvicorn app.main:app' docs/runbook.md` prints `2`; by hand, the phone shows the live receipt.
+
+<a id="phase-3"></a>
+### [ ] Phase 3 — Full receipt and scan
+> Goal: every path, the lease, serial decode, and a Grok scan that produces the same receipt as typing, plus the RECS finding.
+> **Build order:** A3 (3.1), A4 (3.2), B4 (3.4), B2 (3.5), B1 (3.6), D1 (3.7), D4 (3.12), B3 (3.13) run in parallel → A2 (3.3) → D1 (3.8) → A1 (3.9) → C1 (3.10), C2 (3.11). D1 and D4 may start right after Phase 1.
+> **Exit criterion:** `api/.venv/bin/python -m pytest api/tests analysis -q` passes with `test_quote_all_paths.py` and `test_not_a_wrapper.py` included, and `npm --prefix web test` passes.
+
+- [ ] **3.1 Card, PAL and BNPL (Track A3)**
+  `card`, `pal`, `bnpl` per "Fixed interfaces" and the pinned formulas. Tests in `api/tests/test_financing.py`: `card(1000, RateValue(0.24, ...))` pays 94.56 a month for months 1 to 12 (total 1134.72, within 0.01) with `pay_today == 0`; `pal(1000, ...)` at 28% for 12 months pays 96.50 a month (within 0.01) plus the $20 fee, and returns `None` for a price of 2500; `bnpl(500, None)` returns one `not_estimated` financing line.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_financing.py -q` passes.
+
+- [ ] **3.2 Rent-to-own (Track A4)**
+  `api/app/engine/lease.py` per "Fixed interfaces". Weekly payment `w` (1-based) falls in month `min(35, (w - 1) * 12 // 52)`; fees fall in month 0. `cheapest_buyout` tries every week 1 to `term_weeks` and returns the lowest total paid (payments so far plus the buyout amount under the lease's rule; `none` returns the full term). Lines carry `source_id="user_lease"`. `api/tests/test_lease.py`: `effective_annual_cost(2000, 800, 52) == 1.5` and `(2000, 800, 104) == 0.75`; a 52-week, $30-a-week lease with `pct_of_remaining` 0.5 has its cheapest buyout at week 1 for 795.0; no line label or formula contains `APR`.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes.
+
+- [ ] **3.3 All paths in the quote (Track A2)**
+  Extend `quote` to all 9 path kinds: `repair` (when `current` is given; repair cost from `repair_quote_*` as `user_entered`, else the profile's repair ranges as `published`; running cost from the current unit), `refurbished` (from a refurbished listing; warranty months shown in a flag), `new` x4 via A3, `rent_to_own` x2 via A4 (when `lease` is given). A path whose inputs are absent is omitted, never invented. Apply flags: `past_typical_life`, `test_procedure_changed` (when comparing a pre-2014 unit with a newer one), `year_from_serial_low_confidence`. `api/tests/test_quote_all_paths.py`: a full request returns 9 paths sorted by `total_3yr_high`; each path's totals equal the sums of its arrays. `api/tests/test_copy.py`: no label, formula or flag in that output contains an em dash, `APR` or `qualif`.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py api/tests/test_copy.py -q` passes.
+
+- [ ] **3.4 Serial decode (Track B4)**
+  `api/app/serial/decode.py`: decoders keyed by brand, only for the brands on the demo cards and in the retailer cache, each rule's `source_id` in `sources.json`. A year code that repeats on a cycle resolves from model era when possible, otherwise returns `year_confidence="low"`. An unknown brand returns `SerialDecode(None, "none", None, "no decoder for brand")`. `api/tests/test_serial.py`: one known serial per supported brand decodes to its year; an unknown brand returns confidence `none`.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_serial.py -q` passes.
+
+- [ ] **3.5 Standard ceiling for old units (Track B2)**
+  `api/app/data/doe_standards_refrigerators.json`: for the product classes on the demo cards, each DOE standard period with its maximum-energy formula in adjusted volume, sourced. `Repository.standard_ceiling` returns `ModelEnergy(source_type="published", source_id=...)`. `quote` (A2) uses it only when `model_energy` returns `None` and year, class and volume are known. Test in `api/tests/test_profile.py`: a 2004 unit of a demo class returns the formula's value for its volume.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_profile.py -q` passes.
+
+- [ ] **3.6 BNPL terms, optional (Track B1)**
+  If one provider publishes pay-in-installment terms, record them in `api/app/data/bnpl.json` with URL and date and return them from `bnpl_terms()`; otherwise `bnpl_terms()` returns `None` and the BNPL path stays `not_estimated`. Test in `api/tests/test_repository.py` either way.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_repository.py -q` passes.
+
+- [ ] **3.7 Grok scan (Track D1, in Cursor)** ← may start after Phase 1
+  `api/app/grok/client.py` and `api/app/grok/scan.py` per "Fixed interfaces". One system prompt per `ScanKind` asking for strict JSON with only the fields printed on the image (label: brand, model, serial, `product_class`, `volume_cuft`; price tag: brand, model, price; lease: every `Lease` field plus `early_purchase_text`; listing: brand, model, price, condition). The response validates into `ScanResult`; on failure `valid=False`, `errors` lists the Pydantic errors, and every field that did parse is kept for the correction form. No number is computed by the model. `api/tests/test_scan.py` uses a fake `GrokClient` returning recorded JSON from `api/tests/fixtures/scan/`: one valid response per kind, and one malformed response that yields `valid=False` with partial fields.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_scan.py -q` passes. The real call is checked by hand in 3.8.
+
+- [ ] **3.8 Not-a-wrapper test (Track D1, in Cursor)**
+  For each demo card from 3.13: record the real Grok response once into `api/tests/fixtures/scan/<card>.json`, and write the typed equivalent into `api/tests/fixtures/typed/<card>.json`. `api/tests/test_not_a_wrapper.py`: for every card, `quote` on the scan result's item equals `quote` on the typed item, compared as JSON.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_not_a_wrapper.py -q` passes with one case per demo card.
+
+- [ ] **3.9 Wire scan (Track A1)**
+  `POST /scan` calls `scan(kind, image, GrokClient())` and returns the `ScanResult`; when `valid` is true and the item has brand and serial, it also applies `decode`. Test in `api/tests/test_routes.py` with the fake client injected through a FastAPI dependency override.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_routes.py -q` passes.
+
+- [ ] **3.10 Capture, upload and correction (Track C1)**
+  In `Entry.tsx`: a "Scan" button using `<input type="file" accept="image/*" capture="environment">`, an "Upload saved image" button, and a kind picker (label, price tag, lease, listing). A scan result, valid or not, pre-fills the same manual form for correction; the user confirms before quoting. A lease form with every `Lease` field. `Entry.test.tsx`: an invalid `ScanResult` with a parsed brand pre-fills the brand field and shows the errors.
+  **Acceptance:** `npm --prefix web test -- Entry` passes.
+
+- [ ] **3.11 Budget, flags and motion (Track C2)**
+  In `Receipt.tsx`: paths whose `pay_today` exceeds the "spend up to" amount are dimmed with "More than you can spend today" (never hidden); flags render as plain sentences; a Framer Motion print-in animation on first render, off under `prefers-reduced-motion`. `Receipt.test.tsx` covers the dimming.
+  **Acceptance:** `npm --prefix web test -- Receipt` passes.
+
+- [ ] **3.12 RECS finding (Track D4)** ← may start after Phase 0
+  `analysis/recs/VARIABLES.md`: the verified RECS 2020 variable names (income, `KOWNRENT`, total energy cost, household weight, replicate weights, state or region) and the replicate-weight variance formula, each quoted from the EIA codebook or methodology page with its URL. `analysis/recs/burden.py`: energy burden (energy cost / income) by income bracket x renter status, weighted, with replicate-weight standard errors and unweighted n per cell; income from bracket midpoints, the open top bracket reported as not estimated; Georgia if every cell has enough cases, otherwise South, stated in the output. Writes `analysis/recs/out/burden.csv` and `analysis/recs/out/burden.png` (both committed; the raw microdata is not). `analysis/recs/test_burden.py` checks the weighted mean and the replicate SE on a 6-row synthetic frame with hand-computed answers.
+  **Acceptance:** `api/.venv/bin/python -m pytest analysis -q` passes, and `test -f analysis/recs/out/burden.csv && test -f analysis/recs/out/burden.png && echo ok` prints `ok`.
+
+- [ ] **3.13 Demo materials (Track B3)**
+  `demo/cards/`: printable images of real rating labels (at least one pre-2005 unit and one current model), a real rent-to-own listing or lease, and a used-listing screenshot with the seller's name and photos cropped out. `demo/cards/README.md` lists each card's source URL, date, and the fields it shows. Print them.
+  **Acceptance:** `test "$(ls demo/cards/*.png demo/cards/*.jpg 2>/dev/null | wc -l)" -ge 3 && echo ok` prints `ok`.
+
+<a id="phase-4"></a>
+### [ ] Phase 4 — Shop, voice, submit
+> Goal: the Grok shopping request ranks new and used offers by cost per year (Visa), the receipt can be read aloud in English and Spanish (SpaceXAI), and the demo is frozen and submitted.
+> **Build order:** D2 (4.1) and A2 (4.2) and D3 (4.5) in parallel → A1 (4.3) → C4 (4.4) → D3 (4.6) → operator (4.7 to 4.9). 4.6 waits on the Grok Voice open item.
+> **Exit criterion:** `gh run list --workflow ci.yml --branch main --limit 1 --json conclusion -q '.[0].conclusion'` prints `success` on the commit tagged `freeze`, and every submission checklist box is ticked.
+
+- [ ] **4.1 Request parsing (Track D2, in Cursor)**
+  `api/app/grok/parse.py` per "Fixed interfaces": Grok turns text into `ShopFilters` JSON, validated; on failure, empty filters plus the errors. The UI shows the filters for editing before ranking. `api/tests/test_parse.py` with a fake client: "about $300, small space, need it this week" maps to `budget_today=300`, `need_within_days=7`, and a width filter from the recorded response.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_parse.py -q` passes.
+
+- [ ] **4.2 Ranking (Track A2)**
+  `api/app/engine/rank.py` per "Fixed interfaces": each offer is quoted with its own `Item` as the `new`/`cash` path (retailer cache) or `used_as_is` (user listing), filtered by `ShopFilters`, sorted by `cost_per_year_high` with `None` last. `api/tests/test_rank.py`: a cheap used offer with 1 year of life left ranks below a new offer with a lower cost per year.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_rank.py -q` passes.
+
+- [ ] **4.3 Wire shop routes (Track A1)**
+  `POST /shop/parse` calls `parse_request`; `POST /shop/rank` calls `rank` with the retailer cache plus any listings in the request. Tests in `api/tests/test_routes.py` with the fake client.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_routes.py -q` passes.
+
+- [ ] **4.4 Shop page (Track C4)**
+  `web/src/pages/Shop.tsx`: a text box for the request, the parsed filters shown as editable chips (the visible AI step), ranked offers with cost per year and a "View at retailer" link that opens the offer's `url`. No in-app checkout. `Shop.test.tsx` renders ranked offers from a stub and finds each link.
+  **Acceptance:** `npm --prefix web test -- Shop` passes.
+
+- [ ] **4.5 Voice script (Track D3, in Cursor)**
+  `api/app/voice/script.py`: English and Spanish templates filled only from `Path` fields; no model writes or translates the script. `api/tests/test_voice.py`: for the fixture receipt, every number in the script appears in the paths, and neither script contains an em dash or `APR`.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_voice.py -q` passes.
+
+- [ ] **4.6 Grok Voice read-aloud, stretch (Track D3, in Cursor)**
+  Only after the open item "Grok Voice plays given text" is confirmed: `api/app/voice/tts.py` sends the fixed script to Grok Voice and returns audio; A1 adds `POST /voice` (`VoiceRequest` in, `audio/mpeg` out); C2 adds a play button with a language toggle. Test with a fake TTS client.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_voice.py -q` passes; by hand, both languages play on the phone.
+
+- [ ] **4.7 README (Track 0 — operator)**
+  `README.md`: what it is, how to run it (from `docs/runbook.md`), the data sources with links, and what is not estimated and why.
+  **Acceptance:** `grep -c -E 'api/.venv/bin/uvicorn|npm --prefix web run dev' README.md` prints at least `2`; by hand, a teammate follows it on their clone.
+
+- [ ] **4.8 Demo run sheet and pitch (Track 0 — operator)**
+  In Notability: the pitch storyboard and demo run sheet (spec §6), screenshot saved as `docs/notability/02-run-sheet.png`. Rehearse the demo once end to end with a timer.
+  **Acceptance:** `ls docs/notability/*.png | wc -l` prints at least `2`.
+
+- [ ] **4.9 Code freeze at Sun 02:00 (Track 0 — operator)**
+  Merge nothing new after 02:00 except demo-breaking fixes. Tag the last green `main` commit: `git tag freeze origin/main` then `git push origin freeze`.
+  **Acceptance:** `git rev-parse -q --verify refs/tags/freeze && echo tagged` prints `tagged`.
+
+## Demo Script for Judges
+
+**Scenario 1: the old unit (energy, trust).**
+> "This is a rating label from a 2004 unit."
+- Scan the printed card on the phone → correction form pre-filled → confirm → receipt prints. Tap the running-cost line: its source, formula and "Published, up to when new". Tap the aging line: "Not estimated", left blank on purpose.
+
+**Scenario 2: the lease (poverty premium).**
+> "This is a real rent-to-own listing."
+- Scan the lease card → the rent-to-own paths show the total of payments against the cash price, the cheapest buyout week, and the effective annual cost. Compare with the PAL line ("up to", with its caps).
+
+**Scenario 3: used vs new, asked in plain words (Visa).**
+> "About $300, small space, need it this week."
+- Type the request → Grok's parsed filters appear as editable chips → offers ranked by cost per year, a cheap used unit below a new one → "View at retailer".
+
+**Scenario 4: not a wrapper.**
+> "Now I'll type the model number by hand."
+- Type brand, model and serial from Scenario 1 → the identical receipt.
+
+Scenario 4 is the strongest talking point: it proves the AI is only the keyboard and every number comes from a source. Open the pitch on the RECS finding; close on the cost line and the carbon line together.
+
+## Future Extensions (mention to judges, don't build)
+
+- More categories as data profiles: water heaters (gas and electric lines), room air conditioners (usage hours), washers, vehicles (fuel, scheduled servicing).
+- Electricity rates projected forward from EIA monthly Georgia prices instead of held flat (TigerData, if that prize is confirmed).
+- Published degradation data for aging appliances, to close the "Extra use from age" gap.
+- Buy now pay later terms from more providers, with sources.
+
+## Submission checklist `Sun 02:00 to 08:00`
+- [ ] Confirm no secrets file was ever committed:
+  `git log --all --name-only --format= | sort -u | grep -iE '(^|/)\.env|\.envrc$|secret|\.pem$|\.key$|service.?account|credential'`
+  prints nothing, or only `.env.example` files. No name list is complete: also read `git ls-files` once for anything else that holds a key.
+- [ ] README has run instructions verified on a teammate's clone.
+- [ ] Devpost: main track A Marina's Mission; sponsor challenges Visa, SpaceXAI and Notability; the Create-X checkbox if the team wants it.
+- [ ] Notability: at least 2 screenshots in the Devpost, the "Notability" tag, and a note on how it was used.
+- [ ] SpaceXAI: the write-up names the Grok vision, parsing and voice parts and that they were built in Cursor.
+- [ ] Visa: the write-up leads with the generative AI shopping flow and used vs new ranking.
+- [ ] Stage wording checked against spec §6: "effective annual cost", no "APR", no "you qualify", no absolute claims, the ACEEE figure dated 2016, no HL Hunt figure.
+- [ ] Any event-required sections present and **user-authored**; the agent never writes them.
+- [ ] Demo rehearsed once end to end, timed.
+
+## Cross-cutting risks
+
+- **R1: Contract churn.** A model change after Phase 1 breaks every session coding against it at once. Handled by one owner, A1, and a team message before any change merges. **Owner: Phase 1.1.**
+- **R2: PLAN.md merge conflicts.** Every PR ticks a box in PLAN.md. Handled by separating each checkbox line from the next by its acceptance line, and adding new tasks only through the operator. **Owner: Phase 0.1.**
+- **R3: A secret committed.** A key in any committed file is exposed to every collaborator and hard to erase. Handled by the `.gitignore` rules, `api/.env.example` with empty values, and the submission check. **Owner: Phase 0.2.**
+- **R4: Unverified numbers on stage.** A wrong tariff tier or eGRID rate type slips past a quick review. Handled by B1 recording in `rates.json` notes exactly which tier, season, riders and rate type were used, from the primary document. **Owner: Phase 2.1.**
+- **R5: Model-number misreads.** One wrong character and the lookup misses. Handled by exact normalized matching, candidates on a miss, and the correction form; never a silent fuzzy match. **Owner: Phase 2.2.**
+- **R6: Grok unavailable at the expo.** Handled by the upload button with saved images and the typed entry, which produce the same receipt. **Owner: Phase 3.8.**
+- **R7: CI slowness under many PRs.** Handled by keeping tests fast and network-free (fake Grok clients everywhere). **Owner: Phase 0.4.**
+
+## Open items
+
+- [ ] **Team names and row assignment (NEW 2026-09-26).** Track A to D placeholders until assigned; each person claims rows in the team chat.
+- [ ] **Grok API key and vision model name (NEW 2026-09-26).** SpaceXAI gives credits (spec §1); a working key is not confirmed. Blocks 3.7 onward; checked in 0.8.
+- [ ] **Grok Voice plays given text (NEW 2026-09-26).** It must read a fixed script word for word, or a spoken number can differ from the screen. Blocks 4.6.
+- [ ] **Cursor reads AGENTS.md (NEW 2026-09-26).** Checked in 0.7.
+- [ ] **Best Buy API key (NEW 2026-09-26).** Assume it will not arrive; the hand-built cache in 2.3 is the plan.
+- [ ] **TigerData prize (NEW 2026-09-26).** Enter only if confirmed (spec §1).
+- [ ] **Spec §7 verify list (NEW 2026-09-26).** Georgia Power tier, season and riders and the eGRID rate type (2.1); the DOE standard ceiling and the ~2014 test procedure change (3.5); RECS variables and cell sizes (3.12); whether a Georgia regulator publishes rent-to-own multiples and whether a newer ACEEE Atlanta figure exists (pitch, 4.8).
+
+## Glossary
+
+- **Path:** one way to get the item (repair, used, refurbished, new with a payment method, rent-to-own), with its three headline numbers.
+- **Contribution:** the costs one engine module adds to a path: pay today, two 36-month arrays, and its cost lines.
+- **Row:** one line of the file ownership table; one session's file set.
+- **Not a wrapper:** the rule that typed entry and scanning produce the identical receipt.
