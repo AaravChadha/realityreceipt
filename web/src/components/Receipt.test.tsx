@@ -48,7 +48,74 @@ test('the carbon line shows only when carbon_kg is set', () => {
   const paths = fixture.map((p, i) => (i === 0 ? { ...p, carbon_kg: null } : p))
   render(<Receipt paths={paths} />)
   expect(card(paths[0].name).queryByText(/Carbon/)).toBeNull()
-  expect(card('Used, as-is').getByText('624 kg CO2')).toBeVisible()
+  expect(card('Used, as-is').getByText('624 kg CO2e')).toBeVisible()
+})
+
+const COSTS_NOTE = 'Some costs are not estimated, so the real total may be higher.'
+
+test('a path flagged costs_not_estimated says so under its headline numbers', () => {
+  const paths = fixture.map((p) =>
+    p.name === 'New, buy now pay later' ? { ...p, flags: [...p.flags, 'costs_not_estimated'] } : p,
+  )
+  render(<Receipt paths={paths} />)
+  const bnpl = card('New, buy now pay later')
+  const note = bnpl.getByText(COSTS_NOTE)
+  expect(note).toBeVisible()
+  const numbers = bnpl.getByText('Cost per year of use')
+  expect(numbers.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(card('New, pay cash').queryByText(COSTS_NOTE)).toBeNull()
+  expect(bnpl.queryByText('costs_not_estimated')).toBeNull()
+})
+
+test('a pinned flag shows as a plain sentence; an unpinned flag and the fixture flag do not repeat on the card', () => {
+  render(<Receipt paths={fixture} />)
+  expect(card('Repair the one you have').getByText('This unit is at or past its typical life.')).toBeVisible()
+  expect(
+    card('New, credit union PAL').getByText(
+      'These figures use the federal limits on credit union PALs, not an offer from a lender.',
+    ),
+  ).toBeVisible()
+  expect(screen.queryByText(/warranty_6_months|past_typical_life/)).toBeNull()
+  expect(screen.getAllByText('Sample data, not a real quote')).toHaveLength(1)
+})
+
+test('every pinned flag has a sentence with no em dash, no "APR", and nothing about qualifying', () => {
+  const pinned = [
+    'costs_not_estimated',
+    'past_typical_life',
+    'test_procedure_changed',
+    'year_from_serial_low_confidence',
+    'pal_caps_not_an_offer',
+    'bnpl_terms_not_an_offer',
+    'over_budget_today',
+    'delivery_unknown',
+    'width_unknown',
+    'fixture',
+  ]
+  const one = { ...fixture[1], flags: pinned }
+  const { container } = render(<Receipt paths={[one]} />)
+  for (const flag of pinned) expect(container.textContent).not.toContain(flag)
+  expect(within(screen.getByRole('article')).getAllByRole('listitem')).toHaveLength(pinned.length - 2)
+  expect(screen.getByText(COSTS_NOTE)).toBeVisible()
+  const text = container.textContent ?? ''
+  expect(text).not.toContain(String.fromCharCode(0x2014))
+  expect(text).not.toContain('APR')
+  expect(text.toLowerCase()).not.toContain('qualif')
+})
+
+test('the PAL path shows "up to" beside its pay today; other paths do not', () => {
+  render(<Receipt paths={fixture} />)
+  const payToday = (name: string) => card(name).getByText('Pay today').nextElementSibling
+  expect(payToday('New, credit union PAL')).toHaveTextContent(/^up to \$20$/)
+  expect(payToday('New, pay cash')).toHaveTextContent(/^\$899$/)
+  expect(payToday('New, credit card')).toHaveTextContent(/^\$0$/)
+})
+
+test('the "What\'s in this number" toggle is at least 44px tall', () => {
+  render(<Receipt paths={fixture} />)
+  for (const toggle of screen.getAllByRole('button', { name: "What's in this number" })) {
+    expect(toggle).toHaveClass('min-h-11')
+  }
 })
 
 test('cost lines are collapsed until "What\'s in this number" is tapped', () => {
