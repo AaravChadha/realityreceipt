@@ -301,7 +301,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `analysis/recs/VARIABLES.md`: the verified RECS 2020 variable names (income, `KOWNRENT`, total energy cost, household weight, replicate weights, state or region) and the replicate-weight variance formula, each quoted from the EIA codebook or methodology page with its URL. `analysis/recs/burden.py`: energy burden (energy cost / income) by income bracket x renter status, weighted, with replicate-weight standard errors and unweighted n per cell; income from bracket midpoints, the open top bracket reported as not estimated; Georgia if every cell has enough cases, otherwise South, stated in the output. Writes `analysis/recs/out/burden.csv` and `analysis/recs/out/burden.png` (both committed; the raw microdata is not). `analysis/recs/test_burden.py` checks the weighted mean and the replicate SE on a 6-row synthetic frame with hand-computed answers.
   **Acceptance:** `api/.venv/bin/python -m pytest analysis -q` passes, and `test -f analysis/recs/out/burden.csv && test -f analysis/recs/out/burden.png && echo ok` prints `ok`.
 
-- [ ] **3.13 Demo materials (Track B3)**
+- [x] **3.13 Demo materials (Track B3)**
   `demo/cards/`: printable images of real rating labels (at least one pre-2005 unit and one current model), a real rent-to-own listing or lease, and a used-listing screenshot with the seller's name and photos cropped out. `demo/cards/README.md` lists each card's source URL, date, and the fields it shows. Print them.
   **Acceptance:** `test "$(ls demo/cards/*.png demo/cards/*.jpg 2>/dev/null | wc -l)" -ge 3 && echo ok` prints `ok`.
 
