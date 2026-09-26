@@ -138,7 +138,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `npm create vite@latest web -- --template react-ts`; add `tailwindcss`, `@tailwindcss/vite`, `framer-motion`, and dev dependencies `vitest`, `jsdom`, `@testing-library/react`, `@testing-library/jest-dom`. In `web/vite.config.ts`: the Tailwind plugin; `server.proxy` sending `/api` to `http://localhost:8000` with the `/api` prefix stripped; `server.allowedHosts: ['.trycloudflare.com']`; `test.environment: 'jsdom'`. `web/package.json` scripts: `"test": "vitest run"`, `"build": "tsc -b && vite build"`. Add `web/src/smoke.test.ts` asserting `1 + 1 === 2`. Commit `web/package-lock.json`. Delete any unanchored `dist` or `node_modules` line from `web/.gitignore`; the root `.gitignore` covers both.
   **Acceptance:** `npm --prefix web test` exits `0` with `1 passed`, and `npm --prefix web run build` exits `0`.
 
-- [ ] **0.4 Add CI (Track 0 — operator)**
+- [x] **0.4 Add CI (Track 0 — operator)**
   `.github/workflows/ci.yml`, one job named `ci`, on `pull_request` and on `push` to `main`: checkout; `actions/setup-python` 3.12; `python -m venv api/.venv && api/.venv/bin/pip install -r api/requirements.txt`; `api/.venv/bin/python -m pytest api/tests analysis -q`; `actions/setup-node` 20; `npm --prefix web ci`; `npm --prefix web test`; `npm --prefix web run build`.
   **Acceptance:** `grep -c -E 'npm --prefix web run build|pytest api/tests' .github/workflows/ci.yml` prints `2`.
 
