@@ -315,7 +315,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `api/app/grok/parse.py` per "Fixed interfaces": Grok turns text into `ShopFilters` JSON, validated; on failure, empty filters plus the errors. The UI shows the filters for editing before ranking. `api/tests/test_parse.py` with a fake client: "about $300, small space, need it this week" maps to `budget_today=300`, `need_within_days=7`, and a width filter from the recorded response.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_parse.py -q` passes.
 
-- [ ] **4.2 Ranking (Track A2)**
+- [x] **4.2 Ranking (Track A2)**
   `api/app/engine/rank.py` per "Fixed interfaces": each offer is quoted with its own `Item` as the `new`/`cash` path (retailer cache) or `used_as_is` (user listing), filtered by `ShopFilters`, sorted by `cost_per_year_high` with `None` last. `api/tests/test_rank.py`: a cheap used offer with 1 year of life left ranks below a new offer with a lower cost per year.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_rank.py -q` passes.
 
