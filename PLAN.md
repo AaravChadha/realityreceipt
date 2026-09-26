@@ -206,7 +206,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `api/app/data/retailer_cache.json`: 8 to 15 real new refrigerator listings recorded by hand, each an `Offer` with `source: "retailer_cache"`, `url`, `retrieved_at`, a `source_id` present in `sources.json`, and an `item_id` whose `Item` (brand, model, `product_class`, `volume_cuft`, `width_in`) is stored alongside. Every model appears in `energystar_refrigerators.csv` or is noted as missing. `api/tests/test_retailer_cache.py`: every offer validates, has a URL and date, and resolves its source.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_retailer_cache.py -q` passes.
 
-- [ ] **2.4 Running cost and carbon (Track A5)**
+- [x] **2.4 Running cost and carbon (Track A5)**
   `api/app/engine/running.py` per "Fixed interfaces". `energy`: monthly cost = `kwh_per_year / 12 * rate.value` in every month 0 to 35; one `running` line with the kWh source label and a `formula` string. `aging_line`: a `running` line labeled "Extra use from age", `not_estimated`. `carbon_kg`: `kwh_per_year * kg_per_kwh.value * months / 12`. `upkeep`: each item's cost at every `every_months`. `api/tests/test_running.py`: 600 kWh at $0.15 gives $7.50 a month and $270.00 over the 36 months; carbon for 600 kWh at 0.4 kg over 36 months is 720 kg.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_running.py -q` passes.
 
