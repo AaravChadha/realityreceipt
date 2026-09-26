@@ -262,7 +262,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `api/app/main.py`: `POST /quote` calls `quote(req, Repository.load())`; `GET /sources` returns `repo.sources()`; `POST /item` validates and, when brand and serial are present, fills `mfg_year` and `year_confidence` from `decode` once B4 lands. Update `api/tests/test_routes.py` so `/quote` with the slice input returns non-fixture paths.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_routes.py -q` passes.
 
-- [ ] **2.7.1 One address: the API serves the web app (Track A1)** (NEW 2026-09-26, decision 6)
+- [x] **2.7.1 One address: the API serves the web app (Track A1)** (NEW 2026-09-26, decision 6)
   In `api/app/main.py`, serve every route under `/api` as well as unprefixed, and when `web/dist` exists, serve it at `/` with `index.html` for unknown non-API paths, so the built app and the API share one address.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_routes.py -q` passes, including a test that, with a temporary `dist` directory, `GET /` returns its `index.html` and `GET /api/health` returns `{"ok": true}`.
 

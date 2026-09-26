@@ -89,3 +89,29 @@ def test_sources_are_the_real_sources(client: TestClient) -> None:
     assert response.status_code == 200
     ids = {s.id for s in TypeAdapter(list[Source]).validate_python(response.json())}
     assert {"energystar_refrigerators", "ga_power_residential_tariff", "egrid_georgia"} <= ids
+
+
+def test_one_address_serves_the_built_app_and_the_api(tmp_path) -> None:
+    from app.main import create_app
+
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><title>RealityReceipt</title>")
+    (dist / "assets" / "app.js").write_text("console.log('app')")
+    (tmp_path / "secret.txt").write_text("do not serve")
+    one = TestClient(create_app(dist))
+    assert "RealityReceipt" in one.get("/").text
+    assert "RealityReceipt" in one.get("/receipt/anything").text  # a client-side route gets index.html
+    assert one.get("/assets/app.js").text == "console.log('app')"
+    assert one.get("/api/health").json() == {"ok": True}
+    assert one.post("/api/quote", json={"items": [LISTED], "offers": [LISTING_OFFER]}).status_code == 200
+    assert one.get("/api/nope").status_code == 404
+    assert "do not serve" not in one.get("/..%2Fsecret.txt").text
+
+
+def test_without_a_build_only_the_api_is_served() -> None:
+    from app.main import create_app
+
+    bare = TestClient(create_app(None))
+    assert bare.get("/").status_code == 404
+    assert bare.get("/api/health").json() == {"ok": True}
