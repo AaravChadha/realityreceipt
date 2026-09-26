@@ -239,7 +239,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `web/src/components/Receipt.tsx` and `PathCard.tsx`: paths in API order, each with pay today, total over 3 years and cost per year, ranges shown as `$A to $B`, `not estimated` for `null`; a carbon line only when `carbon_kg` is non-null; a visible "Sample data, not a real quote" banner when any path has `"fixture"` in `flags`. `web/src/format.ts`: `money(n)`, `range(low, high)`. `Receipt.test.tsx` renders `contracts/receipt_fridge.json` and finds the banner and all 9 path names; `format.test.ts` checks `range(80, 180) === "$80 to $180"`.
   **Acceptance:** `npm --prefix web test -- Receipt format` passes.
 
-- [ ] **2.10 Tap-to-source sheet (Track C3)**
+- [x] **2.10 Tap-to-source sheet (Track C3)**
   `web/src/components/SourceSheet.tsx`: tapping any cost line opens a sheet with its label, amount range, formula, source label (`Rated`, `Published`, `You entered`, `Not estimated`) and, from `/sources`, the title, publisher, URL and retrieved date. `SourceSheet.test.tsx` renders one line of each `source_type` and finds the four label texts.
   **Acceptance:** `npm --prefix web test -- SourceSheet` passes.
 
