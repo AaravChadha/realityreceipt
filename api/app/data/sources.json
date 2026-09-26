@@ -77,7 +77,7 @@
     "publisher": "U.S. Environmental Protection Agency, ENERGY STAR",
     "url": "https://data.energystar.gov/Active-Specifications/ENERGY-STAR-Certified-Residential-Refrigerators/p5st-her9",
     "retrieved_date": "2026-09-26",
-    "notes": "Dataset p5st-her9; metadata at https://data.energystar.gov/api/views/p5st-her9.json returned name 'ENERGY STAR Certified Residential Refrigerators'. Model rows are recorded in energystar_refrigerators.csv (task 2.2)."
+    "notes": "Dataset p5st-her9; metadata at https://data.energystar.gov/api/views/p5st-her9.json returned name 'ENERGY STAR Certified Residential Refrigerators'. Model rows are recorded in energystar_refrigerators.csv (task 2.2): 1,793 rows from the 2026-09-26 Socrata pull (fields brand_name, model_number, annual_energy_use_kwh_yr), kept only for the retail brands GE, GE Profile, GE Adora, Cafe (also Café), Hotpoint, Whirlpool, Maytag, Amana, Frigidaire, Frigidaire Gallery, Samsung, LG, Kenmore, KitchenAid, Hisense, Insignia, Haier, Midea, Magic Chef, Danby, Galanz, Crosley, Bosch, Electrolux, Avanti, Summit, Arctic King, Comfee, Mainstays. A trailing '*' in the dataset means 'any of A-Z, a-z, 0-9, version code or blank'; model_normalized drops it, so only the base model (the blank case) matches exactly. A brand and model with more than one distinct annual kWh in the dataset (105 of them) is left out rather than picked between."
   },
   {
     "id": "retailer_cache_bestbuy",
@@ -102,5 +102,13 @@
     "url": "https://www.lowes.com/",
     "retrieved_date": "2026-09-26",
     "notes": "Hand-recorded new-refrigerator listings in retailer_cache.json (task 2.3), used as Offer.source_id for source 'retailer_cache'. The retailer's product pages could not be fetched by script when this row was written, so nothing here is a claim about a page's contents: each offer's own url and retrieved_at, set by hand in 2.3, name the exact product page and the day its price was read. Nothing is fetched live during the demo. Not an API feed."
+  },
+  {
+    "id": "nahb_life_expectancy",
+    "title": "Study of Life Expectancy of Home Components, Table 1: Life Expectancy of Different Products/Items/Materials in the Home",
+    "publisher": "National Association of Home Builders / Bank of America Home Equity",
+    "url": "https://www.reservedataanalyst.com/mt-content/uploads/2019/10/national-association-of-home-builders-life-expectancies.pdf",
+    "retrieved_date": "2026-09-26",
+    "notes": "February 2007 study; the URL is a third-party copy of the PDF, which was read in full text for this row. Table 1, '1. APPLIANCES': 'Refrigerators, Standard 13', 'Refrigerators, Compact 9', 'Freezers 11' (life in years), with the note 'Life expectancy is based on first-owner use.' Table source line: 'Appliance Magazine, Sep 2005 issue, Grainger'. Findings text: 'appliances are often replaced long before they are worn out because changes in styling, technology and consumer preferences make newer products more desirable.' A single point estimate, not a range: refrigerator.json uses 13 for both ends. ENERGY STAR's savings calculations assume a 12-year lifetime ('about $150 over the 12-year lifetime of the product', https://www.energystar.gov/products/refrigerators)."
   }
 ]
