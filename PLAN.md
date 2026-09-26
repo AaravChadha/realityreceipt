@@ -314,7 +314,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `card`, `pal`, `bnpl` per "Fixed interfaces" and the pinned formulas. Tests in `api/tests/test_financing.py`: `card(1000, RateValue(0.24, ...))` pays 94.56 a month for months 1 to 12 (total 1134.72, within 0.01) with `pay_today == 0`; `pal(1000, ...)` at 28% for 12 months pays 96.50 a month (within 0.01) plus the $20 fee, and returns `None` for a price of 2500; `bnpl(500, None)` returns one `not_estimated` financing line.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_financing.py -q` passes.
 
-- [ ] **3.1.1 BNPL installments outside 36 months (Track A3)** (NEW 2026-09-26, decision 7)
+- [x] **3.1.1 BNPL installments outside 36 months (Track A3)** (NEW 2026-09-26, decision 7)
   In `bnpl`, an installment falling after month 35 is left out of the window arrays instead of added to month 35; the line's formula still states the full schedule.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_financing.py -q` passes, including a test with installments past month 35.
 
