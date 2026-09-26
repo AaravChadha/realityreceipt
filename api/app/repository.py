@@ -31,11 +31,31 @@ RATE_KEYS = (
 
 MAX_CANDIDATES = 5
 MIN_PREFIX = 3
+WILDCARDS = "*#"
+
+# Brand names that mean the same maker, after `_brand_key`. Kept small on purpose:
+# a sub-brand is not an alias, because a rated figure must come from the same brand.
+_BRAND_ALIASES = {"geappliances": "ge"}
 
 
 def normalize_model(s: str) -> str:
     """Uppercase; drop spaces, `-`, `/` and `.`."""
     return re.sub(r"[\s\-/.]", "", s).upper()
+
+
+def _brand_key(s: str) -> str:
+    """Casefold and drop everything but letters and digits, then apply the alias list."""
+    key = re.sub(r"[^0-9a-z]", "", s.casefold())
+    return _BRAND_ALIASES.get(key, key)
+
+
+def _wildcard_count(normalized: str) -> int:
+    return sum(normalized.count(c) for c in WILDCARDS)
+
+
+def _model_pattern(normalized: str) -> re.Pattern[str]:
+    """Each `*` or `#` in a dataset model number stands for one optional letter or digit."""
+    return re.compile("".join("[A-Z0-9]?" if c in WILDCARDS else re.escape(c) for c in normalized))
 
 
 @dataclass(frozen=True)
@@ -44,6 +64,18 @@ class _EnergyRow:
     model_number: str
     model_normalized: str
     annual_kwh: float
+    pattern: re.Pattern[str] = field(init=False, repr=False, compare=False)
+    wildcards: int = field(init=False, compare=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "pattern", _model_pattern(self.model_normalized))
+        object.__setattr__(self, "wildcards", _wildcard_count(self.model_normalized))
+
+    def matches(self, key: str) -> bool:
+        """A query with wildcards matches only a row with the same pattern; otherwise the pattern is tried."""
+        if _wildcard_count(key):
+            return self.model_normalized == key
+        return self.pattern.fullmatch(key) is not None
 
 
 @dataclass(frozen=True)
@@ -140,24 +172,44 @@ class Repository:
     def profile(self, category: str) -> CategoryProfile:
         return self._profiles[category]
 
+    def _matching_rows(self, brand: str, model: str) -> list[_EnergyRow]:
+        """Rows of the same brand whose pattern matches `model`, fewest wildcards only."""
+        key, brand_key = normalize_model(model), _brand_key(brand)
+        hits = [r for r in self._energy if _brand_key(r.brand) == brand_key and r.matches(key)]
+        if not hits:
+            return []
+        fewest = min(r.wildcards for r in hits)
+        return [r for r in hits if r.wildcards == fewest]
+
     def model_energy(self, brand: str, model: str) -> ModelEnergy | None:
-        """Exact normalized model match only; a row with the same brand wins a tie."""
-        key = normalize_model(model)
-        matches = [r for r in self._energy if r.model_normalized == key]
-        if not matches:
+        """The rated kWh for `brand` and `model`, or None.
+
+        `*` and `#` in a dataset model number each match one optional letter or digit. The brand
+        must match (`GE Appliances` counts as `GE`); another brand's row is never returned. The
+        row with the fewest wildcards wins; if the rows left disagree on kWh the answer is None,
+        and `model_candidates` lists them.
+        """
+        rows = self._matching_rows(brand, model)
+        if not rows or len({r.annual_kwh for r in rows}) > 1:
             return None
-        same_brand = [r for r in matches if r.brand.casefold() == brand.strip().casefold()]
-        row = (same_brand or matches)[0]
-        return ModelEnergy(kwh_per_year=row.annual_kwh, source_type="rated", source_id="energystar_refrigerators")
+        return ModelEnergy(kwh_per_year=rows[0].annual_kwh, source_type="rated", source_id="energystar_refrigerators")
 
     def model_candidates(self, model: str) -> list[str]:
-        """Up to 5 model numbers sharing the longest prefix (at least 3 characters) with `model`."""
+        """Up to 5 model numbers for `model`: pattern matches first, then the longest shared prefix (3+ characters)."""
         key = normalize_model(model)
+        found = sorted(
+            (r for r in self._energy if r.matches(key)),
+            key=lambda r: (r.wildcards, r.model_number),
+        )
+        out = list(dict.fromkeys(r.model_number for r in found))
         for n in range(len(key), MIN_PREFIX - 1, -1):
+            if len(out) >= MAX_CANDIDATES:
+                break
             hits = sorted({r.model_number for r in self._energy if r.model_normalized.startswith(key[:n])})
             if hits:
-                return hits[:MAX_CANDIDATES]
-        return []
+                out += [h for h in hits if h not in out]
+                break
+        return out[:MAX_CANDIDATES]
 
     def standard_ceiling(self, mfg_year: int, product_class: str, volume_cuft: float) -> ModelEnergy | None:
         """The DOE maximum kWh/yr for a unit made in `mfg_year`: an upper bound when new, not a measurement.
