@@ -377,7 +377,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `demo/cards/`: printable images of real rating labels (at least one pre-2005 unit and one current model), a real rent-to-own listing or lease, and a used-listing screenshot with the seller's name and photos cropped out. `demo/cards/README.md` lists each card's source URL, date, and the fields it shows. Print them.
   **Acceptance:** `test "$(ls demo/cards/*.png demo/cards/*.jpg 2>/dev/null | wc -l)" -ge 3 && echo ok` prints `ok`.
 
-- [ ] **3.13.1 Demo cards that produce the demo (Track B3)** (NEW 2026-09-26, review)
+- [x] **3.13.1 Demo cards that produce the demo (Track B3)** (NEW 2026-09-26, review)
   Replace or add cards so each scenario runs through the real pipeline: an old unit's EnergyGuide label whose model is in the ENERGY STAR or DOE historical data (the Maytag card, once 2.2.2 lands), a current label whose exact model is in the ENERGY STAR data, a rent-to-own page showing the weekly payment, term, cash price and early purchase terms, and a used listing showing price, brand and model (and year if stated). Record each card's typed equivalent in `demo/cards/cards.json`; `api/tests/test_demo_cards.py` checks that each fridge card's model returns a rated figure and that the lease card has a term and a cash price.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_demo_cards.py -q` passes.
 

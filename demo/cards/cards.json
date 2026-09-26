@@ -1,0 +1,119 @@
+{
+  "retrieved": "2026-09-26",
+  "cards": [
+    {
+      "file": "label-older-maytag-mb2562.png",
+      "kind": "label",
+      "scenario": "old unit's EnergyGuide",
+      "source_url": "https://pdf.lowes.com/energyguides/719881153483.pdf",
+      "needs": "2.2.2",
+      "printed": {
+        "brand": "Maytag",
+        "model": "MB*2562***",
+        "volume_cuft": 25.1,
+        "label_kwh_per_year": 505
+      },
+      "typed": {
+        "item": {
+          "id": "card-maytag-mb2562",
+          "category": "refrigerator",
+          "brand": "Maytag",
+          "model": "MB*2562***",
+          "condition": "used_as_is",
+          "attributes": {"volume_cuft": 25.1}
+        }
+      }
+    },
+    {
+      "file": "label-current-frigidaire-ffht1822u.png",
+      "kind": "label",
+      "scenario": "current EnergyGuide, exact model in ENERGY STAR",
+      "source_url": "https://frigidaire.bynder.com/asset/a5b8e92f-bf19-40e6-a70d-1ac4e1845e0e/FFHT1822U_EG-pdf.pdf",
+      "source_page": "https://www.frigidaire.ca/Owner-Centre/Product-Support/FFHT1822UW",
+      "printed": {
+        "brand": "Frigidaire",
+        "model": "FFHT1822U*",
+        "volume_cuft": 17.6,
+        "label_kwh_per_year": 360
+      },
+      "typed": {
+        "item": {
+          "id": "card-frigidaire-ffht1822uw",
+          "category": "refrigerator",
+          "brand": "Frigidaire",
+          "model": "FFHT1822UW",
+          "condition": "new",
+          "attributes": {"volume_cuft": 17.6}
+        }
+      }
+    },
+    {
+      "file": "lease-aarons-frigidaire-frte1936av.png",
+      "kind": "lease",
+      "scenario": "rent-to-own page: weekly payment, term, cash price",
+      "source_url": "https://www.aarons.com/appliances/refrigerators/18.6-cu.-ft.-top-mount-refrigerator---stainless-7405BB0.html",
+      "zip": "30309",
+      "printed": {
+        "weekly_payment": 33.48,
+        "term_weeks": 52,
+        "cash_price": 1196.99,
+        "cost_of_lease_services": 542.89,
+        "total_cost_of_ownership": 1739.88,
+        "enrollment_fee": 0
+      },
+      "typed": {
+        "item": {
+          "id": "card-aarons-frte1936av",
+          "category": "refrigerator",
+          "brand": "Frigidaire",
+          "model": "FRTE1936AV",
+          "condition": "new"
+        },
+        "offer": {
+          "item_id": "card-aarons-frte1936av",
+          "price": 1196.99,
+          "seller_type": "rent_to_own",
+          "source": "user_listing",
+          "source_id": "user_listing"
+        },
+        "lease": {
+          "weekly_payment": 33.48,
+          "term_weeks": 52,
+          "cash_price": 1196.99,
+          "fees": 0,
+          "early_purchase_rule": "none",
+          "source_id": "user_lease"
+        }
+      }
+    },
+    {
+      "file": "listing-used-ge-gie18gsnrss.png",
+      "kind": "listing",
+      "scenario": "used listing with price, brand and model",
+      "source_url": "https://www.craigslist.org/view/s2qTKDEZGPr9oHGTneorn9",
+      "needs": "2.2.1",
+      "printed": {
+        "brand": "GE",
+        "model": "GIE18GSNRSS",
+        "price": 175,
+        "condition": "excellent"
+      },
+      "typed": {
+        "item": {
+          "id": "card-ge-gie18gsnrss",
+          "category": "refrigerator",
+          "brand": "GE",
+          "model": "GIE18GSNRSS",
+          "condition": "used_as_is"
+        },
+        "offer": {
+          "item_id": "card-ge-gie18gsnrss",
+          "price": 175,
+          "seller_type": "private",
+          "source": "user_listing",
+          "source_id": "user_listing"
+        }
+      }
+    }
+  ]
+}
