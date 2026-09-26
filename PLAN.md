@@ -231,7 +231,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `api/app/main.py`: `POST /quote` calls `quote(req, Repository.load())`; `GET /sources` returns `repo.sources()`; `POST /item` validates and, when brand and serial are present, fills `mfg_year` and `year_confidence` from `decode` once B4 lands. Update `api/tests/test_routes.py` so `/quote` with the slice input returns non-fixture paths.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_routes.py -q` passes.
 
-- [ ] **2.8 App shell, API client and manual entry (Track C1)**
+- [x] **2.8 App shell, API client and manual entry (Track C1)**
   `web/src/api.ts`: typed wrappers for every route, base path `/api`. `web/src/pages/Entry.tsx`: manual entry for brand, model, serial, condition, optional `product_class` and `volume_cuft`, a used listing price, an optional repair quote, and an optional "I can spend up to $___ today" amount; submit calls `/quote` and shows the receipt. No personal questions. `web/src/copy.test.ts` scans every `.ts` and `.tsx` file under `web/src` except tests and fails on an em dash (U+2014) or the word `APR`. `web/src/pages/Entry.test.tsx` renders the form and finds the brand, model and serial inputs by label.
   **Acceptance:** `npm --prefix web test -- Entry copy` passes.
 
