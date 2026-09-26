@@ -361,7 +361,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `POST /scan` calls `scan(kind, image, GrokClient())` and returns the `ScanResult`; when `valid` is true and the item has brand and serial, it also applies `decode`. Test in `api/tests/test_routes.py` with the fake client injected through a FastAPI dependency override.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_routes.py -q` passes.
 
-- [ ] **3.10 Capture, upload and correction (Track C1)**
+- [x] **3.10 Capture, upload and correction (Track C1)**
   In `Entry.tsx`: a "Scan" button using `<input type="file" accept="image/*" capture="environment">`, an "Upload saved image" button, and a kind picker (label, price tag, lease, listing). A scan result, valid or not, pre-fills the same manual form for correction; the user confirms before quoting. A lease form with every `Lease` field. `Entry.test.tsx`: an invalid `ScanResult` with a parsed brand pre-fills the brand field and shows the errors.
   **Acceptance:** `npm --prefix web test -- Entry` passes.
 

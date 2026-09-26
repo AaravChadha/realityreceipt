@@ -125,6 +125,104 @@ test('a half-filled section shows errors and sends nothing', () => {
   expect(screen.getByRole('alert')).toHaveTextContent('2 fields need a fix.')
 })
 
+test('scan and upload controls and every lease field are on the form', () => {
+  render(<Entry />)
+  expect(screen.getByRole('button', { name: 'Scan' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Upload saved image' })).toBeInTheDocument()
+  expect(screen.getByLabelText('What are you scanning?')).toHaveValue('label')
+  const scanInput = document.querySelector('input[type="file"][capture="environment"]')
+  expect(scanInput).toHaveAttribute('accept', 'image/*')
+  const uploads = [...document.querySelectorAll('input[type="file"]')].filter((el) => !el.hasAttribute('capture'))
+  expect(uploads).toHaveLength(1)
+  expect(uploads[0]).toHaveAttribute('accept', 'image/*')
+
+  const lease = section('A rent-to-own lease')
+  expect(lease.getByLabelText('Weekly payment')).toBeInTheDocument()
+  expect(lease.getByLabelText('Term in weeks')).toBeInTheDocument()
+  expect(lease.getByLabelText('Cash price')).toBeInTheDocument()
+  expect(lease.getByLabelText('Fees (optional)')).toBeInTheDocument()
+  expect(lease.getByLabelText('Early purchase rule')).toHaveValue('none')
+  expect(lease.getByLabelText('Early purchase fraction')).toBeInTheDocument()
+  expect(lease.getByLabelText('Early purchase terms')).toBeInTheDocument()
+  expect(lease.getByLabelText('Missed payment rule')).toBeInTheDocument()
+  expect(lease.getByLabelText('Lease source')).toHaveValue('user_lease')
+})
+
+test('an invalid scan pre-fills the brand and shows the errors, and does not quote', async () => {
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    expect(url).toBe('/api/scan')
+    const form = init?.body as FormData
+    expect(form.get('kind')).toBe('label')
+    expect(form.get('image')).toBeInstanceOf(File)
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        kind: 'label',
+        valid: false,
+        errors: ['could not read the serial', 'model is incomplete'],
+        item: {
+          id: 'from-scan',
+          category: 'refrigerator',
+          brand: 'Maytag',
+          model: 'MB2562',
+          serial: null,
+          condition: 'used_as_is',
+          attributes: { product_class: '3' },
+        },
+        offer: null,
+        lease: null,
+      }),
+    } as Response
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  const { container } = render(<Entry />)
+  const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
+  fireEvent.change(input, { target: { files: [new File(['label'], 'label.jpg', { type: 'image/jpeg' })] } })
+
+  const now = section('Your fridge now')
+  expect(await now.findByLabelText('Brand')).toHaveValue('Maytag')
+  expect(now.getByLabelText('Model number')).toHaveValue('MB2562')
+  expect(now.getByLabelText('Product class (optional)')).toHaveValue('3')
+  const alert = await screen.findByRole('alert')
+  expect(alert).toHaveTextContent('could not read the serial')
+  expect(alert).toHaveTextContent('model is incomplete')
+  expect(screen.getByText('Correct anything that looks wrong, then show every way to get it.')).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  expect(screen.queryByRole('region', { name: 'Every way to get it' })).not.toBeInTheDocument()
+})
+
+test('a lease is quoted only after the user confirms the form', async () => {
+  const fetchMock = fakeApi([])
+  render(<Entry />)
+  const lease = section('A rent-to-own lease')
+  type(lease.getByLabelText('Weekly payment'), '30')
+  type(lease.getByLabelText('Term in weeks'), '52')
+  type(lease.getByLabelText('Cash price'), '800')
+  type(lease.getByLabelText('Fees (optional)'), '25')
+  fireEvent.change(lease.getByLabelText('Early purchase rule'), { target: { value: 'pct_of_remaining' } })
+  type(lease.getByLabelText('Early purchase fraction'), '0.5')
+  type(lease.getByLabelText('Early purchase terms'), 'Half of what is left')
+  type(lease.getByLabelText('Missed payment rule'), 'Fees keep accruing')
+  expect(fetchMock).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Show every way to get it' }))
+
+  await screen.findByText('No paths came back for these details.')
+  expect(bodyOf(fetchMock.mock.calls.at(-1)!)).toMatchObject({
+    lease: {
+      weekly_payment: 30,
+      term_weeks: 52,
+      cash_price: 800,
+      fees: 25,
+      early_purchase_rule: 'pct_of_remaining',
+      early_purchase_pct: 0.5,
+      early_purchase_text: 'Half of what is left',
+      missed_payment_rule: 'Fees keep accruing',
+      source_id: 'user_lease',
+    },
+  })
+})
+
 test('an API failure is shown, not swallowed', async () => {
   vi.stubGlobal(
     'fetch',
