@@ -277,7 +277,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   If one provider publishes pay-in-installment terms, record them in `api/app/data/bnpl.json` with URL and date and return them from `bnpl_terms()`; otherwise `bnpl_terms()` returns `None` and the BNPL path stays `not_estimated`. Test in `api/tests/test_repository.py` either way.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_repository.py -q` passes.
 
-- [ ] **3.7 Grok scan (Track D1, in Cursor)** ← may start after Phase 1
+- [x] **3.7 Grok scan (Track D1, in Cursor)** ← may start after Phase 1
   `api/app/grok/client.py` and `api/app/grok/scan.py` per "Fixed interfaces". One system prompt per `ScanKind` asking for strict JSON with only the fields printed on the image (label: brand, model, serial, `product_class`, `volume_cuft`; price tag: brand, model, price; lease: every `Lease` field plus `early_purchase_text`; listing: brand, model, price, condition). The response validates into `ScanResult`; on failure `valid=False`, `errors` lists the Pydantic errors, and every field that did parse is kept for the correction form. No number is computed by the model. `api/tests/test_scan.py` uses a fake `GrokClient` returning recorded JSON from `api/tests/fixtures/scan/`: one valid response per kind, and one malformed response that yields `valid=False` with partial fields.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_scan.py -q` passes. The real call is checked by hand in 3.8.
 
