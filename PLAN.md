@@ -248,7 +248,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `card`, `pal`, `bnpl` per "Fixed interfaces" and the pinned formulas. Tests in `api/tests/test_financing.py`: `card(1000, RateValue(0.24, ...))` pays 94.56 a month for months 1 to 12 (total 1134.72, within 0.01) with `pay_today == 0`; `pal(1000, ...)` at 28% for 12 months pays 96.50 a month (within 0.01) plus the $20 fee, and returns `None` for a price of 2500; `bnpl(500, None)` returns one `not_estimated` financing line.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_financing.py -q` passes.
 
-- [ ] **3.2 Rent-to-own (Track A4)**
+- [x] **3.2 Rent-to-own (Track A4)**
   `api/app/engine/lease.py` per "Fixed interfaces". Weekly payment `w` (1-based) falls in month `min(35, (w - 1) * 12 // 52)`; fees fall in month 0. `cheapest_buyout` tries every week 1 to `term_weeks` and returns the lowest total paid (payments so far plus the buyout amount under the lease's rule; `none` returns the full term). Lines carry `source_id="user_lease"`. `api/tests/test_lease.py`: `effective_annual_cost(2000, 800, 52) == 1.5` and `(2000, 800, 104) == 0.75`; a 52-week, $30-a-week lease with `pct_of_remaining` 0.5 has its cheapest buyout at week 1 for 795.0; no line label or formula contains `APR`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes.
 
