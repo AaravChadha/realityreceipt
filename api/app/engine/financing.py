@@ -109,7 +109,9 @@ def bnpl(price: float, terms: BnplTerms | None) -> Contribution:
     Without terms the price is shown paid today and the method's cost is
     `not_estimated`: the total can then only be low by the fees nobody has
     sourced, and no payment schedule is invented. With terms, the installments
-    fall every `interval_weeks` from today.
+    fall every `interval_weeks` from today; one falling after month 35 is left
+    out of the arrays, and the formula still states the full schedule. The line
+    is the method's cost over the price under the terms, whenever it is paid.
     """
     price = round(price, 2)
     monthly = [0.0] * MONTHS
@@ -133,10 +135,19 @@ def bnpl(price: float, terms: BnplTerms | None) -> Contribution:
     payment = round(level, 2)
     total = round(level * n, 2)
     payments = [payment] * (n - 1) + [round(total - payment * (n - 1), 2)]
+    counted = 0
     for k, amount in enumerate(payments):
-        monthly[min(MONTHS - 1, k * terms.interval_weeks * 12 // 52)] += amount
+        month = k * terms.interval_weeks * 12 // 52
+        if month < MONTHS:
+            monthly[month] += amount
+            counted += 1
     monthly = [round(m, 2) for m in monthly]
     cost = round(total - price, 2)
+    window = (
+        ""
+        if counted == n
+        else f". Only the {counted} payments due in the first 36 months, {_money(sum(monthly))}, count toward the 3-year total"
+    )
     line = CostLine(
         kind="financing",
         label="Buy now pay later cost",
@@ -148,7 +159,7 @@ def bnpl(price: float, terms: BnplTerms | None) -> Contribution:
         formula=(
             f"{n} payments of {_money(payment)} every {terms.interval_weeks} weeks from today "
             f"at {_pct(terms.apr)} a year under {terms.provider}'s published terms, "
-            f"{_money(total)} in all, less the {_money(price)} price"
+            f"{_money(total)} in all, less the {_money(price)} price{window}"
         ),
     )
     return Contribution(pay_today=payments[0], monthly_low=monthly, monthly_high=list(monthly), lines=[line])
