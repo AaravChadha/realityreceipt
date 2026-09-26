@@ -1,7 +1,7 @@
 {
   "category": "refrigerator",
-  "energy_dataset_refs": ["energystar_refrigerators"],
-  "usage_assumption": "A refrigerator runs around the clock all year, so the annual kWh on the ENERGY STAR listing is used as the year's use, and monthly cost is that figure divided by 12.",
+  "energy_dataset_refs": ["energystar_refrigerators", "doe_wap_refrigerators"],
+  "usage_assumption": "A refrigerator runs around the clock all year, so the annual kWh on the ENERGY STAR listing, or for an older model on DOE's historical rating, is used as the year's use, and monthly cost is that figure divided by 12.",
   "upkeep_schedule": [],
   "repair_ranges": [],
   "lifespan_range": {

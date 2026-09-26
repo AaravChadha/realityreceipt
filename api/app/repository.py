@@ -1,18 +1,23 @@
 """Committed data in `api/app/data/`, loaded into memory (PLAN.md task 2.1).
 
 `sources.json` and `rates.json` are required. Every other file is optional
-until the task that adds it lands (2.2 profile and ENERGY STAR CSV, 2.3
-retailer cache, 3.5 DOE standards, 3.6 BNPL terms); a missing file gives an
+until the task that adds it lands (2.2 profile and ENERGY STAR CSV, 2.2.2 DOE
+historical ratings, 2.3 retailer cache, 3.5 DOE standards, 3.6 BNPL terms); a missing file gives an
 empty answer (`None`, `[]`, or `KeyError` for `profile`), never a guess.
 """
 
 import csv
 import datetime
+import functools
+import gzip
 import json
 import math
 import pathlib
 import re
+import unicodedata
+from collections import defaultdict
 from dataclasses import dataclass, field
+from typing import IO
 
 from pydantic import TypeAdapter
 
@@ -43,9 +48,11 @@ def normalize_model(s: str) -> str:
     return re.sub(r"[\s\-/.]", "", s).upper()
 
 
+@functools.lru_cache(maxsize=None)
 def _brand_key(s: str) -> str:
-    """Casefold and drop everything but letters and digits, then apply the alias list."""
-    key = re.sub(r"[^0-9a-z]", "", s.casefold())
+    """Casefold, fold accents, drop everything but letters and digits, then apply the alias list."""
+    folded = "".join(c for c in unicodedata.normalize("NFKD", s.casefold()) if not unicodedata.combining(c))
+    key = re.sub(r"[^0-9a-z]", "", folded)
     return _BRAND_ALIASES.get(key, key)
 
 
@@ -53,6 +60,7 @@ def _wildcard_count(normalized: str) -> int:
     return sum(normalized.count(c) for c in WILDCARDS)
 
 
+@functools.lru_cache(maxsize=None)
 def _model_pattern(normalized: str) -> re.Pattern[str]:
     """Each `*` or `#` in a dataset model number stands for one optional letter or digit."""
     return re.compile("".join("[A-Z0-9]?" if c in WILDCARDS else re.escape(c) for c in normalized))
@@ -64,18 +72,62 @@ class _EnergyRow:
     model_number: str
     model_normalized: str
     annual_kwh: float
-    pattern: re.Pattern[str] = field(init=False, repr=False, compare=False)
+    year: int | None = None
+    brand_key: str = field(init=False, compare=False)
     wildcards: int = field(init=False, compare=False)
+    prefix: str = field(init=False, compare=False)  # the fixed characters before the first wildcard
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "pattern", _model_pattern(self.model_normalized))
+        object.__setattr__(self, "brand_key", _brand_key(self.brand))
         object.__setattr__(self, "wildcards", _wildcard_count(self.model_normalized))
+        object.__setattr__(self, "prefix", re.split(r"[*#]", self.model_normalized, maxsplit=1)[0])
 
-    def matches(self, key: str) -> bool:
-        """A query with wildcards matches only a row with the same pattern; otherwise the pattern is tried."""
-        if _wildcard_count(key):
-            return self.model_normalized == key
-        return self.pattern.fullmatch(key) is not None
+
+def _select(rows: list[_EnergyRow], key: str) -> list[_EnergyRow]:
+    """The rows whose model number stands for the normalized query `key`.
+
+    A query without wildcards matches a row whose pattern can produce it. A query with wildcards
+    (a label family such as `MB*2562***`) matches a row with the identical pattern; if there is
+    none, it matches rows that start with the family's fixed core (`MB*2562`) and add no more
+    characters than the family has trailing wildcards (`MB*2562HE*` adds three).
+    """
+    if _wildcard_count(key):
+        same = [r for r in rows if r.model_normalized == key]
+        if same:
+            return same
+        core = key.rstrip(WILDCARDS)
+        room = len(key) - len(core)
+        return [r for r in rows if r.model_normalized.startswith(core) and len(r.model_normalized) - len(core) <= room]
+    return [
+        r
+        for r in rows
+        if key.startswith(r.prefix)
+        and (r.model_normalized == key if not r.wildcards else _model_pattern(r.model_normalized).fullmatch(key))
+    ]
+
+
+def _read_energy_rows(f: IO[str]) -> list[_EnergyRow]:
+    """Rows of `brand,model_number,model_normalized,annual_kwh` and, for DOE, `year`."""
+    return [
+        _EnergyRow(
+            brand=row["brand"],
+            model_number=row["model_number"],
+            model_normalized=row["model_normalized"] or normalize_model(row["model_number"]),
+            annual_kwh=float(row["annual_kwh"]),
+            year=int(row["year"]) if row.get("year") else None,
+        )
+        for row in csv.DictReader(f)
+    ]
+
+
+def _matching_rows(rows: list[_EnergyRow], brand: str, model: str) -> list[_EnergyRow]:
+    """Rows of the same brand that stand for `model`, fewest wildcards only."""
+    brand_key = _brand_key(brand)
+    hits = _select([r for r in rows if r.brand_key == brand_key], normalize_model(model))
+    if not hits:
+        return []
+    fewest = min(r.wildcards for r in hits)
+    return [r for r in hits if r.wildcards == fewest]
 
 
 @dataclass(frozen=True)
@@ -99,7 +151,8 @@ class Repository:
     _sources: dict[str, Source]
     _rates: dict[str, RateValue]
     _profiles: dict[str, CategoryProfile] = field(default_factory=dict)
-    _energy: list[_EnergyRow] = field(default_factory=list)
+    _energy: list[_EnergyRow] = field(default_factory=list)  # ENERGY STAR
+    _doe: list[_EnergyRow] = field(default_factory=list)  # DOE historical ratings
     _standards: list[_Standard] = field(default_factory=list)
     _items: dict[str, Item] = field(default_factory=dict)
     _offers: list[Offer] = field(default_factory=list)
@@ -122,15 +175,12 @@ class Repository:
         energy_file = data_dir / "energystar_refrigerators.csv"
         if energy_file.exists():
             with energy_file.open(newline="", encoding="utf-8") as f:
-                repo._energy = [
-                    _EnergyRow(
-                        brand=row["brand"],
-                        model_number=row["model_number"],
-                        model_normalized=row["model_normalized"] or normalize_model(row["model_number"]),
-                        annual_kwh=float(row["annual_kwh"]),
-                    )
-                    for row in csv.DictReader(f)
-                ]
+                repo._energy = _read_energy_rows(f)
+
+        doe_file = data_dir / "doe_wap_refrigerators.csv.gz"
+        if doe_file.exists():
+            with gzip.open(doe_file, "rt", newline="", encoding="utf-8") as f:
+                repo._doe = _read_energy_rows(f)
 
         standards_file = data_dir / "doe_standards_refrigerators.json"
         if standards_file.exists():
@@ -172,40 +222,48 @@ class Repository:
     def profile(self, category: str) -> CategoryProfile:
         return self._profiles[category]
 
-    def _matching_rows(self, brand: str, model: str) -> list[_EnergyRow]:
-        """Rows of the same brand whose pattern matches `model`, fewest wildcards only."""
-        key, brand_key = normalize_model(model), _brand_key(brand)
-        hits = [r for r in self._energy if _brand_key(r.brand) == brand_key and r.matches(key)]
-        if not hits:
-            return []
-        fewest = min(r.wildcards for r in hits)
-        return [r for r in hits if r.wildcards == fewest]
-
     def model_energy(self, brand: str, model: str) -> ModelEnergy | None:
         """The rated kWh for `brand` and `model`, or None.
 
         `*` and `#` in a dataset model number each match one optional letter or digit. The brand
         must match (`GE Appliances` counts as `GE`); another brand's row is never returned. The
         row with the fewest wildcards wins; if the rows left disagree on kWh the answer is None,
-        and `model_candidates` lists them.
+        and `model_candidates` lists them. ENERGY STAR is asked first; DOE's historical ratings
+        are used only when ENERGY STAR has no matching row, so an ambiguous ENERGY STAR model
+        stays `None` rather than falling back to an older figure.
         """
-        rows = self._matching_rows(brand, model)
-        if not rows or len({r.annual_kwh for r in rows}) > 1:
-            return None
-        return ModelEnergy(kwh_per_year=rows[0].annual_kwh, source_type="rated", source_id="energystar_refrigerators")
+        for rows, source_id in (
+            (self._energy, "energystar_refrigerators"),
+            (self._doe, "doe_wap_refrigerators"),
+        ):
+            hits = _matching_rows(rows, brand, model)
+            if hits:
+                if len({r.annual_kwh for r in hits}) > 1:
+                    return None
+                return ModelEnergy(kwh_per_year=hits[0].annual_kwh, source_type="rated", source_id=source_id)
+        return None
+
+    def model_year(self, brand: str, model: str) -> int | None:
+        """The latest year DOE's historical database lists `brand` and `model`, or None.
+
+        A model is often listed for several years (the Maytag family on the demo card:
+        2005 to 2009), so this is the last year it was listed: the unit was made no later than
+        that, which never overstates its age. It uses the same brand and wildcard matching as
+        `model_energy` and does not depend on the kWh agreeing across years.
+        """
+        years = [r.year for r in _matching_rows(self._doe, brand, model) if r.year is not None]
+        return max(years) if years else None
 
     def model_candidates(self, model: str) -> list[str]:
         """Up to 5 model numbers for `model`: pattern matches first, then the longest shared prefix (3+ characters)."""
         key = normalize_model(model)
-        found = sorted(
-            (r for r in self._energy if r.matches(key)),
-            key=lambda r: (r.wildcards, r.model_number),
-        )
+        rows = self._energy + self._doe
+        found = sorted(_select(rows, key), key=lambda r: (r.wildcards, r.model_number))
         out = list(dict.fromkeys(r.model_number for r in found))
         for n in range(len(key), MIN_PREFIX - 1, -1):
             if len(out) >= MAX_CANDIDATES:
                 break
-            hits = sorted({r.model_number for r in self._energy if r.model_normalized.startswith(key[:n])})
+            hits = sorted({r.model_number for r in rows if r.model_normalized.startswith(key[:n])})
             if hits:
                 out += [h for h in hits if h not in out]
                 break
