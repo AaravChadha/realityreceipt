@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from app.engine.lease import cheapest_buyout, effective_annual_cost, rto_buyout, rto_full
@@ -111,6 +113,76 @@ def test_no_early_purchase_terms_are_described_as_not_entered() -> None:
     assert formula.startswith("No early purchase terms entered: 52 weekly payments of $30.00 = $1,560.00.")
 
 
+# The Aaron's demo card (demo/cards/cards.json): its own printed payment today and total of payments.
+AARONS = lease(weekly_payment=33.48, cash_price=1196.99, payment_today=0.01, total_of_payments=1739.88)
+
+
+def test_the_aarons_card_uses_the_numbers_printed_on_the_lease() -> None:
+    full = rto_full(AARONS)
+    assert full.pay_today == 0.01
+    assert full.lines[0].amount_low == full.lines[0].amount_high == 1739.88
+    assert sum(full.monthly_low) == pytest.approx(1739.88)
+    # $0.01 in week 1, then $1,739.87 spread evenly over weeks 2 to 52 ($34.11, the last week $34.37).
+    assert full.monthly_low[0] == 136.45  # weeks 1 to 5: 0.01 + 4 x 34.11
+    assert "$0.01 today and $1,739.88 in all over 52 weeks, as printed on your lease" in full.lines[0].formula
+    # ((1739.88 - 1196.99) / 1196.99) / (52 / 52) = 45%.
+    assert full.lines[0].formula.endswith("= 45%.")
+    # No early purchase terms entered, so the buyout path pays the lease out too.
+    buyout = rto_buyout(AARONS)
+    assert buyout.pay_today == 0.01
+    assert buyout.lines[0].amount_high == 1739.88
+    assert "as printed on your lease" in buyout.lines[0].formula
+    # The card's printed "cost of lease services".
+    assert buyout.lines[0].formula.endswith("That is $542.89 more than the cash price of $1,196.99.")
+
+
+def test_a_printed_total_alone_is_spread_evenly_over_every_week() -> None:
+    c = rto_full(lease(total_of_payments=1600.0))
+    assert sum(c.monthly_low) == pytest.approx(1600.0)
+    assert c.pay_today == 30.76  # 1600 / 52 = 30.769..., whole cents, the last week takes the rest
+    assert c.lines[0].formula.startswith("$1,600.00 in all over 52 weeks, as printed on your lease, spread evenly.")
+    assert c.lines[0].formula.endswith("(52 / 52) = 100%.")
+
+
+def test_a_printed_payment_today_alone_replaces_the_first_weekly_payment() -> None:
+    c = rto_full(lease(payment_today=0.01))
+    assert c.pay_today == 0.01
+    assert sum(c.monthly_low) == pytest.approx(0.01 + 51 * 30)
+    assert c.lines[0].formula.startswith(
+        "$0.01 today, as printed on your lease, then 51 weekly payments of $30.00. Total of payments = $1,530.01."
+    )
+
+
+def test_the_buyout_rule_works_from_the_printed_total() -> None:
+    # 40% of what is left of the printed $1,739.88 after the $0.01 paid today: 0.01 + 695.948 = 695.96.
+    c = rto_buyout(AARONS.model_copy(update={"early_purchase_rule": "pct_of_remaining", "early_purchase_pct": 0.4}))
+    assert c.pay_today == 695.96
+    assert "Payments to week 1 = $0.01, plus a buyout of $695.95 (40% of the $1,739.87 left to pay)" in c.lines[0].formula
+
+
+def test_a_printed_total_on_a_long_lease_counts_only_the_weeks_in_the_window() -> None:
+    c = rto_full(lease(term_weeks=208, total_of_payments=6448.0))  # $31.00 a week, as printed
+    assert sum(c.monthly_low) == pytest.approx(156 * 31)
+    assert "$6,448.00 in all over 208 weeks, as printed on your lease" in c.lines[0].formula
+    assert "Only the 156 payments due in the first 36 months, $4,836.00, count" in c.lines[0].formula
+
+
+@pytest.mark.parametrize("printed", [
+    {"payment_today": 100.0, "total_of_payments": 50.0},
+    {"term_weeks": 1, "payment_today": 10.0, "total_of_payments": 30.0},
+])
+def test_a_payment_today_that_does_not_fit_the_printed_total_is_refused(printed: dict) -> None:
+    with pytest.raises(ValueError, match="does not fit"):
+        rto_full(lease(**printed))
+
+
+def test_one_payment_is_singular() -> None:
+    buyout = rto_buyout(lease(early_purchase_rule="pct_of_remaining", early_purchase_pct=0.5)).lines[0].formula
+    assert buyout.startswith("1 weekly payment of $30.00 = $30.00, plus a buyout of $765.00")
+    assert rto_full(lease(term_weeks=1)).lines[0].formula.startswith("1 weekly payment of $30.00 from your lease = $30.00.")
+    assert "then 1 weekly payment of $30.00." in rto_full(lease(term_weeks=2, payment_today=0.01)).lines[0].formula
+
+
 LEASES = [
     lease(),
     lease(fees=25.0),
@@ -119,6 +191,11 @@ LEASES = [
     lease(early_purchase_rule="cash_price_minus_pct_paid", early_purchase_pct=0.6, fees=10.0),
     lease(early_purchase_rule="pct_of_remaining", early_purchase_pct=1.0),
     lease(term_weeks=208, fees=15.0),
+    lease(term_weeks=1),
+    AARONS,
+    lease(total_of_payments=1600.0),
+    lease(term_weeks=2, payment_today=0.01),
+    AARONS.model_copy(update={"early_purchase_rule": "cash_price_minus_pct_paid", "early_purchase_pct": 0.5}),
 ]
 
 
@@ -133,3 +210,4 @@ def test_lines_carry_the_lease_source_and_follow_the_copy_rules(terms: Lease) ->
                 assert "APR" not in text.upper()
                 assert "\u2014" not in text
                 assert "no early purchase option" not in text.lower()
+                assert not re.search(r"\b1 weekly payments", text)
