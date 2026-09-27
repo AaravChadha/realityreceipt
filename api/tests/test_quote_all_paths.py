@@ -788,3 +788,19 @@ def test_low_never_exceeds_high_over_500_generated_requests() -> None:
                     checked += 1
             assert (path.total_3yr_low, path.total_3yr_high) == (round(sum(path.monthly_low), 2), round(sum(path.monthly_high), 2))
     assert checked > 5000
+
+
+# Task 3.3.7: a listing that is new.
+
+
+def test_a_new_user_listing_is_priced_as_new() -> None:
+    fresh = Item(id="listed-new", category="refrigerator", brand="GE", model="NEW456", condition="new")
+    offer = Offer(item_id="listed-new", price=400.0, seller_type="private", source="user_listing", source_id="user_listing")
+    paths = quote(QuoteRequest(items=[fresh], offers=[offer]), FakeRepo(year_ranges={"NEW456": (2004, 2006)}))
+    [listed] = [p for p in paths if p.name == "New, from your listing"]
+    assert (listed.group, listed.payment_method, listed.pay_today) == ("new", "cash", 400.0)
+    assert (listed.expected_life_low, listed.expected_life_high) == (10, 15)  # age 0 in a 10 to 15 year life
+    assert not any(line.label == "Extra use from age" for line in listed.lines)
+    assert not {"past_typical_life", YEAR_FROM_RATING_DATA, "test_procedure_changed"} & set(listed.flags)
+    # The cached new offer is still priced beside it.
+    assert "New, pay cash" in {p.name for p in paths}

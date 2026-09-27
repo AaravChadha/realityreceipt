@@ -99,6 +99,25 @@ export interface CostLine {
   other_source_ids: string[]
 }
 
+/** A unit's kWh figure (engine-side; the web sees it through the electricity line). */
+export interface ModelEnergy {
+  kwh_per_year: number
+  source_type: SourceType
+  source_id: string
+  /** How the figure was chosen when a rule picked it; "" otherwise. Shown in the electricity formula. */
+  note: string
+  /** Sources of that rule; added to the electricity line's other_source_ids. */
+  note_source_ids: string[]
+}
+
+export const MODEL_ENERGY_KEYS = [
+  'kwh_per_year',
+  'source_type',
+  'source_id',
+  'note',
+  'note_source_ids',
+] as const satisfies readonly (keyof ModelEnergy)[]
+
 export interface Path {
   name: string
   group: PathGroup

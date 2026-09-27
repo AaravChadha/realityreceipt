@@ -54,6 +54,7 @@ export const PERIOD_SUFFIX: Record<Period, string> = {
 export const FLAG_SENTENCES = {
   costs_not_estimated: 'Some costs are not estimated, so the real total may be higher.',
   past_typical_life: 'This unit is at or past its typical life.',
+  may_be_past_typical_life: 'This unit may be at or past its typical life.',
   test_procedure_changed:
     'The energy test changed around 2014, so ratings from before and after it are not directly comparable.',
   year_from_serial_low_confidence: 'The year made comes from the serial number and may not be exact.',

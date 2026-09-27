@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import sample from '../../../contracts/receipt_fridge.json'
 import type { Path, Source } from '../contracts'
@@ -226,7 +226,7 @@ test('scan and upload controls and every lease field are on the form', () => {
   expect(lease.getByLabelText('Weekly payment')).toBeInTheDocument()
   expect(lease.getByLabelText('Term in weeks')).toBeInTheDocument()
   expect(lease.getByLabelText('Cash price')).toBeInTheDocument()
-  expect(lease.getByLabelText('Fees (optional)')).toBeInTheDocument()
+  expect(lease.getByLabelText('Fees ($0 if none)')).toBeInTheDocument()
   expect(lease.getByLabelText('Paid today')).toBeInTheDocument()
   expect(lease.getByLabelText('Total of all payments, as printed')).toBeInTheDocument()
   expect(lease.getByLabelText('Early purchase rule')).toHaveValue('none')
@@ -270,7 +270,7 @@ test('an invalid scan pre-fills the brand and shows the errors, and does not quo
   fireEvent.change(input, { target: { files: [new File(['label'], 'label.jpg', { type: 'image/jpeg' })] } })
 
   const now = section('Your fridge now')
-  expect(await now.findByLabelText('Brand')).toHaveValue('Maytag')
+  await waitFor(() => expect(now.getByLabelText('Brand')).toHaveValue('Maytag'))
   expect(now.getByLabelText('Model number')).toHaveValue('MB2562')
   expect(now.getByLabelText('Serial number (optional)')).toHaveValue('')
   expect(now.getByLabelText('Year made (optional)')).toHaveValue('2004')
@@ -294,7 +294,7 @@ test('a lease is quoted only after the user confirms the form', async () => {
   type(lease.getByLabelText('Weekly payment'), '30')
   type(lease.getByLabelText('Term in weeks'), '52')
   type(lease.getByLabelText('Cash price'), '800')
-  type(lease.getByLabelText('Fees (optional)'), '25')
+  type(lease.getByLabelText('Fees ($0 if none)'), '25')
   fireEvent.change(lease.getByLabelText('Early purchase rule'), { target: { value: 'pct_of_remaining' } })
   type(lease.getByLabelText('Early purchase fraction'), '0.5')
   type(lease.getByLabelText('Early purchase terms'), 'Half of what is left')
@@ -373,7 +373,7 @@ test('a lease scan pre-fills printed fields and stores the early purchase percen
   fireEvent.change(input, { target: { files: [new File(['lease'], 'lease.jpg', { type: 'image/jpeg' })] } })
 
   const lease = section('A rent-to-own lease')
-  expect(await lease.findByLabelText('Brand')).toHaveValue('Frigidaire')
+  await waitFor(() => expect(lease.getByLabelText('Brand')).toHaveValue('Frigidaire'))
   expect(lease.getByLabelText('Model number')).toHaveValue('FRTE1936AV')
   expect(lease.getByLabelText('Weekly payment')).toHaveValue('33.48')
   expect(lease.getByLabelText('Early purchase rule')).toHaveValue('pct_of_remaining')
@@ -403,7 +403,7 @@ test('an early purchase percent of 33.3 is stored as 0.333', async () => {
   fireEvent.change(screen.getByLabelText('What are you scanning?'), { target: { value: 'lease' } })
   const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
   fireEvent.change(input, { target: { files: [new File(['lease'], 'lease.jpg', { type: 'image/jpeg' })] } })
-  expect(await section('A rent-to-own lease').findByLabelText('Early purchase fraction')).toHaveValue('0.333')
+  await waitFor(() => expect(section('A rent-to-own lease').getByLabelText('Early purchase fraction')).toHaveValue('0.333'))
 })
 
 test('a second lease scan does not keep the first lease buyout', async () => {
@@ -435,10 +435,10 @@ test('a second lease scan does not keep the first lease buyout', async () => {
   const file = () => fireEvent.change(input, { target: { files: [new File(['lease'], 'lease.jpg', { type: 'image/jpeg' })] } })
   file()
   const lease = section('A rent-to-own lease')
-  expect(await lease.findByLabelText('Early purchase fraction')).toHaveValue('0.5')
+  await waitFor(() => expect(lease.getByLabelText('Early purchase fraction')).toHaveValue('0.5'))
   expect(lease.getByLabelText('Early purchase rule')).toHaveValue('pct_of_remaining')
   file()
-  expect(await lease.findByLabelText('Brand')).toHaveValue('GE')
+  await waitFor(() => expect(lease.getByLabelText('Brand')).toHaveValue('GE'))
   expect(lease.getByLabelText('Early purchase rule')).toHaveValue('none')
   expect(lease.getByLabelText('Early purchase fraction')).toHaveValue('')
 })
@@ -465,8 +465,8 @@ test('a fee the scan did not print stays empty', async () => {
   const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
   fireEvent.change(input, { target: { files: [new File(['lease'], 'lease.jpg', { type: 'image/jpeg' })] } })
   const lease = section('A rent-to-own lease')
-  expect(await lease.findByLabelText('Weekly payment')).toHaveValue('33.48')
-  expect(lease.getByLabelText('Fees (optional)')).toHaveValue('')
+  await waitFor(() => expect(lease.getByLabelText('Weekly payment')).toHaveValue('33.48'))
+  expect(lease.getByLabelText('Fees ($0 if none)')).toHaveValue('')
 })
 
 function fillLeaseExceptFees() {
@@ -485,8 +485,8 @@ test('an empty fee blocks the quote', () => {
   const lease = fillLeaseExceptFees()
   fireEvent.click(screen.getByRole('button', { name: 'Show every way to get it' }))
   expect(fetchMock).not.toHaveBeenCalled()
-  expect(lease.getByLabelText('Fees (optional)')).toHaveAttribute('aria-invalid', 'true')
-  expect(lease.getByLabelText('Fees (optional)')).toHaveAccessibleDescription(
+  expect(lease.getByLabelText('Fees ($0 if none)')).toHaveAttribute('aria-invalid', 'true')
+  expect(lease.getByLabelText('Fees ($0 if none)')).toHaveAccessibleDescription(
     'Enter the fees as a dollar amount, or 0 if there is none.',
   )
 })
@@ -495,7 +495,7 @@ test('a fee of 0 entered on purpose is sent', async () => {
   const fetchMock = fakeApi([])
   render(<Entry />)
   const lease = fillLeaseExceptFees()
-  type(lease.getByLabelText('Fees (optional)'), '0')
+  type(lease.getByLabelText('Fees ($0 if none)'), '0')
   fireEvent.click(screen.getByRole('button', { name: 'Show every way to get it' }))
   await screen.findByText('No paths came back for these details.')
   const quoteCall = fetchMock.mock.calls.find((c) => c[0] === '/api/quote')
@@ -524,9 +524,9 @@ test('a later scan drops a serial the new image did not read', async () => {
   const file = () => fireEvent.change(input, { target: { files: [new File(['label'], 'label.jpg', { type: 'image/jpeg' })] } })
   file()
   const now = section('Your fridge now')
-  expect(await now.findByLabelText('Serial number (optional)')).toHaveValue('VS123456')
+  await waitFor(() => expect(now.getByLabelText('Serial number (optional)')).toHaveValue('VS123456'))
   file()
-  expect(await now.findByLabelText('Brand')).toHaveValue('GE')
+  await waitFor(() => expect(now.getByLabelText('Brand')).toHaveValue('GE'))
   expect(now.getByLabelText('Serial number (optional)')).toHaveValue('')
 })
 
@@ -552,7 +552,7 @@ test('a listing scan can mark the fridge new', async () => {
   const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
   fireEvent.change(input, { target: { files: [new File(['listing'], 'listing.jpg', { type: 'image/jpeg' })] } })
   const used = section('A used one you found')
-  expect(await used.findByLabelText('Brand')).toHaveValue('GE')
+  await waitFor(() => expect(used.getByLabelText('Brand')).toHaveValue('GE'))
   expect(used.getByLabelText('Condition')).toHaveValue('new')
   expect(used.getByLabelText('Listing price')).toHaveValue('400')
 })
@@ -676,7 +676,7 @@ test('a budget below pay today dims that path on the receipt', async () => {
   expect(await screen.findAllByText('More than you can spend today')).not.toHaveLength(0)
 })
 
-test('a scan waits 60 seconds before it stops, and says it is reading', async () => {
+test('a scan waits 75 seconds before it stops, and says it is reading', async () => {
   vi.useFakeTimers()
   const fetchMock = vi.fn(
     (_url: string, init?: RequestInit) =>
@@ -698,9 +698,15 @@ test('a scan waits 60 seconds before it stops, and says it is reading', async ()
   await act(async () => {
     await vi.advanceTimersByTimeAsync(45_000)
   })
+  // At 60 seconds the server's own Grok error can still arrive, so the page keeps waiting.
+  expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(false)
+  expect(screen.queryByRole('alert')).toBeNull()
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15_000)
+  })
   expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(true)
   expect(screen.getByRole('alert')).toHaveTextContent(
-    'Could not read the image: No answer after 60 seconds. Check your connection and try again.',
+    'Could not read the image: No answer after 75 seconds. Check your connection and try again.',
   )
 })
 
@@ -730,4 +736,73 @@ test('a request with no answer after 15 seconds is stopped with a plain message'
   expect(screen.getByRole('alert')).toHaveTextContent(
     'Could not get a receipt: No answer after 15 seconds. Check your connection and try again.',
   )
+})
+
+function labelScan(fields: Record<string, unknown>) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({ kind: 'label', valid: true, errors: [], fields, item: null, offer: null, lease: null }),
+  } as Response
+}
+
+test('a label scan for a different fridge clears the repair quote; a rescan of the same fridge keeps it', async () => {
+  let reply = labelScan({ brand: 'ge', model: ' gte18 ' })
+  vi.stubGlobal('fetch', vi.fn(async () => reply))
+  const { container } = render(<Entry />)
+  const now = section('Your fridge now')
+  type(now.getByLabelText('Brand'), 'GE')
+  type(now.getByLabelText('Model number'), 'GTE18')
+  type(now.getByLabelText('Repair quote (optional)'), '$180')
+  const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
+  const scanLabel = () =>
+    fireEvent.change(input, { target: { files: [new File(['label'], 'label.jpg', { type: 'image/jpeg' })] } })
+
+  scanLabel()
+  await waitFor(() => expect(now.getByLabelText('Brand')).toHaveValue('ge'))
+  expect(now.getByLabelText('Repair quote (optional)')).toHaveValue('$180')
+
+  reply = labelScan({ brand: 'Maytag', model: 'MB2562' })
+  scanLabel()
+  await waitFor(() => expect(now.getByLabelText('Brand')).toHaveValue('Maytag'))
+  expect(now.getByLabelText('Repair quote (optional)')).toHaveValue('')
+})
+
+function quoteFails(message: string) {
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === '/api/quote') {
+      return { ok: false, status: 422, json: async () => ({ detail: [{ msg: message }] }) } as Response
+    }
+    const body = url === '/api/item' ? JSON.parse(String(init?.body)) : []
+    return { ok: true, status: 200, json: async () => body } as Response
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
+test('a payment today that does not fit the lease total shows beside Paid today, without "Value error"', async () => {
+  quoteFails('Value error, the payment today printed on the lease does not fit its total of payments')
+  render(<Entry />)
+  const lease = fillLeaseExceptFees()
+  type(lease.getByLabelText('Fees ($0 if none)'), '0')
+  type(lease.getByLabelText('Paid today'), '500')
+  submit()
+
+  await waitFor(() =>
+    expect(lease.getByLabelText('Paid today')).toHaveAccessibleDescription(
+      'The payment today printed on the lease does not fit its total of payments.',
+    ),
+  )
+  expect(lease.getByLabelText('Paid today')).toHaveAttribute('aria-invalid', 'true')
+  expect(screen.getByRole('alert')).toHaveTextContent('One field needs a fix.')
+  expect(screen.queryByText(/Value error/)).toBeNull()
+  expect(screen.queryByText(/Could not get a receipt/)).toBeNull()
+})
+
+test('any other 422 message is shown without its "Value error, " prefix', async () => {
+  quoteFails('Value error, the cash price must be above 0')
+  render(<Entry />)
+  submit()
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not get a receipt: the cash price must be above 0')
+  expect(screen.queryByText(/Value error/)).toBeNull()
 })

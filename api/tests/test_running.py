@@ -124,3 +124,23 @@ def test_electricity_formula_reproduces_its_own_amount() -> None:
         if not (round(kwh * rate, 2) == per_year == line.amount_high and round(kwh / 12 * rate, 2) == per_month):
             wrong.append(line.formula)
     assert wrong == []
+
+
+ICEMAKER_NOTE = (
+    "DOE lists this model at two figures one icemaker apart; the lower is taken for a unit without an automatic icemaker"
+)
+
+
+def test_a_note_on_the_kwh_figure_goes_in_the_formula_with_its_sources() -> None:
+    noted = ModelEnergy(
+        kwh_per_year=505, source_type="rated", source_id="doe_wap_refrigerators",
+        note=ICEMAKER_NOTE, note_source_ids=["doe_standards_refrigerators"],
+    )
+    [line] = energy(noted, RATE).lines
+    assert line.formula.endswith(f"/month. {ICEMAKER_NOTE}")
+    assert line.source_id == "doe_wap_refrigerators"
+    assert line.other_source_ids == ["ga_power_residential_tariff", "doe_standards_refrigerators"]
+    # A figure with no note is unchanged.
+    [plain] = energy(RATED_600, RATE).lines
+    assert plain.formula.endswith("/month")
+    assert plain.other_source_ids == ["ga_power_residential_tariff"]

@@ -233,7 +233,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `Lease` in `api/app/models.py`: `payment_today` must not exceed `total_of_payments` when both are printed, so a scan with them comes back invalid for correction. `POST /quote` returns a 422 with the engine's message for any `ValueError`, never a 500.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py api/tests/test_routes.py -q` passes, including tests that `payment_today=100, total_of_payments=50` is refused by the contract and that `/quote` answers 422, not 500, when the engine raises `ValueError`.
 
-- [ ] **1.9 A kWh figure can carry how it was chosen (Track A1, with A5's `running.py`)** (NEW 2026-09-26 22:15, Codex review)
+- [x] **1.9 A kWh figure can carry how it was chosen (Track A1, with A5's `running.py`)** (NEW 2026-09-26 22:15, Codex review)
   `ModelEnergy` gains `note: str = ""` and `note_source_ids: list[str] = []` (mirror both in `web/src/contracts.ts`). `running.py` appends a non-empty note to the electricity line's formula and adds `note_source_ids` to its `other_source_ids`. 2.2.7 fills the note.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py api/tests/test_running.py -q` passes, including a test that a `ModelEnergy` with a note puts that note in the electricity formula and its source ids in `other_source_ids`, and `npm --prefix web test -- contracts` passes.
 
@@ -340,7 +340,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   Add the plain sentence for the new pinned flag `year_from_rating_data`: "The year made is estimated from the years DOE lists this model, so its remaining life is a range."
   **Acceptance:** `npm --prefix web test -- Receipt` passes, including a test that the flag renders that sentence.
 
-- [ ] **2.9.3 Sentence for "may be past its typical life" (Track C2)** (NEW 2026-09-26 22:20, with 3.3.8)
+- [x] **2.9.3 Sentence for "may be past its typical life" (Track C2)** (NEW 2026-09-26 22:20, with 3.3.8)
   The flag `may_be_past_typical_life` reads "This unit may be at or past its typical life."
   **Acceptance:** `npm --prefix web test -- Receipt` passes, including a test that the flag renders that sentence and never its code name.
 
@@ -427,7 +427,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   In `quote`, build "Rent-to-own, early buyout" only when `req.lease.early_purchase_rule` is not "none". Without terms it repeated the keep-paying numbers on a second card; 3.2.4 puts "No early purchase terms entered" on the keep-paying path instead.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including tests that a lease with `early_purchase_rule="none"` gives exactly one rent-to-own path and a lease with terms gives two.
 
-- [ ] **3.3.7 Price a listing that is new (Track A2)** (NEW 2026-09-26 22:20, Codex review)
+- [x] **3.3.7 Price a listing that is new (Track A2)** (NEW 2026-09-26 22:20, Codex review)
   `LISTING_KINDS` gains `"new": ("New, from your listing", "new")`: a user listing with `condition: "new"` becomes a cash path in group `new`, age 0, not aged (no aging line, no inferred year). Before this, it was skipped with no message.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including a test that a $400 user listing with `condition: "new"` gives a path "New, from your listing" with pay today $400 and no `past_typical_life` or aging line.
 
@@ -466,7 +466,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   **Status (2026-09-26, task 1.7):** pre-fill the correction form from `ScanResult.fields`; `item`, `offer` and `lease` arrive only when the scan is valid.
   **Status (2026-09-26 21:10, reviews of #48 and #52):** also: the lease form gets `payment_today`, `total_of_payments` and the leased fridge's brand and model, and no "Lease source" field; pass `budgetToday` into `Receipt` so 3.11's dimming works; drop "Price tag" from the scan picker tonight; give the `/scan` request a 60-second timeout with a visible reading state.
 
-- [ ] **3.10.1 Scan and lease form, last fixes (Track C1)** (NEW 2026-09-26 22:15, review of #48)
+- [x] **3.10.1 Scan and lease form, last fixes (Track C1)** (NEW 2026-09-26 22:15, review of #48)
   In `Entry.tsx`: ~~remove the "New" listing condition and map a scanned `condition: "new"` to `used_as_is`~~ → **Verdict (22:20):** keep the "New" condition and keep a scanned `"new"` as new (3.3.7 prices it; mapping it to used would misstate the listing); clear the repair quote when a label scan replaces the current fridge's brand or model; fix the flaky waits in `Entry.test.tsx` (lines 441, 529, 555: wait for the scanned value, not the field); label the fee field "Fees ($0 if none)"; strip a leading "Value error, " from a 422 message and show the "does not fit" error beside "Paid today". In `api.ts`: the scan timeout 75 seconds, so the server's own 60-second Grok error arrives first.
   **Acceptance:** `npm --prefix web test -- Entry` passes, ~~including tests that the listing condition picker has no "New" option and a scanned `condition: "new"` becomes "Used, as-is"~~ → including tests that a scanned `condition: "new"` stays "New" and a new label scan clears the repair quote; five runs in a row all pass; and `npm --prefix web run build` exits 0.
 

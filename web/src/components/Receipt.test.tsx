@@ -88,9 +88,19 @@ test('the year_from_rating_data flag shows its sentence, not the flag name', () 
   expect(screen.queryByText(/year_from_rating_data/)).toBeNull()
 })
 
+test('the may_be_past_typical_life flag shows its sentence, not the flag name', () => {
+  const paths = fixture.map((p) => (p.name === 'Used, as-is' ? { ...p, flags: [...p.flags, 'may_be_past_typical_life'] } : p))
+  const { container } = render(<Receipt paths={paths} />)
+  const sentence = 'This unit may be at or past its typical life.'
+  expect(card('Used, as-is').getByText(sentence)).toBeVisible()
+  expect(screen.getAllByText(sentence)).toHaveLength(1)
+  expect(container.textContent).not.toContain('may_be_past_typical_life')
+})
+
 test('every pinned flag has a sentence with no em dash, no "APR", and nothing about qualifying', () => {
   const pinned = [
     'year_from_rating_data',
+    'may_be_past_typical_life',
     'costs_not_estimated',
     'past_typical_life',
     'test_procedure_changed',
