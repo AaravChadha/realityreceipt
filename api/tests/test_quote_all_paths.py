@@ -1,5 +1,6 @@
 """`quote` with every kind of path (PLAN.md tasks 3.3 to 3.3.3), against a fake repository."""
 
+import random
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -591,3 +592,93 @@ def test_quote_and_rank_price_the_new_offer_the_same() -> None:
     [ranked] = rank(ShopFilters(), [NEW_OFFERS[1]], [NEW], repo)
     assert quoted == ranked.path
     assert not any(line.label == "Extra use from age" for line in ranked.path.lines)
+
+
+# Task 3.3.4: cost per year from the full acquisition cost; ranges that never flip.
+
+LONG_LEASE = Lease(weekly_payment=30.0, term_weeks=208, cash_price=800.0)
+
+
+def test_cost_per_year_of_a_lease_uses_its_full_term_total() -> None:
+    # 208 weekly payments of $30 = $6,240, though only the first 156 ($4,680) fall inside 36 months.
+    full = pick(quote(full_request(lease=LONG_LEASE), FakeRepo()), "rent_to_own", "rto_full")
+    assert full.lines[0].amount_high == 4680.0  # the payments counted in the 3-year total
+    # New leased unit: life 10 to 15 years; electricity 400 kWh x $0.15 = $60/yr; coils $0 to $20/yr.
+    assert (full.cost_per_year_low, full.cost_per_year_high) == (round(6240 / 15 + 60, 2), round(6240 / 10 + 80, 2))
+
+
+def test_cost_per_year_of_buy_now_pay_later_uses_every_payment() -> None:
+    # 4 payments every 52 weeks: the last one falls in month 36, outside the 3-year total.
+    terms = BnplTerms(provider="Afterpay", installments=4, interval_weeks=52, apr=0.0, source_id="afterpay_terms")
+    bnpl = pick(quote(full_request(), FakeRepo(bnpl=terms)), "new", "bnpl")
+    assert sum(line.amount_high for line in bnpl.lines if line.kind == "financing") == 0.0
+    # New GE unit: life 10 to 15 years; 380 kWh x $0.15 = $57/yr; coils $0 to $20/yr; the full $899 price.
+    assert (bnpl.cost_per_year_low, bnpl.cost_per_year_high) == (round(899 / 15 + 57, 2), round(899 / 10 + 77, 2))
+
+
+def test_card_and_pal_cost_per_year_count_their_interest() -> None:
+    paths = quote(full_request(), FakeRepo())
+    for method in ("card", "pal"):
+        path = pick(paths, "new", method)
+        financed = 899 + sum(line.amount_high for line in path.lines if line.kind == "financing")
+        assert path.cost_per_year_low == round(round(financed, 2) / 15 + 57, 2)
+
+
+def random_request(rng: random.Random) -> tuple[QuoteRequest, FakeRepo]:
+    """A request and repository drawn from wide ranges: ages past and inside typical life, unknown
+    years, missing and very efficient units, long leases and schedules past month 35."""
+    def year() -> int | None:
+        return None if rng.random() < 0.15 else THIS_YEAR - rng.randint(0, 25)
+
+    def kwh() -> float | None:
+        return None if rng.random() < 0.15 else float(rng.randint(100, 1500))
+
+    low = rng.choice([1, 2, 5, 8, 10, 13])
+    lifespan = (float(low), float(low + rng.choice([0, 1, 3, 6])))
+    energy = {m: e for m, e in (("OLD123", kwh()), ("REF789", kwh()), ("RTO111", kwh()), ("NEW456", kwh())) if e is not None}
+    new_price = round(rng.uniform(150, 2500), 2)
+    new_offers = [Offer(item_id="new-a", price=new_price, seller_type="retailer", source="retailer_cache", source_id="retailer_src")]
+    terms = None if rng.random() < 0.3 else BnplTerms(
+        provider="Afterpay", installments=rng.randint(1, 12), interval_weeks=rng.choice([2, 4, 13, 26, 52]),
+        apr=rng.choice([0.0, 0.1, 0.36]), source_id="afterpay_terms",
+    )
+    repo = FakeRepo(new=new_offers if rng.random() < 0.9 else [], bnpl=terms, energy=energy, lifespan=lifespan)
+
+    rule = rng.choice(["none", "pct_of_remaining", "cash_price_minus_pct_paid"])
+    lease = None if rng.random() < 0.2 else Lease(
+        weekly_payment=round(rng.uniform(5, 60), 2), term_weeks=rng.randint(1, 260),
+        cash_price=round(rng.uniform(0, 2000), 2), fees=rng.choice([0.0, 20.0, 49.99]),
+        early_purchase_rule=rule, early_purchase_pct=None if rule == "none" else rng.choice([0.5, 0.55, 1.0]),
+    )
+    leased = LEASED.model_copy(update={"condition": rng.choice(["new", "used_as_is"]), "mfg_year": year()})
+    request = QuoteRequest(
+        current=CURRENT.model_copy(update={"mfg_year": year()}) if rng.random() < 0.8 else None,
+        items=[USED.model_copy(update={"mfg_year": year()}), REFURB.model_copy(update={"mfg_year": year()}), leased],
+        offers=[
+            USED_OFFER.model_copy(update={"price": round(rng.uniform(20, 900), 2)}),
+            REFURB_OFFER.model_copy(update={"price": round(rng.uniform(50, 1200), 2)}),
+            LEASE_OFFER,
+        ],
+        lease=lease,
+        repair_quote_low=round(rng.uniform(0, 500), 2) if rng.random() < 0.5 else None,
+        repair_quote_high=round(rng.uniform(0, 1500), 2) if rng.random() < 0.5 else None,
+    )
+    return request, repo
+
+
+def test_low_never_exceeds_high_over_500_generated_requests() -> None:
+    rng = random.Random(334)
+    checked = 0
+    for _ in range(600):
+        request, repo = random_request(rng)
+        for path in quote(request, repo):
+            for low, high in (
+                (path.total_3yr_low, path.total_3yr_high),
+                (path.cost_per_year_low, path.cost_per_year_high),
+                (path.expected_life_low, path.expected_life_high),
+            ):
+                if low is not None and high is not None:
+                    assert low <= high, (path.name, low, high)
+                    checked += 1
+            assert (path.total_3yr_low, path.total_3yr_high) == (round(sum(path.monthly_low), 2), round(sum(path.monthly_high), 2))
+    assert checked > 5000
