@@ -57,6 +57,8 @@ export const FLAG_SENTENCES = {
   test_procedure_changed:
     'The energy test changed around 2014, so ratings from before and after it are not directly comparable.',
   year_from_serial_low_confidence: 'The year made comes from the serial number and may not be exact.',
+  year_from_rating_data:
+    'The year made is estimated from the years DOE lists this model, so its remaining life is a range.',
   pal_caps_not_an_offer: 'These figures use the federal limits on credit union PALs, not an offer from a lender.',
   bnpl_terms_not_an_offer: "These figures use one provider's published terms, not an offer.",
   over_budget_today: 'This costs more today than the amount you said you can spend.',

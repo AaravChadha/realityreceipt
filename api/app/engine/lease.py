@@ -1,10 +1,11 @@
-"""Rent-to-own paths (PLAN.md tasks 3.2 to 3.2.3, row A4).
+"""Rent-to-own paths (PLAN.md tasks 3.2 to 3.2.4, row A4).
 
 Every number comes from the user's lease, so every line is `user_entered` and
-carries the lease's source id (`user_lease`). The cost of keeping the lease is
-shown as an effective annual cost (spec §6), in the keep-paying line's formula;
-the buyout line states its total against the cash price instead, because
-annualizing a buyout after a few weeks gives meaningless percentages.
+carries the lease's source id (`user_lease`). The keep-paying line's formula
+states the full-term total against the cash price, then the effective annual
+cost (spec §6); the buyout line states only its own total against the cash
+price, because annualizing a buyout after a few weeks gives meaningless
+percentages.
 
 The lease's own printed numbers win over ones derived from the weekly payment
 (task 3.2.2): `payment_today` is week 1's payment, and `total_of_payments` is the
@@ -62,8 +63,10 @@ def rto_full(lease: Lease) -> Contribution:
         paid = f"{_printed_text(lease)} Total of payments = {_money(total)}."
     else:
         paid = f"{_weekly(lease.term_weeks)} of {_money(lease.weekly_payment)} from your lease = {_money(total)}."
+    no_terms = " No early purchase terms entered." if lease.early_purchase_rule == "none" else ""
     formula = (
         f"{paid}{_window_text(schedule, lease.term_weeks, 0.0)}"
+        f" {_vs_cash_text(full_term_total(lease), lease.cash_price)}{no_terms}"
         f" {_eac_text(total, lease.cash_price, lease.term_weeks)}"
     )
     return _contribution(lease, schedule, lease.term_weeks, 0.0, "Total of lease payments", formula)

@@ -79,8 +79,18 @@ test('a pinned flag shows as a plain sentence; an unpinned flag and the fixture 
   expect(screen.getAllByText('Sample data, not a real quote')).toHaveLength(1)
 })
 
+test('the year_from_rating_data flag shows its sentence, not the flag name', () => {
+  const paths = fixture.map((p) => (p.name === 'Used, as-is' ? { ...p, flags: [...p.flags, 'year_from_rating_data'] } : p))
+  render(<Receipt paths={paths} />)
+  const sentence = 'The year made is estimated from the years DOE lists this model, so its remaining life is a range.'
+  expect(card('Used, as-is').getByText(sentence)).toBeVisible()
+  expect(screen.getAllByText(sentence)).toHaveLength(1)
+  expect(screen.queryByText(/year_from_rating_data/)).toBeNull()
+})
+
 test('every pinned flag has a sentence with no em dash, no "APR", and nothing about qualifying', () => {
   const pinned = [
+    'year_from_rating_data',
     'costs_not_estimated',
     'past_typical_life',
     'test_procedure_changed',

@@ -1,11 +1,12 @@
-"""`quote` with every kind of path (PLAN.md tasks 3.3 to 3.3.3), against a fake repository."""
+"""`quote` with every kind of path (PLAN.md tasks 3.3 to 3.3.3 and 3.3.5), against a fake repository."""
 
+import random
 from dataclasses import dataclass, field
 from datetime import date
 
 import pytest
 
-from app.engine.quote import INCOMPLETE, quote
+from app.engine.quote import INCOMPLETE, YEAR_FROM_RATING_DATA, quote
 from app.engine.rank import rank
 from app.models import (
     MONTHS,
@@ -78,7 +79,11 @@ class FakeRepo:
     energy_refs: list[str] = field(default_factory=lambda: ["energystar_refrigerators"])
     lifespan: tuple[float, float] = (10, 15)
     historical: set[str] = field(default_factory=set)  # models rated from a second source
-    years: dict[str, int] = field(default_factory=dict)  # model -> year from the rating data
+    years: dict[str, int] = field(default_factory=dict)  # model -> last year listed (`model_year`)
+    year_ranges: dict[str, tuple[int, int]] = field(default_factory=dict)  # model -> first and last year listed
+    ceiling_extra: dict[int, float] = field(default_factory=dict)  # year -> kWh added to its ceiling
+    first_standard: int = 0  # no ceiling for a year before this
+    year_range_calls: list[tuple[str, str | float | None]] = field(default_factory=list)
 
     def rate(self, key: str) -> RateValue:
         return RATES[key]
@@ -114,11 +119,16 @@ class FakeRepo:
     def model_year(self, brand: str, model: str) -> int | None:
         return self.years.get(model)
 
+    def model_year_range(self, brand: str, model: str, product_class: str | float | None = None) -> tuple[int, int] | None:
+        self.year_range_calls.append((model, product_class))
+        return self.year_ranges.get(model)
+
     def standard_ceiling(self, mfg_year: int, product_class: str, volume_cuft: float) -> ModelEnergy | None:
         self.ceiling_calls.append((mfg_year, product_class, volume_cuft))
-        if product_class != "3":
+        if product_class != "3" or mfg_year < self.first_standard:
             return None
-        return ModelEnergy(kwh_per_year=8.0 * volume_cuft + 300.0, source_type="published", source_id="doe_standards")
+        kwh = 8.0 * volume_cuft + 300.0 + self.ceiling_extra.get(mfg_year, 0.0)
+        return ModelEnergy(kwh_per_year=kwh, source_type="published", source_id="doe_standards")
 
 
 def full_request(**overrides) -> QuoteRequest:
@@ -322,6 +332,17 @@ def test_rent_to_own_paths_come_from_the_lease() -> None:
     assert not any(p.group == "rent_to_own" for p in quote(full_request(lease=None), FakeRepo()))
 
 
+def test_a_lease_without_buyout_terms_gives_one_rent_to_own_path() -> None:
+    no_terms = LEASE.model_copy(update={"early_purchase_rule": "none", "early_purchase_pct": None})
+    paths = [p for p in quote(full_request(lease=no_terms), FakeRepo()) if p.group == "rent_to_own"]
+    assert [p.payment_method for p in paths] == ["rto_full"]
+
+
+def test_a_lease_with_buyout_terms_gives_two_rent_to_own_paths() -> None:
+    paths = [p for p in quote(full_request(), FakeRepo()) if p.group == "rent_to_own"]
+    assert sorted(p.payment_method for p in paths) == ["rto_buyout", "rto_full"]
+
+
 def test_lease_without_its_unit_leaves_energy_and_life_blank() -> None:
     full = pick(quote(full_request(offers=[USED_OFFER, REFURB_OFFER]), FakeRepo()), "rent_to_own", "rto_full")
     assert full.lines[2].source_type == "not_estimated"  # payments, fees, then electricity
@@ -496,7 +517,7 @@ PARITY_UNITS = {
 @pytest.mark.parametrize("name", PARITY_UNITS)
 def test_quote_and_rank_give_a_used_unit_the_same_electricity(name: str) -> None:
     item = PARITY_UNITS[name]
-    repo = FakeRepo(years={"OLD123": THIS_YEAR - 9})
+    repo = FakeRepo(year_ranges={"OLD123": (THIS_YEAR - 9, THIS_YEAR - 6)})
     quoted = used_path(item, repo)
     [ranked] = rank(ShopFilters(), [USED_OFFER], [item], repo)
     running = [line for line in quoted.lines if line.kind == "running"]
@@ -554,35 +575,121 @@ def test_a_new_unit_uses_its_label_kwh_too() -> None:
     assert (line.source_type, line.source_id, line.amount_high) == ("user_entered", "user", 75.0)
 
 
-def test_a_missing_year_comes_from_the_rating_data() -> None:
-    repo = FakeRepo(years={"OLD123": THIS_YEAR - 9})
-    used = used_path(unit("OLD123", year=None), repo)
-    assert (used.expected_life_low, used.expected_life_high) == (1, 6)
+def test_an_undated_unit_gets_a_life_range_from_both_listed_years() -> None:
+    # DOE lists the model from 8 to 5 years ago: 5 to 8 years old in a 10 to 15 year life, so
+    # 10 - 8 = 2 to 15 - 5 = 10 years left. A single year would give 2 to 7 or 5 to 10.
+    item = unit("OLD123", year=None)
+    repo = FakeRepo(year_ranges={"OLD123": (THIS_YEAR - 8, THIS_YEAR - 5)})
+    used = used_path(item, repo)
+    assert (used.expected_life_low, used.expected_life_high) == (2, 10)
+    # $250 over 2 to 10 years, plus $90 of electricity and $0 to $20 of coils a year.
+    assert (used.cost_per_year_low, used.cost_per_year_high) == (250 / 10 + 90, 250 / 2 + 90 + 20)
+    assert YEAR_FROM_RATING_DATA in used.flags
     assert [line.source_type for line in replacement_lines(used)] == ["published"]  # priced, not "year unknown"
-    repair = pick(quote(QuoteRequest(current=unit("OLD123", year=None)), repo), "repair", None)
-    assert (repair.expected_life_low, repair.expected_life_high) == (1, 6)
+    repair = pick(quote(QuoteRequest(current=item), repo), "repair", None)
+    assert (repair.expected_life_low, repair.expected_life_high) == (2, 10)
+    assert YEAR_FROM_RATING_DATA in repair.flags
+    [ranked] = rank(ShopFilters(), [USED_OFFER], [item], repo)
+    assert YEAR_FROM_RATING_DATA in ranked.path.flags
+    # Never written into the unit's year.
+    assert item.mfg_year is None
 
 
-def test_an_entered_year_is_kept() -> None:
-    used = used_path(unit("OLD123", year=THIS_YEAR - 8), FakeRepo(years={"OLD123": THIS_YEAR - 20}))
+def test_an_entered_year_is_kept_and_not_flagged() -> None:
+    repo = FakeRepo(year_ranges={"OLD123": (THIS_YEAR - 20, THIS_YEAR - 15)})
+    used = used_path(unit("OLD123", year=THIS_YEAR - 8), repo)
     assert (used.expected_life_low, used.expected_life_high) == (2, 7)
+    assert YEAR_FROM_RATING_DATA not in used.flags
 
 
-def test_the_ceiling_uses_the_year_from_the_rating_data() -> None:
-    repo = FakeRepo(years={"UNRATED": 2004})
+def test_the_ceiling_is_the_higher_of_the_listed_years() -> None:
+    # An upper bound: the older standard allows more.
+    repo = FakeRepo(year_ranges={"UNRATED": (2004, 2006)}, ceiling_extra={2004: 50.0})
     used = used_path(unit(year=None, **CLASS_3), repo)
-    assert repo.ceiling_calls == [(2004, "3", 20.5)]
-    assert used.lines[1].source_id == "doe_standards"
+    assert repo.ceiling_calls == [(2004, "3", 20.5), (2006, "3", 20.5)]
+    line = used.lines[1]
+    assert (line.source_id, line.amount_high) == ("doe_standards", round((464 + 50) * 0.15, 2))
+
+
+def test_no_ceiling_when_a_listed_year_has_none() -> None:
+    # Listed 1990 to 1995, and the first standard is from 1993: the later ceiling alone could be too low.
+    repo = FakeRepo(year_ranges={"UNRATED": (1990, 1995)}, first_standard=1993)
+    used = used_path(unit(year=None, **CLASS_3), repo)
+    assert used.lines[1].source_type == "not_estimated"
+
+
+def test_the_class_reaches_the_listing_years_lookup() -> None:
+    repo = FakeRepo(year_ranges={"UNRATED": (2004, 2006)})
+    used_path(unit(year=None, product_class="3I"), repo)
+    assert repo.year_range_calls == [("UNRATED", "3I")]
+
+
+def test_past_life_from_an_inferred_year_says_may_be() -> None:
+    # Listed 14 to 5 years ago: the oldest end is past the low end of a 10 to 15 year life.
+    used = used_path(unit("OLD123", year=None), FakeRepo(year_ranges={"OLD123": (THIS_YEAR - 14, THIS_YEAR - 5)}))
+    assert (used.expected_life_low, used.expected_life_high) == (0, 10)
+    [line] = replacement_lines(used)
+    assert "going by the years DOE lists its model, it may be at or past the low end" in line.formula
+    dated = used_path(unit("OLD123", year=THIS_YEAR - 14))
+    assert "it is at or past the low end" in replacement_lines(dated)[0].formula
+
+
+def test_an_undated_leased_used_unit_uses_the_last_listed_year_for_2014() -> None:
+    used_lease = LEASED.model_copy(update={"condition": "used_as_is", "model": "OLD123"})
+    repo = FakeRepo(year_ranges={"OLD123": (2005, 2009)})
+    paths = quote(full_request(current=None, items=[used_lease], offers=[LEASE_OFFER]), repo)
+    full = pick(paths, "rent_to_own", "rto_full")
+    assert {YEAR_FROM_RATING_DATA, "test_procedure_changed"} <= set(full.flags)
 
 
 def test_a_new_unit_is_not_dated_from_the_rating_data() -> None:
     # A new unit was made recently, not when its model was rated, so no 2004 ceiling for it.
-    repo = FakeRepo(years={"UNRATED": 2004})
+    repo = FakeRepo(year_ranges={"UNRATED": (2004, 2004)})
     leased = LEASED.model_copy(update={"model": "UNRATED", "attributes": CLASS_3})
     # No current unit: the request's 2004 repair unit would ask for its own ceiling.
     full = pick(quote(full_request(current=None, items=[USED, REFURB, leased]), repo), "rent_to_own", "rto_full")
     assert [line.source_type for line in full.lines if line.label.startswith("Electricity")] == ["not_estimated"]
     assert repo.ceiling_calls == []
+    assert YEAR_FROM_RATING_DATA not in full.flags
+
+
+@pytest.mark.parametrize(("listed", "flagged"), [((2005, 2009), True), ((2010, 2016), False)])
+def test_the_2014_comparison_uses_the_last_listed_year(listed: tuple[int, int], flagged: bool) -> None:
+    # Flagged only when the unit was certainly made before the ~2014 test procedure change.
+    paths = quote(QuoteRequest(items=[unit("OLD123", year=None)], offers=[USED_OFFER]), FakeRepo(year_ranges={"OLD123": listed}))
+    assert ("test_procedure_changed" in pick(paths, "used_as_is", "cash").flags) is flagged
+
+
+class Without:
+    """`repo` with some methods hidden, like a repository from before task 2.2.5."""
+
+    def __init__(self, repo: FakeRepo, *hidden: str) -> None:
+        self._repo, self._hidden = repo, hidden
+
+    def __getattr__(self, name: str):
+        if name in self._hidden:
+            raise AttributeError(name)
+        return getattr(self._repo, name)
+
+
+def test_without_model_year_range_the_last_listed_year_stands_in() -> None:
+    # Until task 2.2.5: `model_year` as a one-year range, flagged the same way.
+    item = unit("OLD123", year=None)
+    repo = Without(FakeRepo(years={"OLD123": THIS_YEAR - 9}, year_ranges={"OLD123": (THIS_YEAR - 12, THIS_YEAR - 9)}), "model_year_range")
+    used = used_path(item, repo)  # type: ignore[arg-type]
+    assert (used.expected_life_low, used.expected_life_high) == (1, 6)
+    assert YEAR_FROM_RATING_DATA in used.flags
+    [ranked] = rank(ShopFilters(), [USED_OFFER], [item], repo)  # type: ignore[arg-type]
+    assert (ranked.path.expected_life_low, ranked.path.expected_life_high) == (1, 6)
+    assert item.mfg_year is None
+
+
+def test_without_either_lookup_the_year_stays_unknown() -> None:
+    repo = Without(FakeRepo(years={"OLD123": THIS_YEAR - 9}), "model_year_range", "model_year")
+    used = used_path(unit("OLD123", year=None), repo)  # type: ignore[arg-type]
+    assert (used.expected_life_low, used.expected_life_high) == (None, None)
+    assert YEAR_FROM_RATING_DATA not in used.flags
+    assert "year it was made is unknown" in replacement_lines(used)[0].formula
 
 
 def test_quote_and_rank_price_the_new_offer_the_same() -> None:
@@ -591,3 +698,93 @@ def test_quote_and_rank_price_the_new_offer_the_same() -> None:
     [ranked] = rank(ShopFilters(), [NEW_OFFERS[1]], [NEW], repo)
     assert quoted == ranked.path
     assert not any(line.label == "Extra use from age" for line in ranked.path.lines)
+
+
+# Task 3.3.4: cost per year from the full acquisition cost; ranges that never flip.
+
+LONG_LEASE = Lease(weekly_payment=30.0, term_weeks=208, cash_price=800.0)
+
+
+def test_cost_per_year_of_a_lease_uses_its_full_term_total() -> None:
+    # 208 weekly payments of $30 = $6,240, though only the first 156 ($4,680) fall inside 36 months.
+    full = pick(quote(full_request(lease=LONG_LEASE), FakeRepo()), "rent_to_own", "rto_full")
+    assert full.lines[0].amount_high == 4680.0  # the payments counted in the 3-year total
+    # New leased unit: life 10 to 15 years; electricity 400 kWh x $0.15 = $60/yr; coils $0 to $20/yr.
+    assert (full.cost_per_year_low, full.cost_per_year_high) == (round(6240 / 15 + 60, 2), round(6240 / 10 + 80, 2))
+
+
+def test_cost_per_year_of_buy_now_pay_later_uses_every_payment() -> None:
+    # 4 payments every 52 weeks: the last one falls in month 36, outside the 3-year total.
+    terms = BnplTerms(provider="Afterpay", installments=4, interval_weeks=52, apr=0.0, source_id="afterpay_terms")
+    bnpl = pick(quote(full_request(), FakeRepo(bnpl=terms)), "new", "bnpl")
+    assert sum(line.amount_high for line in bnpl.lines if line.kind == "financing") == 0.0
+    # New GE unit: life 10 to 15 years; 380 kWh x $0.15 = $57/yr; coils $0 to $20/yr; the full $899 price.
+    assert (bnpl.cost_per_year_low, bnpl.cost_per_year_high) == (round(899 / 15 + 57, 2), round(899 / 10 + 77, 2))
+
+
+def test_card_and_pal_cost_per_year_count_their_interest() -> None:
+    paths = quote(full_request(), FakeRepo())
+    for method in ("card", "pal"):
+        path = pick(paths, "new", method)
+        financed = 899 + sum(line.amount_high for line in path.lines if line.kind == "financing")
+        assert path.cost_per_year_low == round(round(financed, 2) / 15 + 57, 2)
+
+
+def random_request(rng: random.Random) -> tuple[QuoteRequest, FakeRepo]:
+    """A request and repository drawn from wide ranges: ages past and inside typical life, unknown
+    years, missing and very efficient units, long leases and schedules past month 35."""
+    def year() -> int | None:
+        return None if rng.random() < 0.15 else THIS_YEAR - rng.randint(0, 25)
+
+    def kwh() -> float | None:
+        return None if rng.random() < 0.15 else float(rng.randint(100, 1500))
+
+    low = rng.choice([1, 2, 5, 8, 10, 13])
+    lifespan = (float(low), float(low + rng.choice([0, 1, 3, 6])))
+    energy = {m: e for m, e in (("OLD123", kwh()), ("REF789", kwh()), ("RTO111", kwh()), ("NEW456", kwh())) if e is not None}
+    new_price = round(rng.uniform(150, 2500), 2)
+    new_offers = [Offer(item_id="new-a", price=new_price, seller_type="retailer", source="retailer_cache", source_id="retailer_src")]
+    terms = None if rng.random() < 0.3 else BnplTerms(
+        provider="Afterpay", installments=rng.randint(1, 12), interval_weeks=rng.choice([2, 4, 13, 26, 52]),
+        apr=rng.choice([0.0, 0.1, 0.36]), source_id="afterpay_terms",
+    )
+    repo = FakeRepo(new=new_offers if rng.random() < 0.9 else [], bnpl=terms, energy=energy, lifespan=lifespan)
+
+    rule = rng.choice(["none", "pct_of_remaining", "cash_price_minus_pct_paid"])
+    lease = None if rng.random() < 0.2 else Lease(
+        weekly_payment=round(rng.uniform(5, 60), 2), term_weeks=rng.randint(1, 260),
+        cash_price=round(rng.uniform(0, 2000), 2), fees=rng.choice([0.0, 20.0, 49.99]),
+        early_purchase_rule=rule, early_purchase_pct=None if rule == "none" else rng.choice([0.5, 0.55, 1.0]),
+    )
+    leased = LEASED.model_copy(update={"condition": rng.choice(["new", "used_as_is"]), "mfg_year": year()})
+    request = QuoteRequest(
+        current=CURRENT.model_copy(update={"mfg_year": year()}) if rng.random() < 0.8 else None,
+        items=[USED.model_copy(update={"mfg_year": year()}), REFURB.model_copy(update={"mfg_year": year()}), leased],
+        offers=[
+            USED_OFFER.model_copy(update={"price": round(rng.uniform(20, 900), 2)}),
+            REFURB_OFFER.model_copy(update={"price": round(rng.uniform(50, 1200), 2)}),
+            LEASE_OFFER,
+        ],
+        lease=lease,
+        repair_quote_low=round(rng.uniform(0, 500), 2) if rng.random() < 0.5 else None,
+        repair_quote_high=round(rng.uniform(0, 1500), 2) if rng.random() < 0.5 else None,
+    )
+    return request, repo
+
+
+def test_low_never_exceeds_high_over_500_generated_requests() -> None:
+    rng = random.Random(334)
+    checked = 0
+    for _ in range(600):
+        request, repo = random_request(rng)
+        for path in quote(request, repo):
+            for low, high in (
+                (path.total_3yr_low, path.total_3yr_high),
+                (path.cost_per_year_low, path.cost_per_year_high),
+                (path.expected_life_low, path.expected_life_high),
+            ):
+                if low is not None and high is not None:
+                    assert low <= high, (path.name, low, high)
+                    checked += 1
+            assert (path.total_3yr_low, path.total_3yr_high) == (round(sum(path.monthly_low), 2), round(sum(path.monthly_high), 2))
+    assert checked > 5000

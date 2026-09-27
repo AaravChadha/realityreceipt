@@ -1,4 +1,6 @@
+import json
 import re
+from pathlib import Path
 
 import pytest
 
@@ -239,3 +241,29 @@ def test_full_term_total_matches_the_keep_paying_path(terms: Lease) -> None:
     full = rto_full(terms)
     assert full_term_total(terms) == pytest.approx(sum(full.monthly_high), abs=0.001)
     assert full_term_total(terms) == pytest.approx(full.lines[0].amount_high + terms.fees, abs=0.001)
+
+
+CARDS = Path(__file__).resolve().parents[2] / "demo" / "cards" / "cards.json"
+
+
+def test_the_aarons_demo_lease_keep_paying_formula_states_its_cost_over_the_cash_price() -> None:
+    card = next(c for c in json.loads(CARDS.read_text())["cards"] if c["kind"] == "lease")
+    formula = rto_full(Lease(**card["typed"]["lease"])).lines[0].formula
+    assert "$542.89 more than the cash price of $1,196.99" in formula  # the card's "cost of lease services"
+    assert "45%" in formula
+    assert "No early purchase terms entered" in formula
+    assert formula.index("$542.89 more than the cash price") < formula.index("Effective annual cost")
+
+
+def test_keep_paying_compares_the_full_term_total_fees_included() -> None:
+    # full_term_total: 52 x $30 + $20 fees = $1,580, against an $800 cash price.
+    assert "That is $780.00 more than the cash price of $800.00." in rto_full(lease(fees=20.0)).lines[0].formula
+    # A 208-week lease is compared on its full $6,240, not the $4,680 inside the window.
+    assert "That is $5,440.00 more than the cash price of $800.00." in rto_full(lease(term_weeks=208)).lines[0].formula
+
+
+def test_keep_paying_mentions_missing_early_terms_only_when_none_are_entered() -> None:
+    assert "No early purchase terms entered" in rto_full(lease()).lines[0].formula
+    with_terms = rto_full(lease(early_purchase_rule="pct_of_remaining", early_purchase_pct=0.5)).lines[0].formula
+    assert "No early purchase terms entered" not in with_terms
+    assert "That is $760.00 more than the cash price of $800.00." in with_terms

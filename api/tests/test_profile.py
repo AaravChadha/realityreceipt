@@ -342,3 +342,41 @@ def test_a_missing_doe_file_gives_no_year(tmp_path: pathlib.Path) -> None:
     repo = Repository.load(tmp_path)
     assert repo.model_year("Maytag", "MB*2562***") is None
     assert repo.model_energy("Maytag", "MB*2562***") is None
+
+
+def test_the_maytag_family_on_the_demo_card_returns_its_doe_listing_years(repo: Repository) -> None:
+    assert MAYTAG_LABEL.exists(), "demo card label-older-maytag-mb2562.png"
+    # DOE lists Maytag MB*2562HE* in 2005, 2006, 2007 and 2009: first and last listing years.
+    assert repo.model_year_range("Maytag", "MB*2562***") == (2005, 2009)
+    assert repo.model_year_range("maytag", "mbb-2562 he") == (2005, 2009), "a full retail number built from the family"
+    assert repo.model_year_range("Maytag", "MBF2562HE") == (2005, 2005), "a model listed in one year is a one-year range"
+    assert repo.model_year("Maytag", "MB*2562***") == 2009, "model_year is unchanged"
+
+
+def test_an_unknown_model_or_another_brand_has_no_year_range(repo: Repository) -> None:
+    assert repo.model_year_range("Maytag", "ZZZ999") is None
+    assert repo.model_year_range("Whirlpool", "MB*2562***") is None
+    assert repo.model_year_range("Maytag", "MB*2562") is None, "a family with no trailing wildcards needs the same pattern"
+
+
+def test_the_year_range_does_not_depend_on_the_kwh_agreeing(tmp_path: pathlib.Path) -> None:
+    repo = _repo_with_doe(tmp_path, [], [("Acme", "CD34", 1993, 450), ("Acme", "CD34", 1990, 500), ("Acme", "CD34", 1995, 450)])
+    assert repo.model_energy("Acme", "CD34") is None
+    assert repo.model_year_range("Acme", "CD34") == (1990, 1995)
+
+
+def test_the_class_picks_the_icemaker_pairs_years(tmp_path: pathlib.Path) -> None:
+    shutil.copy(DATA_DIR / "doe_standards_refrigerators.json", tmp_path / "doe_standards_refrigerators.json")
+    doe = [("Acme", "EF56", 2001, 410), ("Acme", "EF56", 2003, 410), ("Acme", "EF56", 2004, 494), ("Acme", "EF56", 2006, 494)]
+    repo = _repo_with_doe(tmp_path, [], doe)
+    assert repo.model_energy("Acme", "EF56", "3").kwh_per_year == 410.0
+    assert repo.model_year_range("Acme", "EF56", "3") == (2001, 2003)
+    assert repo.model_year_range("Acme", "EF56", "3I") == (2004, 2006)
+    assert repo.model_year_range("Acme", "EF56") == (2001, 2006), "no class: every matching row counts"
+    assert repo.model_year_range("Acme", "EF56", "7") == (2001, 2006), "a class that resolves nothing keeps every row"
+
+
+def test_a_missing_doe_file_gives_no_year_range(tmp_path: pathlib.Path) -> None:
+    for name in ("sources.json", "rates.json"):
+        shutil.copy(DATA_DIR / name, tmp_path / name)
+    assert Repository.load(tmp_path).model_year_range("Maytag", "MB*2562***") is None

@@ -340,6 +340,26 @@ class Repository:
         years = [r.year for r in _matching_rows(self._doe, brand, model) if r.year is not None]
         return max(years) if years else None
 
+    def model_year_range(
+        self, brand: str, model: str, product_class: str | float | None = None
+    ) -> tuple[int, int] | None:
+        """The first and last year DOE's historical database lists `brand` and `model`, or None.
+
+        The unit was made somewhere in that range (the Maytag family on the demo card: 2005 to
+        2009), so an inferred age is a range, not the last year alone. Rows are matched as in
+        `model_energy`: same brand (or the same maker's other brand), fewest wildcards, and when
+        `product_class` resolves a DOE icemaker pair (`_icemaker_pick`), only the rows at that
+        class's kWh. Otherwise every matching row counts, whether or not the kWh agree.
+        """
+        hits = _of_class(_matching_rows(self._doe, brand, model), product_class)
+        kwh = {r.annual_kwh for r in hits}
+        if len(kwh) > 1:
+            picked = self._icemaker_pick(kwh, product_class)
+            if picked is not None:
+                hits = [r for r in hits if r.annual_kwh == picked]
+        years = [r.year for r in hits if r.year is not None]
+        return (min(years), max(years)) if years else None
+
     def model_candidates(self, model: str) -> list[str]:
         """Up to 5 model numbers for `model`: pattern matches first, then the longest shared prefix (3+ characters)."""
         key = normalize_model(model)

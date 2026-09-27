@@ -1,0 +1,10 @@
+{
+  "item": {
+    "id": "card-frigidaire-ffht1822u",
+    "category": "refrigerator",
+    "brand": "Frigidaire",
+    "model": "FFHT1822U*",
+    "condition": "used_as_is",
+    "attributes": {"volume_cuft": 17.6, "label_kwh_per_year": 360}
+  }
+}
