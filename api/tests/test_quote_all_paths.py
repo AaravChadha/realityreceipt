@@ -634,9 +634,9 @@ def test_past_life_from_an_inferred_year_says_may_be() -> None:
     assert "it is at or past the low end" in replacement_lines(dated)[0].formula
 
 
-def test_an_undated_leased_used_unit_uses_the_last_listed_year_for_2014() -> None:
+def test_an_undated_leased_used_unit_uses_the_first_listed_year_for_2014() -> None:
     used_lease = LEASED.model_copy(update={"condition": "used_as_is", "model": "OLD123"})
-    repo = FakeRepo(year_ranges={"OLD123": (2005, 2009)})
+    repo = FakeRepo(year_ranges={"OLD123": (2012, 2016)})
     paths = quote(full_request(current=None, items=[used_lease], offers=[LEASE_OFFER]), repo)
     full = pick(paths, "rent_to_own", "rto_full")
     assert {YEAR_FROM_RATING_DATA, "test_procedure_changed"} <= set(full.flags)
@@ -653,9 +653,10 @@ def test_a_new_unit_is_not_dated_from_the_rating_data() -> None:
     assert YEAR_FROM_RATING_DATA not in full.flags
 
 
-@pytest.mark.parametrize(("listed", "flagged"), [((2005, 2009), True), ((2010, 2016), False)])
-def test_the_2014_comparison_uses_the_last_listed_year(listed: tuple[int, int], flagged: bool) -> None:
-    # Flagged only when the unit was certainly made before the ~2014 test procedure change.
+@pytest.mark.parametrize(("listed", "flagged"), [((2005, 2009), True), ((2010, 2016), True), ((2014, 2018), False)])
+def test_the_2014_comparison_uses_the_first_listed_year(listed: tuple[int, int], flagged: bool) -> None:
+    # Flagged when the unit could have been made before the ~2014 test procedure change (task 3.3.8;
+    # this reverses 3.3.5's "only when certainly before").
     paths = quote(QuoteRequest(items=[unit("OLD123", year=None)], offers=[USED_OFFER]), FakeRepo(year_ranges={"OLD123": listed}))
     assert ("test_procedure_changed" in pick(paths, "used_as_is", "cash").flags) is flagged
 
@@ -804,3 +805,34 @@ def test_a_new_user_listing_is_priced_as_new() -> None:
     assert not {"past_typical_life", YEAR_FROM_RATING_DATA, "test_procedure_changed"} & set(listed.flags)
     # The cached new offer is still priced beside it.
     assert "New, pay cash" in {p.name for p in paths}
+
+
+# Task 3.3.8: flags that match a range.
+
+
+def test_a_2012_to_2016_unit_beside_a_new_fridge_gets_the_2014_caution() -> None:
+    repo = FakeRepo(year_ranges={"OLD123": (2012, 2016)})
+    paths = quote(QuoteRequest(items=[unit("OLD123", year=None)], offers=[USED_OFFER]), repo)
+    assert "test_procedure_changed" in pick(paths, "used_as_is", "cash").flags
+    assert "test_procedure_changed" not in pick(paths, "new", "cash").flags
+
+
+def test_zero_to_three_years_left_may_be_past_typical_life() -> None:
+    # 12 years into a 10 to 15 year life: 0 to 3 years left.
+    used = used_path(unit("OLD123", year=THIS_YEAR - 12))
+    assert (used.expected_life_low, used.expected_life_high) == (0, 3)
+    assert "may_be_past_typical_life" in used.flags
+    assert "past_typical_life" not in used.flags
+
+
+def test_zero_years_left_at_both_ends_is_past_typical_life() -> None:
+    # 20 years into a 10 to 15 year life: 0 left at both ends.
+    old = used_path(unit("OLD123", year=THIS_YEAR - 20))
+    assert (old.expected_life_low, old.expected_life_high) == (0, 0)
+    assert "past_typical_life" in old.flags
+    assert "may_be_past_typical_life" not in old.flags
+
+
+def test_life_left_at_both_ends_gets_neither_flag() -> None:
+    used = used_path(unit("OLD123", year=THIS_YEAR - 8))
+    assert not {"past_typical_life", "may_be_past_typical_life"} & set(used.flags)

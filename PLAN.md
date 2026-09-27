@@ -430,7 +430,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `LISTING_KINDS` gains `"new": ("New, from your listing", "new")`: a user listing with `condition: "new"` becomes a cash path in group `new`, age 0, not aged (no aging line, no inferred year). Before this, it was skipped with no message.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including a test that a $400 user listing with `condition: "new"` gives a path "New, from your listing" with pay today $400 and no `past_typical_life` or aging line.
 
-- [ ] **3.3.8 Flags that match a range (Track A2)** (NEW 2026-09-26 22:20, Codex review)
+- [x] **3.3.8 Flags that match a range (Track A2)** (NEW 2026-09-26 22:20, Codex review)
   `_flag_test_procedure` uses the first possible year: a unit that could be made before 2014 is flagged when the quote also holds a newer unit. `past_typical_life` only when `life_high` is 0; when only `life_low` is 0, `may_be_past_typical_life` instead. `api/tests/test_demo_script.py` must still pass.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py api/tests/test_demo_script.py -q` passes, including tests that a 2012 to 2016 undated unit beside a new fridge gets `test_procedure_changed`, and a unit with 0 to 3 years left gets `may_be_past_typical_life`, not `past_typical_life`.
 

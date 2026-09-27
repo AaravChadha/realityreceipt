@@ -75,6 +75,8 @@ DEFAULT_CATEGORY = "refrigerator"
 TEST_PROCEDURE_YEAR = 2014
 
 INCOMPLETE = "costs_not_estimated"
+PAST_TYPICAL_LIFE = "past_typical_life"
+MAY_BE_PAST_TYPICAL_LIFE = "may_be_past_typical_life"
 YEAR_FROM_RATING_DATA = "year_from_rating_data"
 
 # A user listing's item condition -> path name and group.
@@ -132,14 +134,14 @@ def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
     replacement_kwh = _unit_energy(new_item, repo, new_years)
     this_year = date.today().year
 
-    # Each path with its unit's manufacture year (the last possible one when it is inferred).
+    # Each path with its unit's manufacture year (the first possible one when it is inferred).
     built: list[tuple[Path, int | None]] = []
     if req.current is not None:
         repair = _repair_cost(req, profile)
         if repair is not None:
             years = _years(req.current, repo)
             path = _unit_path("Repair the one you have", "repair", None, repair, req.current, _ages(years), True, profile, cheapest_new, repo, [], years=years, replacement_kwh=replacement_kwh)
-            built.append((path, _last(years)))
+            built.append((path, _first(years)))
 
     for offer in req.offers:
         item = items.get(offer.item_id)
@@ -152,7 +154,7 @@ def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
         # A new unit is age 0 and not aged: no aging line and no year from the rating data.
         ages = (0.0, 0.0) if is_new else _ages(years)
         path = _unit_path(name, group, "cash", cash(offer.price, offer.source_id), item, ages, not is_new, profile, cheapest_new, repo, flags, years=years, replacement_kwh=replacement_kwh)
-        built.append((path, this_year if is_new else _last(years)))
+        built.append((path, this_year if is_new else _first(years)))
 
     if cheapest_new is not None:
         for name, method, acquire, flags in _new_ways(cheapest_new, repo):
@@ -167,7 +169,7 @@ def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
         is_new = unit is not None and unit.condition == "new"
         years = _years(unit, repo)
         ages = (0.0, 0.0) if is_new else _ages(years)
-        year = this_year if is_new else _last(years)
+        year = this_year if is_new else _first(years)
         aged = unit is not None and not is_new
         lease = req.lease
         lease_paths = [("Rent-to-own, keep paying", "rto_full", rto_full(lease), full_term_total(lease))]
@@ -254,8 +256,8 @@ def _ages(years: tuple[int, int] | None) -> tuple[float, float] | None:
     return float(max(0, this_year - last)), float(max(0, this_year - first))
 
 
-def _last(years: tuple[int, int] | None) -> int | None:
-    return None if years is None else years[1]
+def _first(years: tuple[int, int] | None) -> int | None:
+    return None if years is None else years[0]
 
 
 def _life(ages: tuple[float, float] | None, lifespan: LifespanRange | None) -> tuple[float | None, float | None]:
@@ -478,8 +480,12 @@ def _unit_path(
     carbon, carbon_ids = _carbon(kwh, replacement_kwh, month_low, month_high, profile, repo)
 
     flags = [*flags]
-    if life_low == 0:
-        flags.append("past_typical_life")
+    # Past typical life only when the whole remaining-life range is 0; when only its low end is,
+    # the unit may be (task 3.3.8).
+    if life_high == 0:
+        flags.append(PAST_TYPICAL_LIFE)
+    elif life_low == 0:
+        flags.append(MAY_BE_PAST_TYPICAL_LIFE)
     if item is not None and item.year_confidence == "low":
         flags.append("year_from_serial_low_confidence")
     if inferred_year:
@@ -629,7 +635,9 @@ def _leased_item(req: QuoteRequest, items: dict[str, Item]) -> Item | None:
 
 
 def _flag_test_procedure(built: list[tuple[Path, int | None]]) -> list[Path]:
-    """Flag each pre-2014 unit's paths when the quote also holds a newer unit."""
+    """Flag the paths of each unit that could be made before 2014 (its first possible year) when the
+    quote also holds a newer unit. The flag's sentence is a general caution, not a claim about this
+    unit (task 3.3.8)."""
     years = [year for _, year in built if year is not None]
     if not any(y < TEST_PROCEDURE_YEAR for y in years) or not any(y >= TEST_PROCEDURE_YEAR for y in years):
         return [path for path, _ in built]
