@@ -1,3 +1,4 @@
+import gzip
 import json
 import pathlib
 import shutil
@@ -120,6 +121,49 @@ def test_product_class_picks_between_icemaker_ratings(bare_dir: pathlib.Path) ->
     assert repo.model_energy("Acme", "AB1W", "3i").kwh_per_year == 453.0
     assert repo.model_energy("Acme", "AB1W", 3.0).kwh_per_year == 369.0, "a class sent as a number"
     assert repo.model_energy("Acme", "AB1W", "5I") is None, "a class it is not rated in falls back to all rows"
+
+
+def _doe_pair_repo(bare_dir: pathlib.Path, *kwh: float, standards: bool = True) -> Repository:
+    """A DOE file listing Acme `AB1*` once per figure in `kwh`, beside the real DOE standards."""
+    lines = ["brand,model_number,model_normalized,year,annual_kwh"] + [f"Acme,AB1*,AB1*,2020,{k}" for k in kwh]
+    with gzip.open(bare_dir / "doe_wap_refrigerators.csv.gz", "wt", newline="", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    if standards:
+        shutil.copy(DATA_DIR / "doe_standards_refrigerators.json", bare_dir / "doe_standards_refrigerators.json")
+    return Repository.load(bare_dir)
+
+
+def test_a_doe_pair_one_icemaker_adder_apart_resolves_by_class(bare_dir: pathlib.Path) -> None:
+    # DOE has no class column; 3I's standard is 3's plus 84 kWh, and so is the second rating.
+    repo = _doe_pair_repo(bare_dir, 410, 494)
+    hit = repo.model_energy("Acme", "AB1W", "3")
+    assert hit is not None
+    assert (hit.kwh_per_year, hit.source_type, hit.source_id) == (410.0, "rated", "doe_wap_refrigerators")
+    assert repo.model_energy("Acme", "AB1W", "3I").kwh_per_year == 494.0
+    assert repo.model_energy("Acme", "AB1W", "3i").kwh_per_year == 494.0
+    assert repo.model_energy("Acme", "AB1W", 3.0).kwh_per_year == 410.0, "a class sent as a number"
+    assert repo.model_energy("Acme", "AB1W", "5I-BI") is not None, "every base class with an icemaker form"
+    assert repo.model_energy("Acme", "AB1W") is None, "without a class the pair still disagrees"
+    assert repo.model_energy("Acme", "AB1W", "7") is None, "class 7 has no icemaker form"
+    assert repo.model_energy("Acme", "AB1W", "3A") is None, "3A is not 3I's base"
+
+
+def test_a_doe_disagreement_that_is_not_an_icemaker_pair_stays_none(bare_dir: pathlib.Path) -> None:
+    # Standards first: each call rewrites the DOE file, and the standards file stays once copied.
+    assert _doe_pair_repo(bare_dir, 410, 494, standards=False).model_energy("Acme", "AB1W", "3") is None, (
+        "no standards file, no adder"
+    )
+    assert _doe_pair_repo(bare_dir, 410, 460).model_energy("Acme", "AB1W", "3") is None, "50 kWh apart"
+    assert _doe_pair_repo(bare_dir, 410, 494, 578).model_energy("Acme", "AB1W", "3") is None, "three figures"
+
+
+def test_the_icemaker_pair_rule_never_touches_energy_star(bare_dir: pathlib.Path) -> None:
+    (bare_dir / "energystar_refrigerators.csv").write_text(
+        "brand,model_number,model_normalized,annual_kwh\nAcme,AB1*,AB1*,410\nAcme,AB1*,AB1*,494\n",
+        encoding="utf-8",
+    )
+    shutil.copy(DATA_DIR / "doe_standards_refrigerators.json", bare_dir / "doe_standards_refrigerators.json")
+    assert Repository.load(bare_dir).model_energy("Acme", "AB1W", "3") is None
 
 
 def test_same_maker_is_asked_only_when_the_brand_has_no_row(bare_dir: pathlib.Path) -> None:

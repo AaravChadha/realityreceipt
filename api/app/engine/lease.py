@@ -1,4 +1,4 @@
-"""Rent-to-own paths (PLAN.md tasks 3.2 to 3.2.2, row A4).
+"""Rent-to-own paths (PLAN.md tasks 3.2 to 3.2.3, row A4).
 
 Every number comes from the user's lease, so every line is `user_entered` and
 carries the lease's source id (`user_lease`). The cost of keeping the lease is
@@ -28,6 +28,13 @@ def effective_annual_cost(total_payments: float, cash_price: float, term_weeks: 
     if cash_price <= 0 or term_weeks <= 0:
         raise ValueError("an effective annual cost needs a positive cash price and term")
     return ((total_payments - cash_price) / cash_price) / (term_weeks / 52)
+
+
+def full_term_total(lease: Lease) -> float:
+    """Everything the lease costs to the end of its term: the payment schedule, from the printed
+    numbers when set (so it matches the keep-paying line), plus fees. For cost per year (task 3.3.4),
+    since a path's arrays hold only what falls inside the 36 months."""
+    return _cents(sum(_schedule(lease)) + lease.fees)
 
 
 def cheapest_buyout(lease: Lease) -> tuple[int, float]:
