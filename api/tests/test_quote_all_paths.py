@@ -591,3 +591,16 @@ def test_quote_and_rank_price_the_new_offer_the_same() -> None:
     [ranked] = rank(ShopFilters(), [NEW_OFFERS[1]], [NEW], repo)
     assert quoted == ranked.path
     assert not any(line.label == "Extra use from age" for line in ranked.path.lines)
+
+
+# Task 3.3.4: cost per year from the full acquisition cost; ranges that never flip.
+
+LONG_LEASE = Lease(weekly_payment=30.0, term_weeks=208, cash_price=800.0)
+
+
+def test_cost_per_year_of_a_lease_uses_its_full_term_total() -> None:
+    # 208 weekly payments of $30 = $6,240, though only the first 156 ($4,680) fall inside 36 months.
+    full = pick(quote(full_request(lease=LONG_LEASE), FakeRepo()), "rent_to_own", "rto_full")
+    assert full.total_3yr_high == 4680.0
+    # New leased unit: life 10 to 15 years; electricity 400 kWh x $0.15 = $60/yr; coils $0 to $20/yr.
+    assert (full.cost_per_year_low, full.cost_per_year_high) == (round(6240 / 15 + 60, 2), round(6240 / 10 + 80, 2))
