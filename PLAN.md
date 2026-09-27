@@ -87,6 +87,8 @@ The option that looks cheapest today often costs the most over time: an old used
 
 > **Decision (2026-09-26 22:05): third Codex review** (main at 54a9954, rechecked on d3c366c). (1) A lease whose printed payment today exceeds its printed total makes `/quote` answer HTTP 500 (`lease.py:113`); the contract refuses it, so a scan with it comes back for correction, and `/quote` turns any engine `ValueError` into a 422. Task 1.8. (2) When the printed total does not equal the weekly payments (the Aaron's card: 52 × $33.48 is $1,740.96, the total $1,739.88), the engine spreads the printed total evenly over the remaining weeks (about $34.11); the keep-paying formula says so. Task 3.2.5. (3) The shop page (#73) is not reachable from the app. Task 4.4.1. (4) Scenario 3's shop ranks new offers from a plain-words request; used against new is shown on the Entry receipt, not by carrying a listing into the shop. (5) Picking one of two DOE figures by the icemaker adder (2.2.6) is an inference; the receipt should say so. Open item.
 
+> **Decision (2026-09-26 22:00): all coding ends at 23:00** (the operator's call). After 23:00, merge only a fix for something that breaks a demo scenario; 23:00 to 02:00 is the deploy, the phone check, rehearsal and the Devpost. A scenario whose code is not on main at 23:00 is cut from the demo: Scenario 3 needs 4.4.1, Scenario 4's live scan needs 3.10. Deferred past the event: the icemaker-inference open item.
+
 ## Index of phases
 
 Phases are milestones, not time slots. A task in a later phase starts as soon as its inputs are on `origin/main`; Track D's scan and RECS work can start right after Phase 1.
@@ -511,7 +513,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_demo_script.py -q` passes.
 
 - [ ] **4.9 Code freeze at Sun 02:00 (Track 0 — operator)**
-  Merge nothing new after 02:00 except demo-breaking fixes. Tag the last green `main` commit: `git tag freeze origin/main` then `git push origin freeze`.
+  ~~Merge nothing new after 02:00 except demo-breaking fixes.~~ → **Verdict (2026-09-26 22:00):** coding ends at 23:00; tag at 23:00 once main's CI is green. Merge nothing new after 23:00 except demo-breaking fixes. Tag the last green `main` commit: `git tag freeze origin/main` then `git push origin freeze`.
   **Acceptance:** `git rev-parse -q --verify refs/tags/freeze && echo tagged` prints `tagged`.
 
 ## Demo Script for Judges
@@ -531,12 +533,12 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - Don't state a year (the label prints none), and don't claim big energy savings: against a new fridge the gap is about $20 a year ($78.99 against $56.31 on main at 54a9954).
 - The receipt also shows two flag sentences, both true: the year made is estimated from the years DOE lists this model (3.3.5), and the energy test changed around 2014. Read them if asked; still state no year.
 
-**Scenario 3: used vs new, asked in plain words (Visa).** Only if the shop (4.1, 4.3, 4.4) is on main by 23:30.
+**Scenario 3: used vs new, asked in plain words (Visa).** ~~Only if the shop (4.1, 4.3, 4.4) is on main by 23:30.~~ → **Verdict (2026-09-26 22:00):** only if the shop, including 4.4.1 (reachable from the app), is on main by 23:00.
 > "About $300, small space, need it this week."
 - Type the request → Grok's parsed filters appear as editable chips → offers ranked by cost per year, with unknown delivery or width flagged, not hidden → "View at retailer". ~~Include the used GE listing (`listing-used-ge-gie18gsnrss.png`, $175): ask its age and enter it, since the listing states none.~~ → **Verdict (2026-09-26 22:05):** the shop ranks new offers only; show used against new on the Entry receipt instead, entering the $175 used GE there as a listing (ask its age). "Small space" gives no width chip, because no inch figure was typed: add one by hand. Needs 4.4.1.
 - Check the numbers before going on stage: at some prices and years a used and a new option land on the same cost per year, which looks like a bug. Measured on main at 54a9954 through `/quote`: the $175 used GE is rated 443 kWh, $94.29 a year, against $98.46 for the cheapest new: close, not equal.
 
-**Scenario 4: not a wrapper.** Only if a real scan works by 22:00.
+**Scenario 4: not a wrapper.** ~~Only if a real scan works by 22:00.~~ → **Verdict (2026-09-26 22:00):** only if 3.10 is on main by 23:00 and a real scan through the app works.
 > "The AI only reads the label. Watch me type the same thing by hand."
 - Scan `label-current-frigidaire-ffht1822u.png` (it prints the maker, "Electrolux Home Products Inc."; leave it as read: the app treats Electrolux and Frigidaire as one maker, task 2.2.4, and task 3.8 checks that the scanned and typed receipts match), then type `FFHT1822U*` by hand: the identical receipt, rated 360 kWh.
 
