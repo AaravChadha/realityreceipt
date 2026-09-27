@@ -224,7 +224,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `ScanResult.fields: dict[str, str | float | int | bool | None]` carries every value read, valid or not, to pre-fill the correction form; `item`, `offer` and `lease` are set only when `valid` (validator), and a valid scan has no errors. `Lease.payment_today` and `Lease.total_of_payments` (optional, `>= 0`) hold a lease's own printed numbers. Mirrored in `web/src/contracts.ts`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py -q` passes, including tests that an invalid scan cannot carry a lease, that a partial scan's JSON round-trips through `ScanResult`, and that a lease keeps its printed numbers.
 
-- [ ] **1.8 A lease that cannot be quoted is refused, not a 500 (Track A1)** (NEW 2026-09-26 22:05, Codex review)
+- [x] **1.8 A lease that cannot be quoted is refused, not a 500 (Track A1)** (NEW 2026-09-26 22:05, Codex review)
   `Lease` in `api/app/models.py`: `payment_today` must not exceed `total_of_payments` when both are printed, so a scan with them comes back invalid for correction. `POST /quote` returns a 422 with the engine's message for any `ValueError`, never a 500.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py api/tests/test_routes.py -q` passes, including tests that `payment_today=100, total_of_payments=50` is refused by the contract and that `/quote` answers 422, not 500, when the engine raises `ValueError`.
 

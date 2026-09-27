@@ -77,10 +77,14 @@ def health() -> dict[str, bool]:
 
 @router.post("/quote", response_model=list[Path])
 def quote(req: QuoteRequest, repo: Repo) -> list[Path]:
-    """Every path for the request, from the real engine and the committed data (task 2.7)."""
+    """Every path for the request, from the real engine and the committed data (task 2.7). A request
+    the engine cannot price is a 422 with the engine's reason, never a 500 (task 1.8)."""
     units = [req.current, *req.items] if req.current else req.items
     _require_profiles(repo, {u.category for u in units})
-    return build_quote(req, repo)
+    try:
+        return build_quote(req, repo)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
 @router.post("/item", response_model=Item)

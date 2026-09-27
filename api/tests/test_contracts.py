@@ -121,3 +121,14 @@ def test_a_lease_keeps_its_printed_numbers() -> None:
     assert (lease.payment_today, lease.total_of_payments) == (0.01, 1739.88)
     with pytest.raises(ValidationError):
         Lease(weekly_payment=33.48, term_weeks=52, cash_price=1196.99, total_of_payments=-1)
+
+
+def test_a_payment_today_above_the_total_is_refused() -> None:
+    # Task 1.8: this lease made /quote answer HTTP 500 before the contract refused it.
+    with pytest.raises(ValidationError, match="does not fit"):
+        Lease(weekly_payment=30, term_weeks=52, cash_price=700, payment_today=100, total_of_payments=50)
+    with pytest.raises(ValidationError, match="does not fit"):
+        Lease(weekly_payment=30, term_weeks=1, cash_price=700, payment_today=10, total_of_payments=30)
+    assert Lease(weekly_payment=30, term_weeks=1, cash_price=700, payment_today=30, total_of_payments=30)
+    assert Lease(weekly_payment=30, term_weeks=52, cash_price=700, payment_today=50, total_of_payments=50)
+    assert Lease(weekly_payment=30, term_weeks=52, cash_price=700, payment_today=100)  # no total: nothing to fit
