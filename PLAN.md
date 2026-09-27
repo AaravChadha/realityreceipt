@@ -560,6 +560,14 @@ One row = one session's file set. A person with fewer sessions runs several rows
   Restyle only: `components.json`, `web/src/lib/utils.ts`, `web/src/components/ui/*`, the `@/` alias in `web/vite.config.ts` and `web/tsconfig.app.json`, and class names and wrappers in the existing pages and components. New packages (operator-approved): `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`, `tw-animate-css`, and only the `@radix-ui/*` packages the used components need; commit `package.json` with `package-lock.json`. Keep every label, button text and accessible name the tests query, and every path name, line label and flag sentence the Demo Script and pitch quote; change no logic in `api.ts`, `format.ts` or `contracts.ts`. Mobile first: no horizontal scroll at 375 px. Merge `origin/main` in before the PR (the flaky-test fix and 3.10.1 land in `Entry.tsx` first). One PR, auto-merge off, reviewed by Aarav.
   **Acceptance:** `npm --prefix web ci && npm --prefix web test && npm --prefix web run build` passes with no test file weakened or deleted, and `api/.venv/bin/python -m pytest api/tests analysis -q` still passes.
 
+- [ ] **4.8.4 Scenario 3's live figures in the pitch (Track 0, operator)** (NEW 2026-09-26 23:30)
+  `docs/pitch.md` Scenario 3: every new fridge is over $300 today, flagged rather than hidden, then open the Entry receipt with the $175 used GE; and the $650 fridge ranks above the $599 one ($106.31 against $110.21 a year). Figures from the Demo Script's 23:25 measurement.
+  **Acceptance:** `grep -c -E '\$106\.31|\$110\.21' docs/pitch.md` prints at least `1`, and 4.8.2's grep still prints `0`.
+
+- [ ] **4.8.5 Lock Scenario 3's ranking with a test (Track A2)** (NEW 2026-09-26 23:30)
+  `api/tests/test_demo_script.py` gains Scenario 3 through `/shop/rank` with filters `budget_today=300, need_within_days=7` (the live parse, fixed so the test needs no Grok): every offer flagged `over_budget_today`; the first is $548 at $98.46 a year; the $649.99 offer ranks above the $599 one, at $106.31 and $110.21 a year.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_demo_script.py -q` passes.
+
 - [ ] **4.9 Code freeze at Sun 02:00 (Track 0 — operator)**
   Merge nothing new after 02:00 except demo-breaking fixes. (A 22:00 verdict moved this to 23:00; superseded at 22:15: 23:00 is the target, 02:00 stays the freeze.) Tag the last green `main` commit: `git tag freeze origin/main` then `git push origin freeze`.
   **Acceptance:** `git rev-parse -q --verify refs/tags/freeze && echo tagged` prints `tagged`.
@@ -585,6 +593,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 > "About $300, small space, need it this week."
 - Type the request → Grok's parsed filters appear as editable chips → offers ranked by cost per year, with unknown delivery or width flagged, not hidden → "View at retailer". ~~Include the used GE listing (`listing-used-ge-gie18gsnrss.png`, $175): ask its age and enter it, since the listing states none.~~ → **Verdict (2026-09-26 22:05):** the shop ranks new offers only; show used against new on the Entry receipt instead, entering the $175 used GE there as a listing (ask its age). "Small space" gives no width chip, because no inch figure was typed: add one by hand. Needs 4.4.1.
 - Check the numbers before going on stage: at some prices and years a used and a new option land on the same cost per year, which looks like a bug. Measured on main at 54a9954 through `/quote`: the $175 used GE is rated 443 kWh, $94.29 a year, against $98.46 for the cheapest new: close, not equal.
+- **Measured live (2026-09-26 23:25, main 2068bd3, real Grok):** "About $300, small space, need it this week." parses to a $300 budget and 7 days, with no width chip (no inch figure was typed). `/shop/rank` returns all 14 cached offers, every one flagged `over_budget_today` (and `delivery_unknown`): say the flags show it rather than hide it, then open the Entry receipt with the $175 used GE. The ranking is by cost per year, not price: $548 first ($98.46 a year), then the $649.99 fridge (shown as $650, $106.31 a year) above the $599 one ($110.21 a year).
 
 **Scenario 4: not a wrapper.** ~~Only if a real scan works by 22:00.~~ → **Verdict (2026-09-26 22:15):** 3.10 is on main (#48); needs the xAI key and a real scan through the app checked by hand.
 > "The AI only reads the label. Watch me type the same thing by hand."
