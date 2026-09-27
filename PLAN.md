@@ -252,7 +252,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   In `energy`, set `other_source_ids=[rate.source_id]` on the estimated electricity line (not on the `not_estimated` one). Add a test in `api/tests/test_running.py` asserting it.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_running.py -q` passes, including the new test.
 
-- [ ] **2.4.2 Electricity formula shows the exact rate (Track A5)** (NEW 2026-09-26, review)
+- [x] **2.4.2 Electricity formula shows the exact rate (Track A5)** (NEW 2026-09-26, review)
   `running.py`'s `_num` shows up to 6 decimal places, so each electricity formula reproduces its own amount (the rate prints as 0.15641, not 0.1564).
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_running.py -q` passes, including a test that recomputes the per-year amount from the numbers printed in the formula.
 
