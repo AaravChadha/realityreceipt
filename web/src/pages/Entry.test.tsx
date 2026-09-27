@@ -382,6 +382,85 @@ test('a lease scan pre-fills printed fields and stores the early purchase percen
   expect(lease.getByLabelText('Total of all payments, as printed')).toHaveValue('1739.88')
 })
 
+test('an early purchase percent of 33.3 is stored as 0.333', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        kind: 'lease',
+        valid: false,
+        errors: [],
+        fields: { early_purchase_percent: 33.3, early_purchase_rule: 'pct_of_remaining' },
+        item: null,
+        offer: null,
+        lease: null,
+      }),
+    }) as Response),
+  )
+  const { container } = render(<Entry />)
+  fireEvent.change(screen.getByLabelText('What are you scanning?'), { target: { value: 'lease' } })
+  const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
+  fireEvent.change(input, { target: { files: [new File(['lease'], 'lease.jpg', { type: 'image/jpeg' })] } })
+  expect(await section('A rent-to-own lease').findByLabelText('Early purchase fraction')).toHaveValue('0.333')
+})
+
+test('a later scan drops a serial the new image did not read', async () => {
+  let scan = 0
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      scan += 1
+      const fields =
+        scan === 1
+          ? { brand: 'Maytag', model: 'MB2562', serial: 'VS123456' }
+          : { brand: 'GE', model: 'GTE18', serial: null }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ kind: 'label', valid: false, errors: [], fields, item: null, offer: null, lease: null }),
+      } as Response
+    }),
+  )
+  const { container } = render(<Entry />)
+  const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
+  const file = () => fireEvent.change(input, { target: { files: [new File(['label'], 'label.jpg', { type: 'image/jpeg' })] } })
+  file()
+  const now = section('Your fridge now')
+  expect(await now.findByLabelText('Serial number (optional)')).toHaveValue('VS123456')
+  file()
+  expect(await now.findByLabelText('Brand')).toHaveValue('GE')
+  expect(now.getByLabelText('Serial number (optional)')).toHaveValue('')
+})
+
+test('a listing scan can mark the fridge new', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        kind: 'listing',
+        valid: false,
+        errors: [],
+        fields: { brand: 'GE', model: 'GTE18', price: 400, condition: 'new' },
+        item: null,
+        offer: null,
+        lease: null,
+      }),
+    }) as Response),
+  )
+  const { container } = render(<Entry />)
+  fireEvent.change(screen.getByLabelText('What are you scanning?'), { target: { value: 'listing' } })
+  const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
+  fireEvent.change(input, { target: { files: [new File(['listing'], 'listing.jpg', { type: 'image/jpeg' })] } })
+  const used = section('A used one you found')
+  expect(await used.findByLabelText('Brand')).toHaveValue('GE')
+  expect(used.getByLabelText('Condition')).toHaveValue('new')
+  expect(used.getByLabelText('Listing price')).toHaveValue('400')
+})
+
 test('reading an image is announced as status', async () => {
   vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
   const { container } = render(<Entry />)

@@ -25,7 +25,7 @@ const CATEGORY = 'refrigerator'
 // The earliest manufacture year accepted, the same bound as task 1.6 puts on Item.mfg_year.
 const FIRST_YEAR = 1940
 
-type ListingCondition = 'used_as_is' | 'refurbished'
+type ListingCondition = 'new' | 'used_as_is' | 'refurbished'
 
 // Price tag is out of the picker tonight: a scanned tag is not what the quote prices (PLAN.md 3.10).
 const SCAN_KIND_OPTIONS: { value: ScanKind; label: string }[] = [
@@ -72,6 +72,8 @@ interface Fields {
 
 type FieldName = keyof Fields
 type Errors = Partial<Record<FieldName, string>>
+// usedCondition and leaseRule are selects, so a scanned string cannot be written there.
+type TextField = Exclude<FieldName, 'usedCondition' | 'leaseRule'>
 
 const EMPTY: Fields = {
   nowBrand: '',
@@ -153,18 +155,29 @@ function presentText(raw: ScanResult['fields'], key: string): string | undefined
   return String(value)
 }
 
+// A percent printed on the lease (50, or 33.3) becomes the fraction the quote stores.
+function percentFraction(raw: string): string | undefined {
+  const n = Number(raw)
+  if (!Number.isFinite(n)) return undefined
+  return (n / 100).toFixed(4).replace(/0+$/, '').replace(/\.$/, '')
+}
+
 // A scan, valid or not, fills the same fields the user can type from ScanResult.fields.
 // item, offer and lease are null whenever the scan is invalid, so they are not read.
-// Keys that are missing or null are left as the user already has them.
+// The kind's own fields are cleared first, so a value the new image did not read does not stay.
 function applyScan(fields: Fields, result: ScanResult): Fields {
   const next = { ...fields }
   const raw = result.fields ?? {}
-  const put = (name: FieldName, key: string) => {
+  const put = (name: TextField, key: string) => {
     const value = presentText(raw, key)
     if (value !== undefined) next[name] = value
   }
+  const clear = (names: TextField[]) => {
+    for (const name of names) next[name] = ''
+  }
 
   if (result.kind === 'label') {
+    clear(['nowBrand', 'nowModel', 'nowSerial', 'nowYear', 'nowProductClass', 'nowVolume', 'nowKwh'])
     put('nowBrand', 'brand')
     put('nowModel', 'model')
     put('nowSerial', 'serial')
@@ -175,15 +188,31 @@ function applyScan(fields: Fields, result: ScanResult): Fields {
   }
 
   if (result.kind === 'listing') {
+    clear(['usedBrand', 'usedModel', 'usedYear', 'usedPrice', 'usedWarranty'])
+    next.usedCondition = 'used_as_is'
     put('usedBrand', 'brand')
     put('usedModel', 'model')
     put('usedYear', 'mfg_year')
     put('usedPrice', 'price')
     const condition = presentText(raw, 'condition')
-    if (condition === 'used_as_is' || condition === 'refurbished') next.usedCondition = condition
+    if (condition === 'new' || condition === 'used_as_is' || condition === 'refurbished') next.usedCondition = condition
   }
 
   if (result.kind === 'lease') {
+    clear([
+      'leaseBrand',
+      'leaseModel',
+      'leaseWeekly',
+      'leaseTerm',
+      'leaseCash',
+      'leaseFees',
+      'leasePct',
+      'leaseEarlyText',
+      'leaseMissed',
+      'leasePaid',
+      'leaseTotal',
+    ])
+    next.leaseRule = 'none'
     put('leaseBrand', 'brand')
     put('leaseModel', 'model')
     put('leaseWeekly', 'weekly_payment')
@@ -196,11 +225,10 @@ function applyScan(fields: Fields, result: ScanResult): Fields {
     put('leaseTotal', 'total_of_payments')
     const rule = presentText(raw, 'early_purchase_rule')
     if (rule === 'none' || rule === 'pct_of_remaining' || rule === 'cash_price_minus_pct_paid') next.leaseRule = rule
-    // The image prints a percent (50 for half). The form stores the fraction the quote expects.
     const percent = presentText(raw, 'early_purchase_percent')
     if (percent !== undefined) {
-      const n = Number(percent)
-      if (Number.isFinite(n)) next.leasePct = String(n / 100)
+      const fraction = percentFraction(percent)
+      if (fraction !== undefined) next.leasePct = fraction
     }
   }
   return next
@@ -292,10 +320,8 @@ function readForm(f: Fields): { draft: Draft; errors: Errors } {
   if (leaseStarted(f)) {
     const leaseBrand = f.leaseBrand.trim()
     const leaseModel = f.leaseModel.trim()
-    if (leaseBrand || leaseModel) {
-      need('leaseBrand', 'Enter the brand of the leased fridge.')
-      need('leaseModel', 'Enter the model number of the leased fridge.')
-    }
+    need('leaseBrand', 'Enter the brand of the leased fridge.')
+    need('leaseModel', 'Enter the model number of the leased fridge.')
     need('leaseWeekly', 'Enter the weekly payment.')
     need('leaseTerm', 'Enter the term in weeks.')
     need('leaseCash', 'Enter the cash price.')
@@ -643,6 +669,7 @@ export default function Entry() {
               Condition
             </label>
             <select id="used-condition" value={fields.usedCondition} onChange={set('usedCondition')} className={selectClass}>
+              <option value="new">New</option>
               <option value="used_as_is">Used, as-is</option>
               <option value="refurbished">Refurbished</option>
             </select>
