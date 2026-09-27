@@ -175,10 +175,71 @@ def test_shop_parse_stub(client: TestClient) -> None:
     ShopFilters.model_validate(response.json())
 
 
-def test_shop_rank_stub(client: TestClient) -> None:
-    response = client.post("/shop/rank", json={"filters": {}})
-    assert response.status_code == 200
-    assert TypeAdapter(list[RankedOffer]).validate_python(response.json()) == []
+def _rank(client: TestClient, body: dict, path: str = "/shop/rank") -> list[RankedOffer]:
+    response = client.post(path, json=body)
+    assert response.status_code == 200, response.text
+    return TypeAdapter(list[RankedOffer]).validate_python(response.json())
+
+
+def _cached_offers() -> list:
+    from app.main import get_repository
+
+    return get_repository().new_offers("refrigerator")
+
+
+def test_shop_rank_prices_every_cached_offer_with_a_path_each(client: TestClient) -> None:
+    ranked = _rank(client, {"filters": {}})
+    cached = _cached_offers()
+    assert cached and len(ranked) == len(cached)
+    assert {(r.offer.item_id, r.offer.price) for r in ranked} == {(o.item_id, o.price) for o in cached}
+    for r in ranked:
+        assert (r.path.group, r.path.payment_method, r.path.name) == ("new", "cash", "New, pay cash")
+        assert r.path.pay_today == r.offer.price and "fixture" not in r.path.flags
+    # The pinned shop order: complete offers first, then flagged ones, each by cost per year (high end), None last.
+    keys = [("costs_not_estimated" in r.path.flags, r.path.cost_per_year_high is None, r.path.cost_per_year_high or 0.0)
+            for r in ranked]
+    assert keys == sorted(keys)
+
+
+def test_shop_rank_budget_flags_what_costs_more_today_and_drops_nothing(client: TestClient) -> None:
+    prices = sorted(o.price for o in _cached_offers())
+    budget = prices[len(prices) // 2]  # some offers over it, some at or under it
+    ranked = _rank(client, {"filters": {"budget_today": budget}})
+    assert len(ranked) == len(prices)
+    over = {r.offer.item_id for r in ranked if "over_budget_today" in r.path.flags}
+    assert over == {r.offer.item_id for r in ranked if r.path.pay_today > budget}
+    assert 0 < len(over) < len(ranked)
+
+
+def test_shop_rank_includes_a_listing_from_the_request(client: TestClient) -> None:
+    ranked = _rank(client, {"filters": {}, "items": [LISTED], "offers": [LISTING_OFFER]})
+    assert len(ranked) == len(_cached_offers()) + 1
+    listing = [r for r in ranked if r.offer.source == "user_listing"]
+    assert len(listing) == 1
+    assert (listing[0].offer.item_id, listing[0].path.group, listing[0].path.pay_today) == ("listing", "used_as_is", 300)
+    assert listing[0].path.lines[0].source_id == "user_listing"
+
+
+def test_shop_rank_works_under_api_too(client: TestClient) -> None:
+    body = {"filters": {"budget_today": 700}, "items": [LISTED], "offers": [LISTING_OFFER]}
+    assert _rank(client, body, path="/api/shop/rank") == _rank(client, body)
+
+
+def test_shop_rank_refuses_what_would_misprice_an_offer(client: TestClient) -> None:
+    cached = _cached_offers()[0]
+    as_new = {**LISTING_OFFER, "source": "retailer_cache", "source_id": cached.source_id}
+    as_store = {**LISTING_OFFER, "source_id": cached.source_id}
+    reused_id = {**LISTED, "id": cached.item_id}
+    for body in (
+        {"filters": {}, "items": [{**LISTED, "condition": "new"}], "offers": [as_new]},  # a client-made "new" offer
+        {"filters": {}, "items": [LISTED], "offers": [as_store]},  # a listing price credited to a store
+        {"filters": {}, "items": [reused_id], "offers": [{**LISTING_OFFER, "item_id": cached.item_id}]},
+        {"filters": {"category": "toaster"}},
+        {"filters": {}, "items": [{**LISTED, "category": "toaster"}], "offers": [LISTING_OFFER]},
+    ):
+        response = client.post("/shop/rank", json=body)
+        assert response.status_code == 422, body
+        assert isinstance(response.json()["detail"], str)
 
 
 def test_categories(client: TestClient) -> None:
