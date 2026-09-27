@@ -1,10 +1,16 @@
-// Manual entry (PLAN.md task 2.8). Two optional sections, because the fridge you own
-// and a used one you found are different units. No personal or income questions.
-import { useState, type FormEvent, type InputHTMLAttributes } from 'react'
-import { checkItem, quote } from '../api'
-import type { Item, Offer, Path, QuoteRequest } from '../contracts'
+// Manual entry (PLAN.md tasks 2.8 and 2.8.1). Two optional sections, because the fridge
+// you own and a used one you found are different units. No personal or income questions.
+import { useReducedMotion } from 'framer-motion'
+import { useEffect, useRef, useState, type FormEvent, type InputHTMLAttributes } from 'react'
+import { checkItem, quote, sources } from '../api'
+import { Receipt } from '../components/Receipt'
+import { SourceSheet } from '../components/SourceSheet'
+import type { CostLine, Item, Offer, Path, QuoteRequest, Source } from '../contracts'
 
 const CATEGORY = 'refrigerator'
+
+// The earliest manufacture year accepted, the same bound as task 1.6 puts on Item.mfg_year.
+const FIRST_YEAR = 1940
 
 type ListingCondition = 'used_as_is' | 'refurbished'
 
@@ -12,11 +18,14 @@ interface Fields {
   nowBrand: string
   nowModel: string
   nowSerial: string
+  nowYear: string
   nowProductClass: string
   nowVolume: string
+  nowKwh: string
   nowRepair: string
   usedBrand: string
   usedModel: string
+  usedYear: string
   usedPrice: string
   usedCondition: ListingCondition
   usedWarranty: string
@@ -30,19 +39,31 @@ const EMPTY: Fields = {
   nowBrand: '',
   nowModel: '',
   nowSerial: '',
+  nowYear: '',
   nowProductClass: '',
   nowVolume: '',
+  nowKwh: '',
   nowRepair: '',
   usedBrand: '',
   usedModel: '',
+  usedYear: '',
   usedPrice: '',
   usedCondition: 'used_as_is',
   usedWarranty: '',
   budget: '',
 }
 
-const NOW_FIELDS: FieldName[] = ['nowBrand', 'nowModel', 'nowSerial', 'nowProductClass', 'nowVolume', 'nowRepair']
-const USED_FIELDS: FieldName[] = ['usedBrand', 'usedModel', 'usedPrice', 'usedWarranty']
+const NOW_FIELDS: FieldName[] = [
+  'nowBrand',
+  'nowModel',
+  'nowSerial',
+  'nowYear',
+  'nowProductClass',
+  'nowVolume',
+  'nowKwh',
+  'nowRepair',
+]
+const USED_FIELDS: FieldName[] = ['usedBrand', 'usedModel', 'usedYear', 'usedPrice', 'usedWarranty']
 
 // '' -> null; '$1,200.50' -> 1200.5; anything that is not a number >= 0 -> NaN.
 function parseAmount(raw: string, wholeOnly = false): number | null {
@@ -71,6 +92,16 @@ function readForm(f: Fields): { draft: Draft; errors: Errors } {
   const need = (name: FieldName, message: string) => {
     if (String(f[name]).trim() === '') errors[name] = message
   }
+  // '' -> null; four digits from FIRST_YEAR to this year -> the year; anything else is an error.
+  const year = (name: FieldName) => {
+    const s = String(f[name]).trim()
+    if (s === '') return null
+    const thisYear = new Date().getFullYear()
+    const n = /^\d{4}$/.test(s) ? Number(s) : NaN
+    if (n >= FIRST_YEAR && n <= thisYear) return n
+    errors[name] = `Enter the year as four digits, from ${FIRST_YEAR} to ${thisYear}.`
+    return null
+  }
 
   let current: Item | null = null
   const repairQuote = amount('nowRepair', 'Enter the repair quote as a dollar amount.')
@@ -78,15 +109,21 @@ function readForm(f: Fields): { draft: Draft; errors: Errors } {
     need('nowBrand', 'Enter the brand of your fridge.')
     need('nowModel', 'Enter the model number of your fridge.')
     const volume = amount('nowVolume', 'Enter the volume as a number, for example 18.2.')
+    const kwhMessage = 'Enter the kWh per year as a number above 0, for example 586.'
+    const kwh = amount('nowKwh', kwhMessage)
+    if (kwh === 0) errors.nowKwh = kwhMessage
     const attributes: Record<string, string | number> = {}
     if (f.nowProductClass.trim()) attributes.product_class = f.nowProductClass.trim()
     if (volume !== null && !Number.isNaN(volume)) attributes.volume_cuft = volume
+    // Pinned key (PLAN.md "Fixed interfaces"): the kWh printed on this unit's own EnergyGuide label.
+    if (kwh !== null && !Number.isNaN(kwh)) attributes.label_kwh_per_year = kwh
     current = {
       id: 'current',
       category: CATEGORY,
       brand: f.nowBrand.trim(),
       model: f.nowModel.trim(),
       serial: f.nowSerial.trim() || null,
+      mfg_year: year('nowYear'),
       condition: 'used_as_is',
       attributes,
     }
@@ -106,6 +143,7 @@ function readForm(f: Fields): { draft: Draft; errors: Errors } {
         category: CATEGORY,
         brand: f.usedBrand.trim(),
         model: f.usedModel.trim(),
+        mfg_year: year('usedYear'),
         condition: f.usedCondition,
         warranty_months: warranty,
       },
@@ -145,16 +183,6 @@ async function quoteDraft(draft: Draft): Promise<Path[]> {
     budget_today: draft.budget,
   }
   return quote(req)
-}
-
-function money(n: number): string {
-  const digits = Number.isInteger(n) ? 0 : 2
-  return n.toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  })
 }
 
 interface FieldProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -212,6 +240,30 @@ export default function Entry() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [paths, setPaths] = useState<Path[]>([])
   const [failure, setFailure] = useState('')
+  const [openLine, setOpenLine] = useState<CostLine | null>(null)
+  const [sourceList, setSourceList] = useState<Source[]>([])
+  const sourcesAsked = useRef(false)
+  const results = useRef<HTMLDivElement>(null)
+  const reduceMotion = useReducedMotion()
+
+  // Every receipt shares one source list: ask for it once, after the first receipt, and
+  // again after a later one only if that ask failed. Until it arrives, the sheet says
+  // the source details are not available.
+  function loadSources() {
+    if (sourcesAsked.current) return
+    sourcesAsked.current = true
+    sources().then(setSourceList, () => {
+      sourcesAsked.current = false
+    })
+  }
+
+  // After a quote, bring the results into view and move focus there, so keyboard and
+  // screen reader users start at the receipt instead of the submit button.
+  useEffect(() => {
+    if (status !== 'done' || results.current === null) return
+    results.current.focus({ preventScroll: true })
+    results.current.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+  }, [status, reduceMotion])
 
   const set = (name: FieldName) => (e: { target: { value: string } }) =>
     setFields((prev) => ({ ...prev, [name]: e.target.value }))
@@ -223,6 +275,7 @@ export default function Entry() {
   })
   const typed = { autoComplete: 'off', autoCapitalize: 'characters', spellCheck: false }
   const decimal = { inputMode: 'decimal' as const, autoComplete: 'off' }
+  const wholeNumber = { inputMode: 'numeric' as const, autoComplete: 'off' }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -236,13 +289,13 @@ export default function Entry() {
     try {
       setPaths(await quoteDraft(draft))
       setStatus('done')
+      loadSources()
     } catch (err) {
       setFailure(err instanceof Error ? err.message : String(err))
       setStatus('error')
     }
   }
 
-  const isSample = paths.some((p) => p.flags.includes('fixture'))
   const errorCount = Object.keys(errors).length
 
   return (
@@ -254,6 +307,7 @@ export default function Entry() {
           <Field id="now-brand" label="Brand" {...text('nowBrand')} autoComplete="off" />
           <Field id="now-model" label="Model number" {...text('nowModel')} {...typed} />
           <Field id="now-serial" label="Serial number (optional)" {...text('nowSerial')} {...typed} />
+          <Field id="now-year" label="Year made (optional)" {...text('nowYear')} {...wholeNumber} />
           <Field
             id="now-product-class"
             label="Product class (optional)"
@@ -262,6 +316,7 @@ export default function Entry() {
             autoComplete="off"
           />
           <Field id="now-volume" label="Volume in cubic feet (optional)" {...text('nowVolume')} {...decimal} />
+          <Field id="now-kwh" label="kWh per year on the yellow label (optional)" {...text('nowKwh')} {...decimal} />
           <Field id="now-repair" label="Repair quote (optional)" prefix="$" {...text('nowRepair')} {...decimal} />
         </fieldset>
 
@@ -270,6 +325,7 @@ export default function Entry() {
           <p className={sectionHintClass}>Optional. From a listing, a yard sale or a refurbisher.</p>
           <Field id="used-brand" label="Brand" {...text('usedBrand')} autoComplete="off" />
           <Field id="used-model" label="Model number" {...text('usedModel')} {...typed} />
+          <Field id="used-year" label="Year made (optional)" {...text('usedYear')} {...wholeNumber} />
           <Field id="used-price" label="Listing price" prefix="$" {...text('usedPrice')} {...decimal} />
           <div>
             <label htmlFor="used-condition" className="block text-sm font-medium">
@@ -320,31 +376,16 @@ export default function Entry() {
       )}
 
       {status === 'done' && (
-        <section aria-labelledby="receipt-heading" className="space-y-3">
-          <h2 id="receipt-heading" className="text-lg font-semibold">
-            Every way to get it
-          </h2>
-          {isSample && (
-            <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
-              Sample data, not a real quote
-            </p>
-          )}
+        <div ref={results} tabIndex={-1} className="scroll-mt-4 outline-none">
           {paths.length === 0 ? (
             <p className={sectionHintClass}>No paths came back for these details.</p>
           ) : (
-            <ul className="divide-y divide-stone-200 rounded-xl border border-stone-200 bg-white dark:divide-stone-800 dark:border-stone-800 dark:bg-stone-900/40">
-              {paths.map((p) => (
-                <li key={`${p.group}-${p.payment_method ?? 'none'}-${p.name}`} className="flex items-baseline justify-between gap-3 p-3">
-                  <span>{p.name}</span>
-                  <span className="shrink-0 text-sm text-stone-600 dark:text-stone-400">
-                    Pay today <span className="font-semibold text-stone-900 dark:text-stone-100">{money(p.pay_today)}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <Receipt paths={paths} onLineTap={setOpenLine} />
           )}
-        </section>
+        </div>
       )}
+
+      {openLine && <SourceSheet line={openLine} sources={sourceList} onClose={() => setOpenLine(null)} />}
     </div>
   )
 }
