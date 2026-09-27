@@ -10,7 +10,7 @@ Built at HackGT 13 (Georgia Tech, September 25 to 27, 2026) for the Oracle of th
 
 ## Who it is for
 
-A price tag shows what you pay today. It leaves out the electricity, the interest, the lease terms, and how long the fridge will last. So the option that looks cheapest can cost the most over time: an old used fridge that is expensive to run, a lease whose payments add up to far more than the cash price, or a purchase on a high-interest card.
+A price tag shows what you pay today. It leaves out the electricity, the interest, the lease terms, and how long the fridge will last. A low upfront price can hide higher ownership costs. An older fridge may use more electricity. Financing and rent-to-own payments can add a lot to the purchase cost.
 
 RealityReceipt is for someone choosing how to get a fridge on a tight budget, and for anyone who wants to check the math. Every number links to its source.
 
@@ -18,7 +18,25 @@ It is not a loan finder. The app asks nothing about income and never says whethe
 
 ## See it work
 
-One of the demo cards is a real rent-to-own page from Aaron's. It offers a Frigidaire FRTE1936AV for $0.01 today. Here are the lease's printed numbers, sent to the app (to run it yourself, start with the [Quick start](#quick-start)):
+One of the demo cards is a real rent-to-own page from Aaron's. It offers a Frigidaire FRTE1936AV for $0.01 today. Given the lease's printed numbers, the app returned this on 2026-09-27:
+
+| Option | Pay today | Total over 3 years |
+|---|---|---|
+| New, buy now pay later | $175.00 | $875.31 |
+| New, pay cash | $699.99 | $875.31 |
+| New, credit card | $0.00 | $962.16 |
+| New, credit union PAL | $20.00 | $1,005.92 |
+| Rent-to-own, keep paying | $0.01 | $1,915.20 |
+
+The 3-year totals include electricity. The new options are the same fridge: the app matched the lease's model number to a store listing of that model, new at Best Buy for $699.99. The lease comes last because it costs the most over 3 years. Its first line shows where its numbers come from:
+
+```
+$0.01 today and $1,739.88 in all over 52 weeks, as printed on your lease; the remaining $1,739.87 is spread evenly over 51 weekly payments of about $34.11. Total of payments = $1,739.88. That is $542.89 more than the cash price of $1,196.99. No early purchase terms entered. Effective annual cost = ((1739.88 - 1196.99) / 1196.99) / (52 / 52) = 45%.
+```
+
+In the app, the same receipt appears as cards. Tap any cost to see its sources and formula.
+
+To reproduce it, start the app (see the [Quick start](#quick-start)) and run:
 
 ```bash
 curl -s http://localhost:8000/api/quote -H 'content-type: application/json' -d @- <<'EOF' | jq -r '.[] | [.name, .pay_today, .total_3yr_high] | @tsv'
@@ -27,24 +45,6 @@ curl -s http://localhost:8000/api/quote -H 'content-type: application/json' -d @
  "lease": {"weekly_payment": 33.48, "term_weeks": 52, "cash_price": 1196.99, "payment_today": 0.01, "total_of_payments": 1739.88}}
 EOF
 ```
-
-The app's answer on 2026-09-27. Each row is one option, what it costs today, and its total over 3 years including electricity:
-
-```
-New, buy now pay later	175.0	875.31
-New, pay cash	699.99	875.31
-New, credit card	0.0	962.16
-New, credit union PAL	20.0	1005.92
-Rent-to-own, keep paying	0.01	1915.2
-```
-
-The new options are the same fridge. The app matched the lease's model number to a store listing of that model, new at Best Buy for $699.99. The lease comes last because it costs the most over 3 years. Its first line shows where its numbers come from:
-
-```
-$0.01 today and $1,739.88 in all over 52 weeks, as printed on your lease; the remaining $1,739.87 is spread evenly over 51 weekly payments of about $34.11. Total of payments = $1,739.88. That is $542.89 more than the cash price of $1,196.99. No early purchase terms entered. Effective annual cost = ((1739.88 - 1196.99) / 1196.99) / (52 / 52) = 45%.
-```
-
-In the app, the same receipt appears as cards. Tap any cost to see its sources and formula.
 
 ## What it does
 
@@ -58,7 +58,7 @@ In the app, the same receipt appears as cards. Tap any cost to see its sources a
 
 ## How it works
 
-The AI only reads. It never produces a number on the receipt.
+AI extracts printed details. The calculation engine computes every total on the receipt.
 
 ```mermaid
 flowchart LR
@@ -76,7 +76,7 @@ flowchart LR
 ```
 
 - **Grok reads, the engine calculates.** Grok (xAI) turns a photo into typed fields and a shopping request into filters. Each reply is checked before use, and a scan that cannot be read falls back to the form. Every cost comes from a calculation engine with fixed formulas in [`api/app/engine/`](api/app/engine/), using datasets stored in the repository in [`api/app/data/`](api/app/data/).
-- **The proof.** [`api/tests/test_not_a_wrapper.py`](api/tests/test_not_a_wrapper.py) scans each demo card and types the same card by hand. Both give the identical receipt. The app also works with no API key: typed entry never calls Grok.
+- **The proof.** Our regression tests ([`api/tests/test_not_a_wrapper.py`](api/tests/test_not_a_wrapper.py)) replay Grok's recorded replies for each demo card and check that the scanned details and the same details typed by hand give identical receipts. On 2026-09-27, a live scan of each card through the running app matched its recording exactly. The app also works with no API key: typed entry never calls Grok.
 - **Stack.** FastAPI and Pydantic (Python 3.12), React with Vite, TypeScript, Tailwind and shadcn/ui, Grok over the xAI API, pytest and Vitest, and GitHub Actions for CI.
 
 ## Quick start
@@ -134,7 +134,7 @@ The full list of sources, with links and the exact figures, and every limit with
 
 ## The energy burden finding
 
-In the South Census region, households earning $20,000 to $24,999 spend 6.0% (renters) to 7.8% (owners) of their income on home energy. Households earning $100,000 to $149,999 spend 1.2% to 1.8%. These are EIA's estimates from the 2020 survey microdata, weighted by household, with 95% intervals from EIA's replicate weights. The analysis, its variables and its chart are in [`analysis/recs/`](analysis/recs/).
+In 2020, households in the South Census region earning $20,000 to $24,999 spent 6.0% (renters) to 7.8% (owners) of their income on home energy. Households earning $100,000 to $149,999 spent 1.2% to 1.8%. These are our estimates from EIA's 2020 Residential Energy Consumption Survey microdata, using EIA's modeled energy costs, weighted by household, with 95% intervals from EIA's replicate weights. The analysis, its variables and its chart are in [`analysis/recs/`](analysis/recs/).
 
 ## Roadmap
 
