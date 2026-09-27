@@ -85,6 +85,8 @@ The option that looks cheapest today often costs the most over time: an old used
 
 > **Decision (2026-09-26 21:45): from the demo check on main (session 4, 54a9954).** (1) The keep-paying path states its cost over the cash price ($542.89 on the demo lease, the cost of lease services), as the demo script says; 3.2.1 had put that comparison on the buyout path only. Task 3.2.4. (2) With no early purchase terms there is no buyout card: it repeated the keep-paying numbers, which asserts a buyout price nobody knows. Task 3.3.6. (3) The script follows the pinned sort (complete paths by 3-year total), so the lease is the last path, the most expensive over 3 years; Scenarios 1 to 4 now say what main shows.
 
+> **Decision (2026-09-26 22:05): third Codex review** (main at 54a9954, rechecked on d3c366c). (1) A lease whose printed payment today exceeds its printed total makes `/quote` answer HTTP 500 (`lease.py:113`); the contract refuses it, so a scan with it comes back for correction, and `/quote` turns any engine `ValueError` into a 422. Task 1.8. (2) When the printed total does not equal the weekly payments (the Aaron's card: 52 × $33.48 is $1,740.96, the total $1,739.88), the engine spreads the printed total evenly over the remaining weeks (about $34.11); the keep-paying formula says so. Task 3.2.5. (3) The shop page (#73) is not reachable from the app. Task 4.4.1. (4) Scenario 3's shop ranks new offers from a plain-words request; used against new is shown on the Entry receipt, not by carrying a listing into the shop. (5) Picking one of two DOE figures by the icemaker adder (2.2.6) is an inference; the receipt should say so. Open item.
+
 ## Index of phases
 
 Phases are milestones, not time slots. A task in a later phase starts as soon as its inputs are on `origin/main`; Track D's scan and RECS work can start right after Phase 1.
@@ -221,6 +223,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [x] **1.7 Scan results and printed lease numbers (Track A1)** (NEW 2026-09-26, Codex review of #33 and #39)
   `ScanResult.fields: dict[str, str | float | int | bool | None]` carries every value read, valid or not, to pre-fill the correction form; `item`, `offer` and `lease` are set only when `valid` (validator), and a valid scan has no errors. `Lease.payment_today` and `Lease.total_of_payments` (optional, `>= 0`) hold a lease's own printed numbers. Mirrored in `web/src/contracts.ts`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py -q` passes, including tests that an invalid scan cannot carry a lease, that a partial scan's JSON round-trips through `ScanResult`, and that a lease keeps its printed numbers.
+
+- [ ] **1.8 A lease that cannot be quoted is refused, not a 500 (Track A1)** (NEW 2026-09-26 22:05, Codex review)
+  `Lease` in `api/app/models.py`: `payment_today` must not exceed `total_of_payments` when both are printed, so a scan with them comes back invalid for correction. `POST /quote` returns a 422 with the engine's message for any `ValueError`, never a 500.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py api/tests/test_routes.py -q` passes, including tests that `payment_today=100, total_of_payments=50` is refused by the contract and that `/quote` answers 422, not 500, when the engine raises `ValueError`.
 
 <a id="phase-2"></a>
 ### [ ] Phase 2 — Vertical slice
@@ -366,6 +372,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   ~~`rto_full` keeps the effective annual cost in its formula; `rto_buyout` drops it and states its total minus the cash price~~ (3.2.1) → **Verdict (2026-09-26):** `rto_full`'s formula also states `full_term_total(lease)` minus the cash price ("That is $X more than the cash price of $Y"), before the effective annual cost, and says "No early purchase terms entered" when `early_purchase_rule` is "none" (3.3.6 drops the buyout path in that case). `rto_buyout` keeps its own comparison.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including a test that the Aaron's demo lease (`demo/cards/cards.json`) gives a keep-paying formula containing "$542.89 more than the cash price of $1,196.99", "45%" and "No early purchase terms entered".
 
+- [ ] **3.2.5 Say how a printed total sets the later payments (Track A4)** (NEW 2026-09-26 22:05, Codex review; after 3.2.4)
+  When `total_of_payments` is printed, `_schedule` spreads it, less the payment today, evenly over the remaining weeks. The keep-paying formula states that (for the Aaron's card, the remaining $1,739.87 spread evenly over 51 weekly payments of about $34.11), so the monthly figures are not read as printed payments. Also, from session 4's note on 3.2.4: the effective annual cost uses the same total as the "more than the cash price" figure, fees included (a $30 × 52 lease with $20 fees showed "$780.00 more" beside a 95% worked out from $760).
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including a test that the Aaron's demo lease's keep-paying formula names the even spread and its weekly figure, and one that a lease with fees computes its effective annual cost from the same total as its "more than the cash price" figure.
+
 - [x] **3.3 All paths in the quote (Track A2)**
   Extend `quote` to all 9 path kinds: `repair` (when `current` is given; repair cost from `repair_quote_*` as `user_entered`, else the profile's repair ranges as `published`; running cost from the current unit), `refurbished` (from a refurbished listing; warranty months shown in a flag), `new` x4 via A3, `rent_to_own` x2 via A4 (when `lease` is given). A path whose inputs are absent is omitted, never invented. Apply flags: `past_typical_life`, `test_procedure_changed` (when comparing a pre-2014 unit with a newer one), `year_from_serial_low_confidence`. `api/tests/test_quote_all_paths.py`: a full request returns 9 paths sorted by `total_3yr_high`; each path's totals equal the sums of its arrays. `api/tests/test_copy.py`: no label, formula or flag in that output contains an em dash, `APR` or `qualif`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py api/tests/test_copy.py -q` passes.
@@ -468,6 +478,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `web/src/pages/Shop.tsx`: a text box for the request, the parsed filters shown as editable chips (the visible AI step), ranked offers with cost per year and a "View at retailer" link that opens the offer's `url`. No in-app checkout. `Shop.test.tsx` renders ranked offers from a stub and finds each link.
   **Acceptance:** `npm --prefix web test -- Shop` passes.
 
+- [ ] **4.4.1 Reach the shop page (Track C1 file, by the C4 owner with Addy's OK)** (NEW 2026-09-26 22:05, Codex review of #73)
+  `web/src/App.tsx`: a route to `Shop` and a visible link to it from the Entry page. In `Shop.tsx`, a filter chip whose text is not a number shows an error and keeps the filter, never dropping it silently.
+  **Acceptance:** `npm --prefix web test -- Shop App` passes, including a test that the shop page is reachable from the app's first screen and one that a bad width chip shows an error and keeps the width.
+
 - [x] **4.5 ~~Voice script (Track D3, in Cursor)~~** Dropped (2026-09-26): see the voice decision; not built.
   `api/app/voice/script.py`: English and Spanish templates filled only from `Path` fields; no model writes or translates the script. `api/tests/test_voice.py`: for the fixture receipt, every number in the script appears in the paths, and neither script contains an em dash or `APR`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_voice.py -q` passes.
@@ -515,7 +529,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 
 **Scenario 3: used vs new, asked in plain words (Visa).** Only if the shop (4.1, 4.3, 4.4) is on main by 23:30.
 > "About $300, small space, need it this week."
-- Type the request → Grok's parsed filters appear as editable chips → offers ranked by cost per year, with unknown delivery or width flagged, not hidden → "View at retailer". Include the used GE listing (`listing-used-ge-gie18gsnrss.png`, $175): ask its age and enter it, since the listing states none.
+- Type the request → Grok's parsed filters appear as editable chips → offers ranked by cost per year, with unknown delivery or width flagged, not hidden → "View at retailer". ~~Include the used GE listing (`listing-used-ge-gie18gsnrss.png`, $175): ask its age and enter it, since the listing states none.~~ → **Verdict (2026-09-26 22:05):** the shop ranks new offers only; show used against new on the Entry receipt instead, entering the $175 used GE there as a listing (ask its age). "Small space" gives no width chip, because no inch figure was typed: add one by hand. Needs 4.4.1.
 - Check the numbers before going on stage: at some prices and years a used and a new option land on the same cost per year, which looks like a bug. Measured on main at 54a9954 through `/quote`: the $175 used GE is rated 443 kWh, $94.29 a year, against $98.46 for the cheapest new: close, not equal.
 
 **Scenario 4: not a wrapper.** Only if a real scan works by 22:00.
@@ -559,6 +573,8 @@ Scenario 1 is the strongest talking point: its numbers come straight off a real 
 - **R7: CI slowness under many PRs.** Handled by keeping tests fast and network-free (fake Grok clients everywhere). **Owner: Phase 0.4.**
 
 ## Open items
+
+- [ ] (2026-09-26 22:05, Codex review) When `model_energy` picks one of two DOE figures by the icemaker adder (task 2.2.6), the figure is an inference, not a direct rating: the electricity line should say which rule picked it and cite the DOE standards source. Owner: B2 (Neil), with an A1 contract change if `ModelEnergy` needs a note field.
 
 - [ ] **Team names and row assignment (NEW 2026-09-26).** Track A to D placeholders until assigned; each person claims rows in the team chat.
 - [ ] **Grok API key and vision model name (NEW 2026-09-26).** SpaceXAI gives credits (spec §1); a working key is not confirmed. Blocks 3.7 onward; checked in 0.8.
