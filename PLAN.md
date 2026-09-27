@@ -314,7 +314,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   Remove `Receipt`'s own width, padding and light background so it sits inside the app shell and follows dark mode; give the "What's in this number" toggle a 44px minimum height; show each pinned flag as a plain sentence, with `costs_not_estimated` as a visible note under the headline numbers ("Some costs are not estimated, so the real total may be higher"); label carbon "kg CO2e"; show "up to" beside the PAL path's pay today.
   **Acceptance:** `npm --prefix web test -- Receipt` passes, including tests for the `costs_not_estimated` note, one flag sentence, "CO2e", and "up to" on the PAL path.
 
-- [ ] **2.9.2 Sentence for the inferred-year flag (Track C2)** (NEW 2026-09-26, Codex review; with 3.3.5)
+- [x] **2.9.2 Sentence for the inferred-year flag (Track C2)** (NEW 2026-09-26, Codex review; with 3.3.5)
   Add the plain sentence for the new pinned flag `year_from_rating_data`: "The year made is estimated from the years DOE lists this model, so its remaining life is a range."
   **Acceptance:** `npm --prefix web test -- Receipt` passes, including a test that the flag renders that sentence.
 
