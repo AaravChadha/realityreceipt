@@ -10,7 +10,7 @@ Built at HackGT 13 (Georgia Tech, September 25 to 27, 2026) for the Oracle of th
 
 ## Who it is for
 
-A price tag shows what you pay today. It leaves out the electricity, the interest, the lease terms, and how long the fridge will last. A low upfront price can hide higher ownership costs. An older fridge may use more electricity. Financing and rent-to-own payments can add a lot to the purchase cost.
+A price tag shows what you pay today. It leaves out the electricity, the interest, the lease terms, and how long the fridge will last. An older fridge may use more electricity, and financing and rent-to-own payments can add a lot to the purchase cost.
 
 RealityReceipt is for someone choosing how to get a fridge on a tight budget, and for anyone who wants to check the math. Every number links to its source.
 
@@ -35,15 +35,23 @@ One of the demo cards is a real rent-to-own page from Aaron's. It offers a Frigi
 | New, credit union PAL | $20.00 | $1,005.92 |
 | Rent-to-own, keep paying | $0.01 | $1,915.20 |
 
-The 3-year totals include electricity. The new options are the same fridge: the app matched the lease's model number to a store listing of that model, new at Best Buy for $699.99. The lease comes last because it costs the most over 3 years. Its first line shows where its numbers come from:
+The 3-year totals include electricity. The new options are the same fridge: the app matched the lease's model number to a store listing of that model, new at Best Buy for $699.99. The lease comes last because it costs the most over 3 years. Its first line shows where its numbers come from.
+
+<details>
+<summary>The lease line's formula</summary>
 
 ```
 $0.01 today and $1,739.88 in all over 52 weeks, as printed on your lease; the remaining $1,739.87 is spread evenly over 51 weekly payments of about $34.11. Total of payments = $1,739.88. That is $542.89 more than the cash price of $1,196.99. No early purchase terms entered. Effective annual cost = ((1739.88 - 1196.99) / 1196.99) / (52 / 52) = 45%.
 ```
 
+</details>
+
 In the app, the same receipt appears as cards. Tap any cost to see its sources and formula.
 
-To reproduce it, start the app (see the [Quick start](#quick-start)) and run:
+<details>
+<summary>Reproduce it with one command</summary>
+
+Start the app (see the [Quick start](#quick-start)), then run:
 
 ```bash
 curl -s http://localhost:8000/api/quote -H 'content-type: application/json' -d @- <<'EOF' | jq -r '.[] | [.name, .pay_today, .total_3yr_high] | @tsv'
@@ -52,6 +60,8 @@ curl -s http://localhost:8000/api/quote -H 'content-type: application/json' -d @
  "lease": {"weekly_payment": 33.48, "term_weeks": 52, "cash_price": 1196.99, "payment_today": 0.01, "total_of_payments": 1739.88}}
 EOF
 ```
+
+</details>
 
 ## What it does
 
