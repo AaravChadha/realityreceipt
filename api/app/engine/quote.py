@@ -84,7 +84,7 @@ class QuoteRepository(Protocol):
 
     def profile(self, category: str) -> CategoryProfile: ...
 
-    def model_energy(self, brand: str, model: str) -> ModelEnergy | None: ...
+    def model_energy(self, brand: str, model: str, product_class: str | float | None = None) -> ModelEnergy | None: ...
 
     def new_offers(self, category: str) -> list[Offer]: ...
 
@@ -437,13 +437,13 @@ def _unit_energy(item: Item | None, repo: QuoteRepository) -> ModelEnergy | None
     not estimated."""
     if item is None:
         return None
-    rated = repo.model_energy(item.brand, item.model)
+    product_class = item.attributes.get("product_class")
+    rated = repo.model_energy(item.brand, item.model, product_class)
     if rated is not None:
         return rated
     label_kwh = _positive(item.attributes.get("label_kwh_per_year"))
     if label_kwh is not None:
         return ModelEnergy(kwh_per_year=label_kwh, source_type="user_entered", source_id="user")
-    product_class = item.attributes.get("product_class")
     adjusted = _positive(item.attributes.get("adjusted_volume_cuft"))
     if item.mfg_year is None or product_class is None or adjusted is None:
         return None

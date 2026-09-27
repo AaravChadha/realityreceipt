@@ -94,7 +94,7 @@ class FakeRepo:
             carbon_applicable=True,
         )
 
-    def model_energy(self, brand: str, model: str) -> ModelEnergy | None:
+    def model_energy(self, brand: str, model: str, product_class: str | float | None = None) -> ModelEnergy | None:
         kwh = self.energy.get(model)
         source_id = "doe_historical" if model in self.historical else "energystar_refrigerators"
         return None if kwh is None else ModelEnergy(kwh_per_year=kwh, source_type="rated", source_id=source_id)
