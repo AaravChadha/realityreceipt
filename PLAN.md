@@ -527,7 +527,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 **Scenario 2: every line has a source (the trust layer).**
 > "This is the label from an older Maytag."
 - Card: `label-older-maytag-mb2562.png`. Enter it as "Your fridge now" with a repair quote (for example $180): with no quote there are no repair ranges, so there is no repair path.
-- Tap the electricity line: **Rated, 505 kWh a year, from DOE's historical refrigerator ratings**, times the Georgia Power rate (tap through to both sources). Tap the replacement line: "not estimated", left blank on purpose, because the unit is past its typical life.
+- Tap the electricity line: **Rated, 505 kWh a year, from DOE's historical refrigerator ratings**, times the Georgia Power rate (tap through to both sources). Tap the replacement line: "not estimated", left blank on purpose. ~~because the unit is past its typical life.~~ → **Verdict (2026-09-26 22:30):** since 3.3.5 its year is estimated from DOE's listing years, so the line says the unit "may be at or past" the low end of its typical life; say it that way.
 - Don't state a year (the label prints none), and don't claim big energy savings: against a new fridge the gap is about $20 a year ($78.99 against $56.31 on main at 54a9954).
 - The receipt also shows two flag sentences, both true: the year made is estimated from the years DOE lists this model (3.3.5), and the energy test changed around 2014. Read them if asked; still state no year.
 
