@@ -859,3 +859,35 @@ def test_keep_uses_the_units_own_energy() -> None:
     b = quote(QuoteRequest(current=big), FakeRepo())
     assert pick(a, "keep", None).total_3yr_high < pick(b, "keep", None).total_3yr_high
     assert [(p.name, p.total_3yr_high) for p in a if p.group == "new"] == [(p.name, p.total_3yr_high) for p in b if p.group == "new"]
+
+
+def test_the_new_offer_is_matched_to_the_unit_shown() -> None:
+    # Task 3.3.10: family first, then product class, then the closest size, the cheapest on a tie.
+    from app.engine.quote import _family, _new_offer_for
+
+    offers = [
+        Offer(item_id="small", price=500.0, seller_type="retailer", source="retailer_cache", source_id="retailer_src"),
+        Offer(item_id="big", price=700.0, seller_type="retailer", source="retailer_cache", source_id="retailer_src"),
+        Offer(item_id="fam", price=900.0, seller_type="retailer", source="retailer_cache", source_id="retailer_src"),
+    ]
+    stock = {
+        "small": Item(id="small", category="refrigerator", brand="A", model="SMALL18X", condition="new", attributes={"volume_cuft": 18.0}),
+        "big": Item(id="big", category="refrigerator", brand="B", model="BIG25XYZ", condition="new", attributes={"volume_cuft": 25.0}),
+        "fam": Item(id="fam", category="refrigerator", brand="C", model="FAMILY18W", condition="new", attributes={"volume_cuft": 18.0}),
+    }
+
+    class Stock:
+        def item(self, id: str) -> Item | None:
+            return stock.get(id)
+
+    def unit(model: str, **attributes: float) -> Item:
+        return Item(id="u", category="refrigerator", brand="Z", model=model, condition="used_as_is", attributes=attributes)
+
+    assert _family("FFHT1822U*") == "FFHT1822U" and _family("FFHT1822UW") == "FFHT1822U" and _family("AB1") == ""
+    offer, note = _new_offer_for(unit("FAMILY18B", volume_cuft=25.0), offers, Stock(), {})
+    assert offer.item_id == "fam" and "same model family" in note  # family beats size
+    offer, note = _new_offer_for(unit("OTHER99", volume_cuft=24.0), offers, Stock(), {})
+    assert offer.item_id == "big" and note.startswith("The closest in size to yours: 25.0 cu ft")
+    offer, note = _new_offer_for(unit("OTHER99"), offers, Stock(), {})
+    assert offer.item_id == "small" and note.startswith("The cheapest new one")
+    assert _new_offer_for(None, offers, Stock(), {}) == (offers[0], "")

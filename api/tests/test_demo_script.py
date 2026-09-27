@@ -109,6 +109,20 @@ def maytag_repair(client: TestClient, maytag: dict) -> Path:
     return repair
 
 
+def test_scenario_2_new_fridge_is_the_closest_in_size(client: TestClient, maytag: dict) -> None:
+    # Task 3.3.10, the stage line "about $8 a year": the Maytag (25.1 cu ft) is compared with the closest
+    # size in the cache, a $699 GE at 21.9 cu ft, $70.54 a year against the Maytag's $78.99.
+    paths = quoted(client, {"current": maytag, "repair_quote_low": REPAIR_QUOTE, "repair_quote_high": REPAIR_QUOTE})
+    [cash] = [p for p in paths if (p.group, p.payment_method) == ("new", "cash")]
+    [price] = [line for line in cash.lines if line.kind == "purchase"]
+    assert cash.pay_today == 699.0
+    assert price.formula.startswith("The closest in size to yours: 21.9 cu ft against your 25.1")
+    new_electricity = next(line for line in cash.lines if line.label.startswith("Electricity"))
+    [keep] = [p for p in paths if p.group == "keep"]
+    old_electricity = next(line for line in keep.lines if line.label.startswith("Electricity"))
+    assert (old_electricity.amount_high, new_electricity.amount_high) == (78.99, 70.54)
+
+
 def test_scenario_2_electricity_is_rated_505_kwh_from_doe(client: TestClient, maytag_repair: Path) -> None:
     line = only(maytag_repair.lines, "Electricity")
     assert (line.source_type, line.source_id) == ("rated", "doe_wap_refrigerators")

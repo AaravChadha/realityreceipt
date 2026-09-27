@@ -104,7 +104,7 @@ Scenario 1 is the strongest point: its numbers come straight off a real lease pa
 | **Point at** | The paths: complete ones come first, cheapest 3-year total first, and a path with a cost not estimated comes after them and says so. Then tap the electricity line: **Rated, 505 kWh a year, from DOE's historical refrigerator ratings**, times the Georgia Power rate; tap through to both sources. Then tap the replacement line: "not estimated", left blank on purpose, because the unit is past its typical life. |
 | **If it fails** | Check the brand and model on the form against the label, character by character, and quote again. |
 
-Don't state a year: the label prints none. Don't claim big energy savings: against a new fridge the gap is about $20 a year. The receipt also shows two flag sentences, both true: the year made is estimated from the years DOE lists this model, and the energy test changed around 2014. Read them if asked; still state no year.
+Don't state a year: the label prints none. Don't claim big energy savings: against a new fridge of about its size (a $699 GE at 21.9 cu ft, which its line explains) the gap is about $8 a year, $78.99 against $70.54. The receipt also shows two flag sentences, both true: the year made is estimated from the years DOE lists this model, and the energy test changed around 2014. Read them if asked; still state no year.
 
 ### Scenario 3: used vs new, asked in plain words (the shop)
 

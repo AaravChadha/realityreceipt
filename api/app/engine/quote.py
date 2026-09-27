@@ -36,6 +36,7 @@ not import `app.repository`; the real `Repository` (task 2.1) satisfies it.
 """
 
 import math
+import re
 from datetime import date
 from typing import Protocol
 
@@ -127,7 +128,10 @@ def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
     category = _category(req)
     profile = repo.profile(category)
     items = {item.id: item for item in req.items}
-    cheapest_new = min(repo.new_offers(category), key=lambda o: o.price, default=None)
+    # The new offer every path compares against, for the New paths and every replacement: one like
+    # the unit the user showed (task 3.3.10), the cheapest when nothing about it can be matched.
+    # The name `cheapest_new` is kept from before the match; `match_note` says why it was chosen.
+    cheapest_new, match_note = _new_offer_for(_reference_unit(req), repo.new_offers(category), repo, items)
     new_item = (repo.item(cheapest_new.item_id) or items.get(cheapest_new.item_id)) if cheapest_new is not None else None
     new_years = _years(new_item, repo)
     # The unit that replaces a worn-out one is the cheapest new offer's.
@@ -169,7 +173,7 @@ def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
                 name, "new", method, acquire, new_item, (0.0, 0.0), False, profile, cheapest_new, repo, flags,
                 years=new_years, replacement_kwh=replacement_kwh, full_cost=_financed_total(cheapest_new.price, acquire),
             )
-            built.append((path, this_year))
+            built.append((_with_match_note(path, match_note), this_year))
 
     if req.lease is not None:
         unit = _leased_item(req, items)
@@ -609,6 +613,76 @@ def _repair_cost(req: QuoteRequest, profile: CategoryProfile) -> Contribution | 
     monthly_high = [0.0] * MONTHS
     monthly_low[0], monthly_high[0] = low, high
     return Contribution(pay_today=high, monthly_low=monthly_low, monthly_high=monthly_high, lines=[line])
+
+
+def _reference_unit(req: QuoteRequest) -> Item | None:
+    """The unit the user showed: the one they have, else the first item they entered."""
+    return req.current if req.current is not None else (req.items[0] if req.items else None)
+
+
+def _model_key(model: str) -> str:
+    """Uppercase, without spaces, `-`, `/` or `.` (the repository's `normalize_model`)."""
+    return re.sub(r"[\s\-/.]", "", model).upper()
+
+
+def _family(model: str) -> str:
+    """The fixed start of a model number: before its first wildcard, or without its last character
+    (usually the color code, as in FFHT1822UW and FFHT1822UV). Empty when too short to mean a family."""
+    key = _model_key(model)
+    head = re.split(r"[*#]", key, maxsplit=1)[0] if re.search(r"[*#]", key) else key[:-1]
+    return head if len(head) >= 6 else ""
+
+
+def _new_offer_for(
+    unit: Item | None, offers: list[Offer], repo: QuoteRepository, items: dict[str, Item]
+) -> tuple[Offer | None, str]:
+    """The new offer to compare against, and why it was chosen (task 3.3.10). In order: the same
+    model family as `unit`; the same product class; the closest total volume; the cheapest on a tie,
+    and the cheapest overall when nothing about `unit` can be matched."""
+    if not offers:
+        return None, ""
+    priced = [(o, repo.item(o.item_id) or items.get(o.item_id)) for o in offers]
+    pool = sorted(priced, key=lambda pair: pair[0].price)
+    if unit is None:
+        return pool[0][0], ""
+    family = _family(unit.model)
+    same = [(o, i) for o, i in pool if family and i is not None and _model_key(i.model).startswith(family)]
+    if same:
+        offer, item = same[0]
+        return offer, f"A new {item.brand} {item.model}, from the same model family as yours"
+    note = ""
+    unit_class = unit.attributes.get("product_class")
+    if unit_class is not None:
+        same_class = [(o, i) for o, i in pool if i is not None and str(i.attributes.get("product_class")) == str(unit_class)]
+        if same_class:
+            pool, note = same_class, f"The same type as yours (DOE class {unit_class})"
+    size = _number(unit.attributes.get("volume_cuft"))
+    sized = [(o, i) for o, i in pool if i is not None and _number(i.attributes.get("volume_cuft")) is not None]
+    if size is not None and sized:
+        offer, item = min(sized, key=lambda pair: (abs(_number(pair[1].attributes["volume_cuft"]) - size), pair[0].price))
+        return offer, f"The closest in size to yours: {_number(item.attributes['volume_cuft']):.1f} cu ft against your {size:.1f}"
+    if note:
+        return pool[0][0], note + ", the cheapest of them"
+    return pool[0][0], "The cheapest new one in the store list: nothing about yours to match its model or size"
+
+
+def _number(value: str | float | None) -> float | None:
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _with_match_note(path: Path, note: str) -> Path:
+    """`path` with why its new unit was chosen at the start of its first purchase line's formula."""
+    if not note:
+        return path
+    lines = list(path.lines)
+    for n, line in enumerate(lines):
+        if line.kind == "purchase":
+            lines[n] = line.model_copy(update={"formula": f"{note}. {line.formula}"})
+            break
+    return path.model_copy(update={"lines": lines})
 
 
 def _new_ways(offer: Offer, repo: QuoteRepository) -> list[tuple[str, PaymentMethod, Contribution, list[str]]]:

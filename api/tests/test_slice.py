@@ -67,13 +67,22 @@ def test_nothing_is_fixture(card: tuple[Item, list[Path]]) -> None:
     assert not any("fixture" in p.flags for p in paths)
 
 
-def test_new_cash_is_the_cheapest_cached_offer(card: tuple[Item, list[Path]], repo: Repository) -> None:
-    _, paths = card
-    cheapest = min(repo.new_offers("refrigerator"), key=lambda o: o.price)
+def test_new_cash_is_the_offer_matched_to_the_card(card: tuple[Item, list[Path]], repo: Repository) -> None:
+    # Task 3.3.10: the new offer is one like the card's fridge. The Maytag (25.1 cu ft, no family in
+    # the cache) gets the closest size, the GE GTS22KGNRWW at 21.9 cu ft; the Frigidaire FFHT1822U*
+    # matches its own family, whose cheapest is the $548 FFHT1822UW; a card with no size is the cheapest.
+    item, paths = card
+    offers = repo.new_offers("refrigerator")
+    cheapest = min(offers, key=lambda o: o.price)
     [new_cash] = [p for p in paths if (p.group, p.payment_method) == ("new", "cash")]
     [price] = [line for line in new_cash.lines if line.kind == "purchase"]
-    assert (price.amount_high, price.source_id) == (round(cheapest.price, 2), cheapest.source_id)
-    assert new_cash.pay_today == round(cheapest.price, 2)
+    if item.model.upper().startswith("MB"):
+        [expected] = [o for o in offers if repo.item(o.item_id).model == "GTS22KGNRWW"]
+        assert price.formula.startswith("The closest in size to yours: 21.9 cu ft against your 25.1")
+    else:
+        expected = cheapest
+    assert (price.amount_high, price.source_id) == (round(expected.price, 2), expected.source_id)
+    assert new_cash.pay_today == round(expected.price, 2)
 
 
 def test_used_unit_energy_comes_from_the_model_lookup(card: tuple[Item, list[Path]], repo: Repository) -> None:
