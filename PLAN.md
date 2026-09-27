@@ -376,7 +376,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   One function in `quote.py` resolves a unit's kWh in the pinned "Energy lookup order", and every path builder uses it, including `_cash_path`, so `rank` agrees with `quote`. When `mfg_year` is missing, use `repo.model_year` if it returns one. Add `model_year` to the `QuoteRepository` protocol.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py api/tests/test_rank.py -q` passes, including a test that the same used unit gets the same electricity line from `quote` and from `rank`, and a test for each step of the lookup order.
 
-- [ ] **3.3.4 Cost per year from the full cost; ranges that never flip (Track A2)** (NEW 2026-09-26, Codex review; needs 3.2.3)
+- [x] **3.3.4 Cost per year from the full cost; ranges that never flip (Track A2)** (NEW 2026-09-26, Codex review; needs 3.2.3)
   Cost per year's purchase total is the full acquisition cost: the cash price, or the full financed total (card and PAL schedules, BNPL's full cost, `lease.full_term_total` for rent-to-own), never the part inside the 36-month window. Build every low/high pair (3-year total, cost per year, expected life) as the min and max of its scenarios, since an earlier, more efficient replacement can be the cheaper case.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including a test that a 208-week $30 lease's cost per year uses the $6,240 total (about $536 a year, not $416), and a property test over at least 500 generated requests that low never exceeds high for any path's 3-year total, cost per year or expected life.
 

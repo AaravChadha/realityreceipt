@@ -17,6 +17,11 @@ unknown age, gets no replacement purchase, only a `not_estimated` replacement li
 When a replacement falls inside the 36 months, the old unit's electricity and carbon
 stop at that month and the replacement unit's run after it.
 
+Cost per year (task 3.3.4) divides the full acquisition cost, not the part paid inside the
+36 months: a lease or buy now pay later schedule that runs past month 35 still counts in full.
+Every low/high pair is the min and max of its two scenarios, so low never exceeds high: an
+earlier replacement with a more efficient unit can be the cheaper case.
+
 Energy (task 3.3.3): every path finds a unit's kWh with `_unit_energy`, in the pinned
 "Energy lookup order", and a unit with no manufacture year takes the year DOE's rating
 data gives its model (`repo.model_year`). `_cash_path`, which `rank.py` (task 4.2) calls,
@@ -32,7 +37,7 @@ from datetime import date
 from typing import Protocol
 
 from app.engine.financing import USER_SOURCE_IDS, bnpl, card, cash, pal
-from app.engine.lease import rto_buyout, rto_full
+from app.engine.lease import cheapest_buyout, full_term_total, rto_buyout, rto_full
 from app.engine.lifecycle import combine, cost_per_year, remaining_life, replacement, replacement_month
 from app.engine.running import aging_line, carbon_kg, energy, upkeep
 from app.models import (
@@ -134,7 +139,10 @@ def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
 
     if cheapest_new is not None:
         for name, method, acquire, flags in _new_ways(cheapest_new, repo):
-            path = _unit_path(name, "new", method, acquire, new_item, 0.0, False, profile, cheapest_new, repo, flags, replacement_kwh=replacement_kwh)
+            path = _unit_path(
+                name, "new", method, acquire, new_item, 0.0, False, profile, cheapest_new, repo, flags,
+                replacement_kwh=replacement_kwh, full_cost=_financed_total(cheapest_new.price, acquire),
+            )
             built.append((path, this_year))
 
     if req.lease is not None:
@@ -143,11 +151,16 @@ def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
         age = 0.0 if is_new else (_age(unit) if unit is not None else None)
         year = this_year if is_new else (unit.mfg_year if unit is not None else None)
         aged = unit is not None and not is_new
-        for name, method, acquire in (
-            ("Rent-to-own, keep paying", "rto_full", rto_full(req.lease)),
-            ("Rent-to-own, early buyout", "rto_buyout", rto_buyout(req.lease)),
+        lease = req.lease
+        for name, method, acquire, full_cost in (
+            ("Rent-to-own, keep paying", "rto_full", rto_full(lease), full_term_total(lease)),
+            ("Rent-to-own, early buyout", "rto_buyout", rto_buyout(lease), round(cheapest_buyout(lease)[1] + lease.fees, 2)),
         ):
-            built.append((_unit_path(name, "rent_to_own", method, acquire, unit, age, aged, profile, cheapest_new, repo, [], replacement_kwh=replacement_kwh), year))
+            path = _unit_path(
+                name, "rent_to_own", method, acquire, unit, age, aged, profile, cheapest_new, repo, [],
+                replacement_kwh=replacement_kwh, full_cost=full_cost,
+            )
+            built.append((path, year))
 
     paths = _flag_test_procedure(built)
     paths.sort(key=lambda p: (INCOMPLETE in p.flags, p.total_3yr_high, p.pay_today))
@@ -371,11 +384,13 @@ def _unit_path(
     *,
     replacement_kwh: ModelEnergy | None,
     switch_electricity: bool = True,
+    full_cost: float | None = None,
 ) -> Path:
     """One path: `acquire` (every dollar paid to get the unit), then electricity, the aging
     line when `aged`, upkeep and the replacement for `item`, with cost per year and carbon.
     `replacement_kwh` is the replacement unit's figure, used from the month it is bought
-    unless `switch_electricity` is false."""
+    unless `switch_electricity` is false. `full_cost` is everything paid to get the unit, including
+    payments after month 35; without it, what `acquire`'s arrays hold (all of it for cash and repair)."""
     kwh = _unit_energy(item, repo)
     rate = repo.rate(ELECTRICITY_RATE)
     electricity = energy(kwh or _NO_KWH, rate)
@@ -394,10 +409,15 @@ def _unit_path(
 
     # Cost per year of use is this unit's: its own electricity, not the replacement's.
     annual_low, annual_high = _annual_cost(electricity, profile.upkeep_schedule)
-    # "Purchase total" includes financing: everything `acquire` pays, not just the price.
-    cpy_low, cpy_high = cost_per_year(
-        sum(acquire.monthly_low), sum(acquire.monthly_high), annual_low, annual_high, life_low, life_high
-    )
+    # "Purchase total" includes financing: everything paid to get the unit, not just the price and
+    # not just the part inside the 36 months (task 3.3.4).
+    purchase_low, purchase_high = (full_cost, full_cost) if full_cost is not None else (sum(acquire.monthly_low), sum(acquire.monthly_high))
+    cpy_low, cpy_high = _ordered(*cost_per_year(purchase_low, purchase_high, annual_low, annual_high, life_low, life_high))
+    life_low, life_high = _ordered(life_low, life_high)
+    # The cheaper scenario is the low one, whichever array it is (task 3.3.4).
+    monthly_low, monthly_high = total.monthly_low, total.monthly_high
+    if sum(monthly_low) > sum(monthly_high):
+        monthly_low, monthly_high = monthly_high, monthly_low
     carbon, carbon_ids = _carbon(kwh, replacement_kwh, month_low, month_high, profile, repo)
 
     flags = [*flags]
@@ -413,19 +433,34 @@ def _unit_path(
         group=group,
         payment_method=method,
         pay_today=total.pay_today,
-        total_3yr_low=round(sum(total.monthly_low), 2),
-        total_3yr_high=round(sum(total.monthly_high), 2),
+        total_3yr_low=round(sum(monthly_low), 2),
+        total_3yr_high=round(sum(monthly_high), 2),
         cost_per_year_low=cpy_low,
         cost_per_year_high=cpy_high,
         expected_life_low=life_low,
         expected_life_high=life_high,
-        monthly_low=total.monthly_low,
-        monthly_high=total.monthly_high,
+        monthly_low=monthly_low,
+        monthly_high=monthly_high,
         carbon_kg=carbon,
         carbon_source_ids=carbon_ids,
         lines=total.lines,
         flags=flags,
     )
+
+
+def _ordered(low: float | None, high: float | None) -> tuple[float | None, float | None]:
+    """(min, max) of a pair's two scenarios; a `None` end stays `None`, never guessed."""
+    if low is None or high is None:
+        return low, high
+    return min(low, high), max(low, high)
+
+
+def _financed_total(price: float, acquire: Contribution) -> float:
+    """The full cost of paying `price` by a new-offer method: the price plus each financing line's
+    cost over it, which the line states for the whole schedule, past month 35 too. A financing cost
+    that is not estimated adds nothing, as in the arrays."""
+    extra = sum(line.amount_high or 0.0 for line in acquire.lines if line.kind == "financing")
+    return round(price + extra, 2)
 
 
 def _unit_energy(item: Item | None, repo: QuoteRepository) -> ModelEnergy | None:
