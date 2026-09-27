@@ -204,6 +204,367 @@ test('a half-filled section shows errors and sends nothing', () => {
   expect(screen.getByRole('alert')).toHaveTextContent('2 fields need a fix.')
 })
 
+test('scan and upload controls and every lease field are on the form', () => {
+  render(<Entry />)
+  expect(screen.getByRole('button', { name: 'Scan' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Upload saved image' })).toBeInTheDocument()
+  expect(screen.getByLabelText('What are you scanning?')).toHaveValue('label')
+  expect(screen.queryByRole('option', { name: 'Price tag' })).not.toBeInTheDocument()
+  const scanInput = document.querySelector('input[type="file"][capture="environment"]')
+  expect(scanInput).toHaveAttribute('accept', 'image/*')
+  expect(scanInput).toHaveAttribute('tabindex', '-1')
+  expect(scanInput).toHaveAttribute('aria-hidden', 'true')
+  const uploads = [...document.querySelectorAll('input[type="file"]')].filter((el) => !el.hasAttribute('capture'))
+  expect(uploads).toHaveLength(1)
+  expect(uploads[0]).toHaveAttribute('accept', 'image/*')
+  expect(uploads[0]).toHaveAttribute('tabindex', '-1')
+  expect(uploads[0]).toHaveAttribute('aria-hidden', 'true')
+
+  const lease = section('A rent-to-own lease')
+  expect(lease.getByLabelText('Brand')).toBeInTheDocument()
+  expect(lease.getByLabelText('Model number')).toBeInTheDocument()
+  expect(lease.getByLabelText('Weekly payment')).toBeInTheDocument()
+  expect(lease.getByLabelText('Term in weeks')).toBeInTheDocument()
+  expect(lease.getByLabelText('Cash price')).toBeInTheDocument()
+  expect(lease.getByLabelText('Fees (optional)')).toBeInTheDocument()
+  expect(lease.getByLabelText('Paid today')).toBeInTheDocument()
+  expect(lease.getByLabelText('Total of all payments, as printed')).toBeInTheDocument()
+  expect(lease.getByLabelText('Early purchase rule')).toHaveValue('none')
+  expect(lease.getByLabelText('Early purchase fraction')).toBeInTheDocument()
+  expect(lease.getByLabelText('Early purchase terms')).toBeInTheDocument()
+  expect(lease.getByLabelText('Missed payment rule')).toBeInTheDocument()
+  expect(lease.queryByLabelText('Lease source')).not.toBeInTheDocument()
+})
+
+test('an invalid scan pre-fills the brand and shows the errors, and does not quote', async () => {
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    expect(url).toBe('/api/scan')
+    const form = init?.body as FormData
+    expect(form.get('kind')).toBe('label')
+    expect(form.get('image')).toBeInstanceOf(File)
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        kind: 'label',
+        valid: false,
+        errors: ['could not read the serial', 'model is incomplete'],
+        fields: {
+          brand: 'Maytag',
+          model: 'MB2562',
+          serial: null,
+          mfg_year: 2004,
+          product_class: '3',
+          volume_cuft: null,
+          label_kwh_per_year: 586,
+        },
+        item: null,
+        offer: null,
+        lease: null,
+      }),
+    } as Response
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  const { container } = render(<Entry />)
+  const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
+  fireEvent.change(input, { target: { files: [new File(['label'], 'label.jpg', { type: 'image/jpeg' })] } })
+
+  const now = section('Your fridge now')
+  expect(await now.findByLabelText('Brand')).toHaveValue('Maytag')
+  expect(now.getByLabelText('Model number')).toHaveValue('MB2562')
+  expect(now.getByLabelText('Serial number (optional)')).toHaveValue('')
+  expect(now.getByLabelText('Year made (optional)')).toHaveValue('2004')
+  expect(now.getByLabelText('Product class (optional)')).toHaveValue('3')
+  expect(now.getByLabelText('Volume in cubic feet (optional)')).toHaveValue('')
+  expect(now.getByLabelText('kWh per year on the yellow label (optional)')).toHaveValue('586')
+  const alert = await screen.findByRole('alert')
+  expect(alert).toHaveTextContent('could not read the serial')
+  expect(alert).toHaveTextContent('model is incomplete')
+  expect(screen.getByText('Correct anything that looks wrong, then show every way to get it.')).toBeInTheDocument()
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  expect(screen.queryByRole('region', { name: 'Every way to get it' })).not.toBeInTheDocument()
+})
+
+test('a lease is quoted only after the user confirms the form', async () => {
+  const fetchMock = fakeApi([])
+  render(<Entry />)
+  const lease = section('A rent-to-own lease')
+  type(lease.getByLabelText('Brand'), 'Frigidaire')
+  type(lease.getByLabelText('Model number'), 'FRTE1936AV')
+  type(lease.getByLabelText('Weekly payment'), '30')
+  type(lease.getByLabelText('Term in weeks'), '52')
+  type(lease.getByLabelText('Cash price'), '800')
+  type(lease.getByLabelText('Fees (optional)'), '25')
+  fireEvent.change(lease.getByLabelText('Early purchase rule'), { target: { value: 'pct_of_remaining' } })
+  type(lease.getByLabelText('Early purchase fraction'), '0.5')
+  type(lease.getByLabelText('Early purchase terms'), 'Half of what is left')
+  type(lease.getByLabelText('Missed payment rule'), 'Fees keep accruing')
+  type(lease.getByLabelText('Paid today'), '0.01')
+  type(lease.getByLabelText('Total of all payments, as printed'), '1739.88')
+  expect(fetchMock).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Show every way to get it' }))
+
+  await screen.findByText('No paths came back for these details.')
+  const quoteCall = fetchMock.mock.calls.find((c) => c[0] === '/api/quote')
+  expect(quoteCall).toBeDefined()
+  expect(bodyOf(quoteCall!)).toMatchObject({
+    lease: {
+      weekly_payment: 30,
+      term_weeks: 52,
+      cash_price: 800,
+      fees: 25,
+      early_purchase_rule: 'pct_of_remaining',
+      early_purchase_pct: 0.5,
+      early_purchase_text: 'Half of what is left',
+      missed_payment_rule: 'Fees keep accruing',
+      source_id: 'user_lease',
+      payment_today: 0.01,
+      total_of_payments: 1739.88,
+    },
+    items: [
+      {
+        id: 'lease',
+        category: 'refrigerator',
+        brand: 'Frigidaire',
+        model: 'FRTE1936AV',
+        condition: 'new',
+      },
+    ],
+    offers: [
+      {
+        item_id: 'lease',
+        price: 800,
+        seller_type: 'rent_to_own',
+        source: 'user_listing',
+        source_id: 'user_listing',
+      },
+    ],
+  })
+})
+
+test('a lease scan pre-fills printed fields and stores the early purchase percent as a fraction', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        kind: 'lease',
+        valid: false,
+        errors: ['weekly payment was hard to read'],
+        fields: {
+          brand: 'Frigidaire',
+          model: 'FRTE1936AV',
+          weekly_payment: 33.48,
+          early_purchase_rule: 'pct_of_remaining',
+          early_purchase_percent: 50,
+          payment_today: 0.01,
+          total_of_payments: 1739.88,
+        },
+        item: null,
+        offer: null,
+        lease: null,
+      }),
+    }) as Response),
+  )
+  const { container } = render(<Entry />)
+  fireEvent.change(screen.getByLabelText('What are you scanning?'), { target: { value: 'lease' } })
+  const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
+  fireEvent.change(input, { target: { files: [new File(['lease'], 'lease.jpg', { type: 'image/jpeg' })] } })
+
+  const lease = section('A rent-to-own lease')
+  expect(await lease.findByLabelText('Brand')).toHaveValue('Frigidaire')
+  expect(lease.getByLabelText('Model number')).toHaveValue('FRTE1936AV')
+  expect(lease.getByLabelText('Weekly payment')).toHaveValue('33.48')
+  expect(lease.getByLabelText('Early purchase rule')).toHaveValue('pct_of_remaining')
+  expect(lease.getByLabelText('Early purchase fraction')).toHaveValue('0.5')
+  expect(lease.getByLabelText('Paid today')).toHaveValue('0.01')
+  expect(lease.getByLabelText('Total of all payments, as printed')).toHaveValue('1739.88')
+})
+
+test('an early purchase percent of 33.3 is stored as 0.333', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        kind: 'lease',
+        valid: false,
+        errors: [],
+        fields: { early_purchase_percent: 33.3, early_purchase_rule: 'pct_of_remaining' },
+        item: null,
+        offer: null,
+        lease: null,
+      }),
+    }) as Response),
+  )
+  const { container } = render(<Entry />)
+  fireEvent.change(screen.getByLabelText('What are you scanning?'), { target: { value: 'lease' } })
+  const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
+  fireEvent.change(input, { target: { files: [new File(['lease'], 'lease.jpg', { type: 'image/jpeg' })] } })
+  expect(await section('A rent-to-own lease').findByLabelText('Early purchase fraction')).toHaveValue('0.333')
+})
+
+test('a second lease scan does not keep the first lease buyout', async () => {
+  let scan = 0
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      scan += 1
+      const fields =
+        scan === 1
+          ? {
+              brand: 'Frigidaire',
+              model: 'FRTE1936AV',
+              weekly_payment: 33.48,
+              early_purchase_rule: 'pct_of_remaining',
+              early_purchase_percent: 50,
+            }
+          : { brand: 'GE', model: 'GTE18', weekly_payment: 20 }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ kind: 'lease', valid: false, errors: [], fields, item: null, offer: null, lease: null }),
+      } as Response
+    }),
+  )
+  const { container } = render(<Entry />)
+  fireEvent.change(screen.getByLabelText('What are you scanning?'), { target: { value: 'lease' } })
+  const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
+  const file = () => fireEvent.change(input, { target: { files: [new File(['lease'], 'lease.jpg', { type: 'image/jpeg' })] } })
+  file()
+  const lease = section('A rent-to-own lease')
+  expect(await lease.findByLabelText('Early purchase fraction')).toHaveValue('0.5')
+  expect(lease.getByLabelText('Early purchase rule')).toHaveValue('pct_of_remaining')
+  file()
+  expect(await lease.findByLabelText('Brand')).toHaveValue('GE')
+  expect(lease.getByLabelText('Early purchase rule')).toHaveValue('none')
+  expect(lease.getByLabelText('Early purchase fraction')).toHaveValue('')
+})
+
+test('a fee the scan did not print stays empty', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        kind: 'lease',
+        valid: false,
+        errors: ['fees: not printed. Enter 0 if the lease has none.'],
+        fields: { brand: 'Frigidaire', model: 'FRTE1936AV', weekly_payment: 33.48, fees: 'not printed' },
+        item: null,
+        offer: null,
+        lease: null,
+      }),
+    }) as Response),
+  )
+  const { container } = render(<Entry />)
+  fireEvent.change(screen.getByLabelText('What are you scanning?'), { target: { value: 'lease' } })
+  const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
+  fireEvent.change(input, { target: { files: [new File(['lease'], 'lease.jpg', { type: 'image/jpeg' })] } })
+  const lease = section('A rent-to-own lease')
+  expect(await lease.findByLabelText('Weekly payment')).toHaveValue('33.48')
+  expect(lease.getByLabelText('Fees (optional)')).toHaveValue('')
+})
+
+function fillLeaseExceptFees() {
+  const lease = section('A rent-to-own lease')
+  type(lease.getByLabelText('Brand'), 'Frigidaire')
+  type(lease.getByLabelText('Model number'), 'FRTE1936AV')
+  type(lease.getByLabelText('Weekly payment'), '30')
+  type(lease.getByLabelText('Term in weeks'), '52')
+  type(lease.getByLabelText('Cash price'), '800')
+  return lease
+}
+
+test('an empty fee blocks the quote', () => {
+  const fetchMock = fakeApi([])
+  render(<Entry />)
+  const lease = fillLeaseExceptFees()
+  fireEvent.click(screen.getByRole('button', { name: 'Show every way to get it' }))
+  expect(fetchMock).not.toHaveBeenCalled()
+  expect(lease.getByLabelText('Fees (optional)')).toHaveAttribute('aria-invalid', 'true')
+  expect(lease.getByLabelText('Fees (optional)')).toHaveAccessibleDescription(
+    'Enter the fees as a dollar amount, or 0 if there is none.',
+  )
+})
+
+test('a fee of 0 entered on purpose is sent', async () => {
+  const fetchMock = fakeApi([])
+  render(<Entry />)
+  const lease = fillLeaseExceptFees()
+  type(lease.getByLabelText('Fees (optional)'), '0')
+  fireEvent.click(screen.getByRole('button', { name: 'Show every way to get it' }))
+  await screen.findByText('No paths came back for these details.')
+  const quoteCall = fetchMock.mock.calls.find((c) => c[0] === '/api/quote')
+  expect(bodyOf(quoteCall!)).toMatchObject({ lease: { fees: 0, source_id: 'user_lease' } })
+})
+
+test('a later scan drops a serial the new image did not read', async () => {
+  let scan = 0
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      scan += 1
+      const fields =
+        scan === 1
+          ? { brand: 'Maytag', model: 'MB2562', serial: 'VS123456' }
+          : { brand: 'GE', model: 'GTE18', serial: null }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ kind: 'label', valid: false, errors: [], fields, item: null, offer: null, lease: null }),
+      } as Response
+    }),
+  )
+  const { container } = render(<Entry />)
+  const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
+  const file = () => fireEvent.change(input, { target: { files: [new File(['label'], 'label.jpg', { type: 'image/jpeg' })] } })
+  file()
+  const now = section('Your fridge now')
+  expect(await now.findByLabelText('Serial number (optional)')).toHaveValue('VS123456')
+  file()
+  expect(await now.findByLabelText('Brand')).toHaveValue('GE')
+  expect(now.getByLabelText('Serial number (optional)')).toHaveValue('')
+})
+
+test('a listing scan can mark the fridge new', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        kind: 'listing',
+        valid: false,
+        errors: [],
+        fields: { brand: 'GE', model: 'GTE18', price: 400, condition: 'new' },
+        item: null,
+        offer: null,
+        lease: null,
+      }),
+    }) as Response),
+  )
+  const { container } = render(<Entry />)
+  fireEvent.change(screen.getByLabelText('What are you scanning?'), { target: { value: 'listing' } })
+  const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
+  fireEvent.change(input, { target: { files: [new File(['listing'], 'listing.jpg', { type: 'image/jpeg' })] } })
+  const used = section('A used one you found')
+  expect(await used.findByLabelText('Brand')).toHaveValue('GE')
+  expect(used.getByLabelText('Condition')).toHaveValue('new')
+  expect(used.getByLabelText('Listing price')).toHaveValue('400')
+})
+
+test('reading an image is announced as status', async () => {
+  vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+  const { container } = render(<Entry />)
+  const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
+  fireEvent.change(input, { target: { files: [new File(['label'], 'label.jpg', { type: 'image/jpeg' })] } })
+  expect(await screen.findByRole('status')).toHaveTextContent('Reading the image...')
+})
+
 test('an API failure is shown, not swallowed', async () => {
   vi.stubGlobal(
     'fetch',
@@ -305,6 +666,42 @@ test('a year that is not four digits from 1940 to this year, or a label kWh of 0
   )
   expect(section('A used one you found').getByLabelText('Year made (optional)')).toHaveAccessibleDescription(yearError)
   expect(screen.getByRole('alert')).toHaveTextContent('3 fields need a fix.')
+})
+
+test('a budget below pay today dims that path on the receipt', async () => {
+  fakeApi()
+  render(<Entry />)
+  type(screen.getByLabelText('I can spend up to this much today (optional)'), '100')
+  submit()
+  expect(await screen.findAllByText('More than you can spend today')).not.toHaveLength(0)
+})
+
+test('a scan waits 60 seconds before it stops, and says it is reading', async () => {
+  vi.useFakeTimers()
+  const fetchMock = vi.fn(
+    (_url: string, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError')))
+      }),
+  )
+  vi.stubGlobal('fetch', fetchMock)
+  const { container } = render(<Entry />)
+  const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
+  fireEvent.change(input, { target: { files: [new File(['label'], 'label.jpg', { type: 'image/jpeg' })] } })
+  await act(async () => {})
+  expect(screen.getByRole('status')).toHaveTextContent('Reading the image...')
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15_000)
+  })
+  expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(false)
+  expect(screen.queryByRole('alert')).toBeNull()
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(45_000)
+  })
+  expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(true)
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'Could not read the image: No answer after 60 seconds. Check your connection and try again.',
+  )
 })
 
 test('a request with no answer after 15 seconds is stopped with a plain message', async () => {

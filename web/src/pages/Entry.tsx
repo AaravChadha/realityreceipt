@@ -1,18 +1,44 @@
-// Manual entry (PLAN.md tasks 2.8 and 2.8.1). Two optional sections, because the fridge
-// you own and a used one you found are different units. No personal or income questions.
+// Manual entry (PLAN.md tasks 2.8 and 2.8.1) plus scan, upload and lease correction (task 3.10).
+// Two optional unit sections, because the fridge you own and a used one you found are
+// different units. A scan pre-fills those same fields; the user confirms before quoting.
+// No personal or income questions.
 import { useReducedMotion } from 'framer-motion'
-import { useEffect, useRef, useState, type FormEvent, type InputHTMLAttributes } from 'react'
-import { checkItem, quote, sources } from '../api'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type InputHTMLAttributes } from 'react'
+import { checkItem, quote, scan, sources } from '../api'
 import { Receipt } from '../components/Receipt'
 import { SourceSheet } from '../components/SourceSheet'
-import type { CostLine, Item, Offer, Path, QuoteRequest, Source } from '../contracts'
+import type {
+  CostLine,
+  EarlyPurchaseRule,
+  Item,
+  Lease,
+  Offer,
+  Path,
+  QuoteRequest,
+  ScanKind,
+  ScanResult,
+  Source,
+} from '../contracts'
 
 const CATEGORY = 'refrigerator'
 
 // The earliest manufacture year accepted, the same bound as task 1.6 puts on Item.mfg_year.
 const FIRST_YEAR = 1940
 
-type ListingCondition = 'used_as_is' | 'refurbished'
+type ListingCondition = 'new' | 'used_as_is' | 'refurbished'
+
+// Price tag is out of the picker tonight: a scanned tag is not what the quote prices (PLAN.md 3.10).
+const SCAN_KIND_OPTIONS: { value: ScanKind; label: string }[] = [
+  { value: 'label', label: 'Label' },
+  { value: 'lease', label: 'Lease' },
+  { value: 'listing', label: 'Listing' },
+]
+
+const EARLY_PURCHASE_OPTIONS: { value: EarlyPurchaseRule; label: string }[] = [
+  { value: 'none', label: 'No early purchase' },
+  { value: 'pct_of_remaining', label: 'A share of the remaining payments' },
+  { value: 'cash_price_minus_pct_paid', label: 'Cash price minus a share already paid' },
+]
 
 interface Fields {
   nowBrand: string
@@ -29,11 +55,25 @@ interface Fields {
   usedPrice: string
   usedCondition: ListingCondition
   usedWarranty: string
+  leaseBrand: string
+  leaseModel: string
+  leaseWeekly: string
+  leaseTerm: string
+  leaseCash: string
+  leaseFees: string
+  leaseRule: EarlyPurchaseRule
+  leasePct: string
+  leaseEarlyText: string
+  leaseMissed: string
+  leasePaid: string
+  leaseTotal: string
   budget: string
 }
 
 type FieldName = keyof Fields
 type Errors = Partial<Record<FieldName, string>>
+// usedCondition and leaseRule are selects, so a scanned string cannot be written there.
+type TextField = Exclude<FieldName, 'usedCondition' | 'leaseRule'>
 
 const EMPTY: Fields = {
   nowBrand: '',
@@ -50,6 +90,18 @@ const EMPTY: Fields = {
   usedPrice: '',
   usedCondition: 'used_as_is',
   usedWarranty: '',
+  leaseBrand: '',
+  leaseModel: '',
+  leaseWeekly: '',
+  leaseTerm: '',
+  leaseCash: '',
+  leaseFees: '',
+  leaseRule: 'none',
+  leasePct: '',
+  leaseEarlyText: '',
+  leaseMissed: '',
+  leasePaid: '',
+  leaseTotal: '',
   budget: '',
 }
 
@@ -64,6 +116,19 @@ const NOW_FIELDS: FieldName[] = [
   'nowRepair',
 ]
 const USED_FIELDS: FieldName[] = ['usedBrand', 'usedModel', 'usedYear', 'usedPrice', 'usedWarranty']
+const LEASE_TOUCHED: FieldName[] = [
+  'leaseBrand',
+  'leaseModel',
+  'leaseWeekly',
+  'leaseTerm',
+  'leaseCash',
+  'leaseFees',
+  'leasePct',
+  'leaseEarlyText',
+  'leaseMissed',
+  'leasePaid',
+  'leaseTotal',
+]
 
 // '' -> null; '$1,200.50' -> 1200.5; anything that is not a number >= 0 -> NaN.
 function parseAmount(raw: string, wholeOnly = false): number | null {
@@ -78,6 +143,110 @@ interface Draft {
   listing: { item: Item; price: number } | null
   repairQuote: number | null
   budget: number | null
+  lease: Lease | null
+  leased: Item | null
+}
+
+// A value is present when the scan returned that key and it is not null. Null means it was not printed.
+function presentText(raw: ScanResult['fields'], key: string): string | undefined {
+  if (!Object.prototype.hasOwnProperty.call(raw, key)) return undefined
+  const value = raw[key]
+  if (value === null || value === undefined) return undefined
+  return String(value)
+}
+
+// A percent printed on the lease (50, or 33.3) becomes the fraction the quote stores.
+function percentFraction(raw: string): string | undefined {
+  const n = Number(raw)
+  if (!Number.isFinite(n)) return undefined
+  return (n / 100).toFixed(4).replace(/0+$/, '').replace(/\.$/, '')
+}
+
+// A scan, valid or not, fills the same fields the user can type from ScanResult.fields.
+// item, offer and lease are null whenever the scan is invalid, so they are not read.
+// The kind's own fields are cleared first, so a value the new image did not read does not stay.
+function applyScan(fields: Fields, result: ScanResult): Fields {
+  const next = { ...fields }
+  const raw = result.fields ?? {}
+  const put = (name: TextField, key: string) => {
+    const value = presentText(raw, key)
+    if (value !== undefined) next[name] = value
+  }
+  const clear = (names: TextField[]) => {
+    for (const name of names) next[name] = ''
+  }
+
+  if (result.kind === 'label') {
+    clear(['nowBrand', 'nowModel', 'nowSerial', 'nowYear', 'nowProductClass', 'nowVolume', 'nowKwh'])
+    put('nowBrand', 'brand')
+    put('nowModel', 'model')
+    put('nowSerial', 'serial')
+    put('nowYear', 'mfg_year')
+    put('nowProductClass', 'product_class')
+    put('nowVolume', 'volume_cuft')
+    put('nowKwh', 'label_kwh_per_year')
+  }
+
+  if (result.kind === 'listing') {
+    clear(['usedBrand', 'usedModel', 'usedYear', 'usedPrice', 'usedWarranty'])
+    next.usedCondition = 'used_as_is'
+    put('usedBrand', 'brand')
+    put('usedModel', 'model')
+    put('usedYear', 'mfg_year')
+    put('usedPrice', 'price')
+    const condition = presentText(raw, 'condition')
+    if (condition === 'new' || condition === 'used_as_is' || condition === 'refurbished') next.usedCondition = condition
+  }
+
+  if (result.kind === 'lease') {
+    clear([
+      'leaseBrand',
+      'leaseModel',
+      'leaseWeekly',
+      'leaseTerm',
+      'leaseCash',
+      'leaseFees',
+      'leasePct',
+      'leaseEarlyText',
+      'leaseMissed',
+      'leasePaid',
+      'leaseTotal',
+    ])
+    next.leaseRule = 'none'
+    put('leaseBrand', 'brand')
+    put('leaseModel', 'model')
+    put('leaseWeekly', 'weekly_payment')
+    put('leaseTerm', 'term_weeks')
+    put('leaseCash', 'cash_price')
+    // A missing fee, or one the scan marks not printed, stays blank. 0 is a real entry.
+    const feeRaw = presentText(raw, 'fees')
+    if (feeRaw !== undefined && feeRaw.trim().toLowerCase() !== 'not printed') {
+      const fee = Number(feeRaw.replace(/[$,\s]/g, ''))
+      if (Number.isFinite(fee)) next.leaseFees = String(fee)
+    }
+    put('leaseEarlyText', 'early_purchase_text')
+    put('leaseMissed', 'missed_payment_rule')
+    put('leasePaid', 'payment_today')
+    put('leaseTotal', 'total_of_payments')
+    const rule = presentText(raw, 'early_purchase_rule')
+    if (rule === 'none' || rule === 'pct_of_remaining' || rule === 'cash_price_minus_pct_paid') next.leaseRule = rule
+    const percent = presentText(raw, 'early_purchase_percent')
+    if (percent !== undefined) {
+      const fraction = percentFraction(percent)
+      if (fraction !== undefined) next.leasePct = fraction
+    }
+  }
+  return next
+}
+
+function scanMessages(result: ScanResult): string[] {
+  const messages = (result.errors ?? []).map((err) => err.trim()).filter(Boolean)
+  if (!result.valid && messages.length === 0) return ['The scan could not read this image.']
+  return messages
+}
+
+function leaseStarted(f: Fields): boolean {
+  return LEASE_TOUCHED.some((name) => f[name].trim() !== '') || f.leaseRule !== 'none'
 }
 
 // Turns the form into the units to check and quote, or field errors.
@@ -151,37 +320,106 @@ function readForm(f: Fields): { draft: Draft; errors: Errors } {
     }
   }
 
+  let lease: Lease | null = null
+  let leased: Item | null = null
+  if (leaseStarted(f)) {
+    const leaseBrand = f.leaseBrand.trim()
+    const leaseModel = f.leaseModel.trim()
+    need('leaseBrand', 'Enter the brand of the leased fridge.')
+    need('leaseModel', 'Enter the model number of the leased fridge.')
+    need('leaseWeekly', 'Enter the weekly payment.')
+    need('leaseTerm', 'Enter the term in weeks.')
+    need('leaseCash', 'Enter the cash price.')
+    need('leaseFees', 'Enter the fees as a dollar amount, or 0 if there is none.')
+    const weekly = amount('leaseWeekly', 'Enter the weekly payment as a dollar amount.')
+    const term = amount('leaseTerm', 'Enter the term as a whole number of weeks.', true)
+    const cash = amount('leaseCash', 'Enter the cash price as a dollar amount.')
+    const fees = amount('leaseFees', 'Enter the fees as a dollar amount.')
+    if (weekly !== null && !Number.isNaN(weekly) && weekly <= 0) errors.leaseWeekly = 'Enter a weekly payment above $0.'
+    if (term !== null && !Number.isNaN(term) && (term <= 0 || term > 260)) {
+      errors.leaseTerm = 'Enter the term as a whole number of weeks, up to 260.'
+    }
+    let pct: number | null = null
+    if (f.leaseRule === 'none') {
+      if (f.leasePct.trim() !== '') errors.leasePct = 'Clear the early purchase fraction when there is no early purchase rule.'
+    } else {
+      need('leasePct', 'Enter the early purchase fraction.')
+      pct = amount('leasePct', 'Enter the early purchase fraction as a number from 0 to 1.')
+      if (pct !== null && !Number.isNaN(pct) && (pct < 0 || pct > 1)) {
+        errors.leasePct = 'Enter the early purchase fraction as a number from 0 to 1.'
+      }
+    }
+    const paid = amount('leasePaid', 'Enter paid today as a dollar amount.')
+    const total = amount('leaseTotal', 'Enter the total of all payments as a dollar amount.')
+    const leaseErrors = LEASE_TOUCHED.some((name) => errors[name]) || errors.leaseRule
+    if (!leaseErrors && weekly !== null && term !== null && cash !== null && fees !== null && !Number.isNaN(fees)) {
+      lease = {
+        weekly_payment: weekly,
+        term_weeks: term,
+        cash_price: cash,
+        fees,
+        early_purchase_rule: f.leaseRule,
+        early_purchase_pct: f.leaseRule === 'none' ? null : pct,
+        early_purchase_text: f.leaseEarlyText.trim(),
+        missed_payment_rule: f.leaseMissed.trim(),
+        source_id: 'user_lease',
+      }
+      if (paid !== null && !Number.isNaN(paid)) lease.payment_today = paid
+      if (total !== null && !Number.isNaN(total)) lease.total_of_payments = total
+      if (leaseBrand && leaseModel) {
+        leased = {
+          id: 'lease',
+          category: CATEGORY,
+          brand: leaseBrand,
+          model: leaseModel,
+          condition: 'new',
+        }
+      }
+    }
+  }
+
   const budget = amount('budget', 'Enter the amount as a dollar figure.')
-  return { draft: { current, listing, repairQuote, budget }, errors }
+  return { draft: { current, listing, repairQuote, budget, lease, leased }, errors }
 }
 
 // Each unit goes through /item first, so a typed unit is checked the same way as a
 // scanned one, then everything goes to /quote.
 async function quoteDraft(draft: Draft): Promise<Path[]> {
-  const [current, listingItem] = await Promise.all([
+  const [current, listingItem, leasedItem] = await Promise.all([
     draft.current ? checkItem(draft.current) : null,
     draft.listing ? checkItem(draft.listing.item) : null,
+    draft.leased ? checkItem(draft.leased) : null,
   ])
-  const offers: Offer[] =
-    listingItem && draft.listing
-      ? [
-          {
-            item_id: listingItem.id,
-            price: draft.listing.price,
-            seller_type: listingItem.condition === 'refurbished' ? 'refurbisher' : 'private',
-            source: 'user_listing',
-            source_id: 'user_listing',
-          },
-        ]
-      : []
+  const offers: Offer[] = []
+  if (listingItem && draft.listing) {
+    offers.push({
+      item_id: listingItem.id,
+      price: draft.listing.price,
+      seller_type: listingItem.condition === 'refurbished' ? 'refurbisher' : 'private',
+      source: 'user_listing',
+      source_id: 'user_listing',
+    })
+  }
+  // The leased fridge rides with the lease so the quote can attach its electricity.
+  if (leasedItem && draft.lease) {
+    offers.push({
+      item_id: leasedItem.id,
+      price: draft.lease.cash_price,
+      seller_type: 'rent_to_own',
+      source: 'user_listing',
+      source_id: 'user_listing',
+    })
+  }
+  const items = [listingItem, leasedItem].filter((item): item is Item => item !== null)
   const req: QuoteRequest = {
     current,
-    items: listingItem ? [listingItem] : [],
+    items,
     offers,
     repair_quote_low: current ? draft.repairQuote : null,
     repair_quote_high: current ? draft.repairQuote : null,
     budget_today: draft.budget,
   }
+  if (draft.lease) req.lease = draft.lease
   return quote(req)
 }
 
@@ -233,13 +471,25 @@ function Field({ id, label, hint, error, prefix, ...input }: FieldProps) {
 const fieldsetClass = 'space-y-4 rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900/40'
 const legendClass = 'px-1 text-base font-semibold'
 const sectionHintClass = 'text-sm text-stone-600 dark:text-stone-400'
+const selectClass =
+  'mt-1 block min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-base text-stone-900 focus:outline-2 focus:outline-offset-1 focus:outline-emerald-600 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100'
+const secondaryButton =
+  'inline-flex min-h-11 items-center justify-center rounded-lg border border-stone-300 bg-white px-4 py-2 text-base font-semibold text-stone-900 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:opacity-60 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:hover:bg-stone-800'
 
 export default function Entry() {
   const [fields, setFields] = useState<Fields>(EMPTY)
   const [errors, setErrors] = useState<Errors>({})
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [paths, setPaths] = useState<Path[]>([])
+  const [budgetToday, setBudgetToday] = useState<number | null>(null)
   const [failure, setFailure] = useState('')
+  const [kind, setKind] = useState<ScanKind>('label')
+  const [scanStatus, setScanStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [scanErrors, setScanErrors] = useState<string[]>([])
+  const [scanFailure, setScanFailure] = useState('')
+  const [scanned, setScanned] = useState(false)
+  const scanInput = useRef<HTMLInputElement>(null)
+  const uploadInput = useRef<HTMLInputElement>(null)
   const [openLine, setOpenLine] = useState<CostLine | null>(null)
   const [sourceList, setSourceList] = useState<Source[]>([])
   const sourcesAsked = useRef(false)
@@ -277,6 +527,31 @@ export default function Entry() {
   const decimal = { inputMode: 'decimal' as const, autoComplete: 'off' }
   const wholeNumber = { inputMode: 'numeric' as const, autoComplete: 'off' }
 
+  function onPicked(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (file) void onScan(file)
+  }
+
+  async function onScan(file: File) {
+    setScanStatus('loading')
+    setScanFailure('')
+    setScanErrors([])
+    try {
+      const result = await scan(kind, file)
+      setFields((prev) => applyScan(prev, result))
+      setErrors({})
+      setScanErrors(scanMessages(result))
+      setScanned(true)
+      setPaths([])
+      setStatus('idle')
+      setScanStatus('idle')
+    } catch (err) {
+      setScanFailure(err instanceof Error ? err.message : String(err))
+      setScanStatus('error')
+    }
+  }
+
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const { draft, errors: found } = readForm(fields)
@@ -288,6 +563,7 @@ export default function Entry() {
     setStatus('loading')
     try {
       setPaths(await quoteDraft(draft))
+      setBudgetToday(draft.budget)
       setStatus('done')
       loadSources()
     } catch (err) {
@@ -301,6 +577,73 @@ export default function Entry() {
   return (
     <div className="space-y-6">
       <form noValidate onSubmit={onSubmit} className="space-y-5">
+        <fieldset className={fieldsetClass}>
+          <legend className={legendClass}>Scan or upload</legend>
+          <p className={sectionHintClass}>A photo of a label, lease or listing. Correct anything it reads before the quote.</p>
+          <div>
+            <label htmlFor="scan-kind" className="block text-sm font-medium">
+              What are you scanning?
+            </label>
+            <select id="scan-kind" value={kind} onChange={(e) => setKind(e.target.value as ScanKind)} className={selectClass}>
+              {SCAN_KIND_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" className={secondaryButton} disabled={scanStatus === 'loading'} onClick={() => scanInput.current?.click()}>
+              Scan
+            </button>
+            <button type="button" className={secondaryButton} disabled={scanStatus === 'loading'} onClick={() => uploadInput.current?.click()}>
+              Upload saved image
+            </button>
+          </div>
+          <input
+            ref={scanInput}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            tabIndex={-1}
+            aria-hidden="true"
+            className="sr-only"
+            onChange={onPicked}
+          />
+          <input
+            ref={uploadInput}
+            type="file"
+            accept="image/*"
+            tabIndex={-1}
+            aria-hidden="true"
+            className="sr-only"
+            onChange={onPicked}
+          />
+          {scanStatus === 'loading' && (
+            <p role="status" className={sectionHintClass}>
+              Reading the image...
+            </p>
+          )}
+          {scanStatus === 'error' && (
+            <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+              Could not read the image: {scanFailure}
+            </p>
+          )}
+          {scanErrors.length > 0 && (
+            <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
+              <p className="font-medium">The scan needs a correction.</p>
+              <ul className="mt-1 list-disc pl-5">
+                {scanErrors.map((err, i) => (
+                  <li key={`${err}-${i}`}>{err}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {scanned && scanStatus === 'idle' && (
+            <p className={sectionHintClass}>Correct anything that looks wrong, then show every way to get it.</p>
+          )}
+        </fieldset>
+
         <fieldset className={fieldsetClass}>
           <legend className={legendClass}>Your fridge now</legend>
           <p className={sectionHintClass}>Optional. Fill this in to see what repairing the one you have would cost.</p>
@@ -331,12 +674,8 @@ export default function Entry() {
             <label htmlFor="used-condition" className="block text-sm font-medium">
               Condition
             </label>
-            <select
-              id="used-condition"
-              value={fields.usedCondition}
-              onChange={set('usedCondition')}
-              className="mt-1 block min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-base text-stone-900 focus:outline-2 focus:outline-offset-1 focus:outline-emerald-600 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
-            >
+            <select id="used-condition" value={fields.usedCondition} onChange={set('usedCondition')} className={selectClass}>
+              <option value="new">New</option>
               <option value="used_as_is">Used, as-is</option>
               <option value="refurbished">Refurbished</option>
             </select>
@@ -352,6 +691,40 @@ export default function Entry() {
           )}
         </fieldset>
 
+        <fieldset className={fieldsetClass}>
+          <legend className={legendClass}>A rent-to-own lease</legend>
+          <p className={sectionHintClass}>Optional. The fridge on the lease, and every term. You confirm these details before any quote.</p>
+          <Field id="lease-brand" label="Brand" {...text('leaseBrand')} autoComplete="off" />
+          <Field id="lease-model" label="Model number" {...text('leaseModel')} {...typed} />
+          <Field id="lease-weekly" label="Weekly payment" prefix="$" {...text('leaseWeekly')} {...decimal} />
+          <Field id="lease-term" label="Term in weeks" {...text('leaseTerm')} inputMode="numeric" autoComplete="off" />
+          <Field id="lease-cash" label="Cash price" prefix="$" {...text('leaseCash')} {...decimal} />
+          <Field id="lease-fees" label="Fees (optional)" prefix="$" {...text('leaseFees')} {...decimal} />
+          <Field id="lease-paid" label="Paid today" prefix="$" {...text('leasePaid')} {...decimal} />
+          <Field id="lease-total" label="Total of all payments, as printed" prefix="$" {...text('leaseTotal')} {...decimal} />
+          <div>
+            <label htmlFor="lease-rule" className="block text-sm font-medium">
+              Early purchase rule
+            </label>
+            <select id="lease-rule" value={fields.leaseRule} onChange={set('leaseRule')} className={selectClass}>
+              {EARLY_PURCHASE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <Field
+            id="lease-pct"
+            label="Early purchase fraction"
+            hint="A number from 0 to 1. For example, 0.5 is half. Leave this blank when there is no early purchase rule."
+            {...text('leasePct')}
+            {...decimal}
+          />
+          <Field id="lease-early-text" label="Early purchase terms" {...text('leaseEarlyText')} autoComplete="off" />
+          <Field id="lease-missed" label="Missed payment rule" {...text('leaseMissed')} autoComplete="off" />
+        </fieldset>
+
         <Field id="budget" label="I can spend up to this much today (optional)" prefix="$" {...text('budget')} {...decimal} />
 
         {errorCount > 0 && (
@@ -362,7 +735,7 @@ export default function Entry() {
 
         <button
           type="submit"
-          disabled={status === 'loading'}
+          disabled={status === 'loading' || scanStatus === 'loading'}
           className="min-h-12 w-full rounded-lg bg-emerald-700 px-4 py-3 text-base font-semibold text-white hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:opacity-60"
         >
           {status === 'loading' ? 'Working it out...' : 'Show every way to get it'}
@@ -380,7 +753,7 @@ export default function Entry() {
           {paths.length === 0 ? (
             <p className={sectionHintClass}>No paths came back for these details.</p>
           ) : (
-            <Receipt paths={paths} onLineTap={setOpenLine} />
+            <Receipt paths={paths} onLineTap={setOpenLine} budgetToday={budgetToday} />
           )}
         </div>
       )}
