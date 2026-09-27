@@ -636,13 +636,16 @@ test('after a quote, focus moves to the results and they scroll into view', asyn
   submit()
 
   const receipt = await screen.findByRole('region', { name: 'Your receipt' })
-  const focused = document.activeElement as HTMLElement
-  expect(focused).not.toBe(button)
-  expect(focused).toContainElement(receipt)
-  expect(focused).toHaveAttribute('tabindex', '-1')
-  expect(scrollIntoView).toHaveBeenCalledTimes(1)
-  expect(scrollIntoView.mock.contexts[0]).toBe(focused)
-  expect(scrollIntoView.mock.calls[0][0]).toMatchObject({ block: 'start' })
+  // Focus and scrolling happen in an effect after the receipt renders, so wait for them.
+  await waitFor(() => {
+    const focused = document.activeElement as HTMLElement
+    expect(focused).not.toBe(button)
+    expect(focused).toContainElement(receipt)
+    expect(focused).toHaveAttribute('tabindex', '-1')
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+    expect(scrollIntoView.mock.contexts[0]).toBe(focused)
+    expect(scrollIntoView.mock.calls[0][0]).toMatchObject({ block: 'start' })
+  })
 })
 
 test('a year that is not four digits from 1940 to this year, or a label kWh of 0, is an error and nothing is sent', () => {
