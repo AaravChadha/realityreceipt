@@ -87,7 +87,7 @@ If there is time, one more line (every part of it is true of the code today):
 | **Say** | "This is a real rent-to-own page for a fridge, printed out." |
 | **Do** | Enter the lease: scan the card, or fill in the lease form. The card prints 52 weekly payments of $33.48, a cash price of $1,196.99, $0.01 paid today, and a total of payments of $1,739.88. Enter the total as printed. |
 | **Point at** | The "Rent-to-own, keep paying" card, near the bottom: the paths sort by 3-year total, so the new fridges come first. It shows **$0.01 today**. Open its "Total of lease payments" line for **$1,739.88, as printed on the lease: $542.89 more than its own cash price, an effective annual cost of 45%.** Never read the card's headline 3-year total as the lease total: it includes electricity. Then the new fridges above it, and the credit union loan line, marked "up to", with its caps. |
-| **Say, at the new fridges** | "A new fridge", never "the same fridge": the cheapest listing, $548 at Home Depot, is a different, smaller Frigidaire. The card shows no brand, so "Frigidaire" is only ever spoken. |
+| **Say, at the new fridges** | "The same fridge, new": the store listing is the same model as the lease, a Frigidaire FRTE1936AV, at Best Buy for $699.99, and its line says "from the same model family as yours". $699.99 new, against $1,739.88 through the lease. |
 | **Say, at the loan line** | "This is the most a credit union payday alternative loan can cost under the federal caps. It doesn't mean anyone can get one." |
 | **If it fails** | Upload the saved lease image, or fill in the lease form by hand. |
 
@@ -104,7 +104,7 @@ Scenario 1 is the strongest point: its numbers come straight off a real lease pa
 | **Point at** | The paths: complete ones come first, cheapest 3-year total first, and a path with a cost not estimated comes after them and says so. Then tap the electricity line: **Rated, 505 kWh a year, from DOE's historical refrigerator ratings**, times the Georgia Power rate; tap through to both sources. Then tap the replacement line: "not estimated", left blank on purpose, because the unit is past its typical life. |
 | **If it fails** | Check the brand and model on the form against the label, character by character, and quote again. |
 
-Don't state a year: the label prints none. Don't claim big energy savings: against a new fridge of about its size (a $699 GE at 21.9 cu ft, which its line explains) the gap is about $8 a year, $78.99 against $70.54. The receipt also shows two flag sentences, both true: the year made is estimated from the years DOE lists this model, and the energy test changed around 2014. Read them if asked; still state no year.
+Don't state a year: the label prints none. Don't claim energy savings: the new fridge its size (a 25.6 cu ft side-by-side at $1,199.99, which its line explains) uses more electricity than the old Maytag, $101.20 a year against $78.99. The receipt also shows two flag sentences, both true: the year made is estimated from the years DOE lists this model, and the energy test changed around 2014. Read them if asked; still state no year.
 
 ### Scenario 3: used vs new, asked in plain words (the shop)
 
@@ -163,7 +163,7 @@ Only if a real scan works by 22:00.
 - Say the cards are printouts of real labels and pages. Say "tap any line".
 - No year for the Maytag, and no "2004".
 - Quote the lease total as printed, from the "Total of lease payments" line, never from the card's headline. Don't name a week to buy it out early, and don't say "120 days".
-- Say "a new fridge" about the store listing, never "the same fridge".
+- Say "the same fridge, new" only in Scenario 1, where the listing is the lease's own model (FRTE1936AV). Elsewhere say "a new fridge".
 - Energy figures come from ENERGY STAR or DOE, and rent-to-own totals from the lease itself.
 - Leave out the unverified rent-to-own household count and the Georgia PSC data center topic.
 - Don't center the pitch on one product: the fridge is the example, not the story.

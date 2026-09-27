@@ -69,7 +69,7 @@ def test_nothing_is_fixture(card: tuple[Item, list[Path]]) -> None:
 
 def test_new_cash_is_the_offer_matched_to_the_card(card: tuple[Item, list[Path]], repo: Repository) -> None:
     # Task 3.3.10: the new offer is one like the card's fridge. The Maytag (25.1 cu ft, no family in
-    # the cache) gets the closest size, the GE GTS22KGNRWW at 21.9 cu ft; the Frigidaire FFHT1822U*
+    # the cache) gets the closest size, since 2.3.2 the Frigidaire FRSS2623AS at 25.6 cu ft; the Frigidaire FFHT1822U*
     # matches its own family, whose cheapest is the $548 FFHT1822UW; a card with no size is the cheapest.
     item, paths = card
     offers = repo.new_offers("refrigerator")
@@ -77,8 +77,8 @@ def test_new_cash_is_the_offer_matched_to_the_card(card: tuple[Item, list[Path]]
     [new_cash] = [p for p in paths if (p.group, p.payment_method) == ("new", "cash")]
     [price] = [line for line in new_cash.lines if line.kind == "purchase"]
     if item.model.upper().startswith("MB"):
-        [expected] = [o for o in offers if repo.item(o.item_id).model == "GTS22KGNRWW"]
-        assert price.formula.startswith("The closest in size to yours: 21.9 cu ft against your 25.1")
+        [expected] = [o for o in offers if repo.item(o.item_id).model == "FRSS2623AS"]
+        assert price.formula.startswith("The closest in size to yours: 25.6 cu ft against your 25.1")
     else:
         expected = cheapest
     assert (price.amount_high, price.source_id) == (round(expected.price, 2), expected.source_id)
