@@ -1,19 +1,56 @@
 # RealityReceipt
 
-RealityReceipt compares the ways to get something you need by what each one costs over time, not by its sticker price. It is built for appliances in general, with cars next; today it covers **refrigerators only**, the one category with sourced data so far. Built at HackGT 13 (Georgia Tech, September 25 to 27, 2026).
+**A cheap fridge can be expensive to own.** RealityReceipt helps low-income households compare purchase, financing, energy, and repair costs to see what they can afford today and over time.
 
-The option that looks cheapest today can cost more over time: an old used unit that is expensive to run, a rent-to-own lease whose payments add up to far more than the cash price, a purchase on high-interest credit. A price tag leaves out the running cost, the interest, the lease terms and how long the unit lasts.
+[![ci](https://github.com/AaravChadha/realityreceipt/actions/workflows/ci.yml/badge.svg)](https://github.com/AaravChadha/realityreceipt/actions/workflows/ci.yml)
+
+Built at HackGT 13 (Georgia Tech, September 25 to 27, 2026) for the Oracle of the Deep (ML/AI) track and the Aramco (A Marina's Mission) and SpaceXAI challenges.
+
+**Who this is for:** someone deciding how to get a refrigerator on a tight budget: keep or repair the one they have, buy used, buy new with cash, a credit card, buy now pay later or a credit union loan, or rent-to-own. And anyone who wants to check the math behind each option, because every number links to its source.
+
+**Who it is not for, yet:** anyone shopping for something other than a fridge (cars are next, see [Scope](#scope-refrigerators-today-cars-next)), or anyone looking for a loan offer. The app asks nothing about income and never says whether a shopper qualifies for anything.
+
+[See it work](#see-it-work) · [What it does](#what-it-does) · [Run it](#run-it) · [Data sources](#data-sources) · [What is not estimated](#what-is-not-estimated-and-why) · [Team](#team)
+
+## See it work
+
+A real rent-to-own page from Aaron's (one of the printed cards in [`demo/cards/`](demo/cards/README.md)) offers a Frigidaire FRTE1936AV for $0.01 today. With the app running ([Run it](#run-it)), send the lease's printed numbers:
+
+```
+curl -s http://localhost:8000/api/quote -H 'content-type: application/json' -d @- <<'EOF' | jq -r '.[] | [.name, .pay_today, .total_3yr_high] | @tsv'
+{"items": [{"id": "lease", "category": "refrigerator", "brand": "Frigidaire", "model": "FRTE1936AV", "condition": "new"}],
+ "offers": [{"item_id": "lease", "price": 1196.99, "seller_type": "rent_to_own", "source": "user_listing", "source_id": "user_listing"}],
+ "lease": {"weekly_payment": 33.48, "term_weeks": 52, "cash_price": 1196.99, "payment_today": 0.01, "total_of_payments": 1739.88}}
+EOF
+```
+
+What came back on 2026-09-27 (each way to get the fridge, what it costs today, and its 3-year total including electricity):
+
+```
+New, buy now pay later	175.0	875.31
+New, pay cash	699.99	875.31
+New, credit card	0.0	962.16
+New, credit union PAL	20.0	1005.92
+Rent-to-own, keep paying	0.01	1915.2
+```
+
+The new options are the same model: the app matched the leased fridge to a store listing of its own model number, new at Best Buy for $699.99. The lease sorts last because it costs the most over 3 years. Its first line shows exactly where its numbers come from:
+
+```
+$0.01 today and $1,739.88 in all over 52 weeks, as printed on your lease; the remaining $1,739.87 is spread evenly over 51 weekly payments of about $34.11. Total of payments = $1,739.88. That is $542.89 more than the cash price of $1,196.99. No early purchase terms entered. Effective annual cost = ((1739.88 - 1196.99) / 1196.99) / (52 / 52) = 45%.
+```
+
+In the app, the same receipt appears as cards, and tapping any line opens its source and formula.
 
 ## What it does
 
-1. You type the fridge you have, a used one you found, or both. There is no sign-up and no question about income or anything personal.
-2. The receipt lays out the ways to get the item side by side: repair the one you have (when you enter a repair quote), used, refurbished, new (pay cash, credit card, buy now pay later, credit union PAL) and rent-to-own (when a lease is entered).
-3. Each way shows three numbers: what you pay today, the total over 3 years, and the cost per year of use. Totals are ranges, low to high. Complete paths come first, cheapest 3-year total (high end) first; a path with a cost not estimated comes after them and says so.
+1. You enter the fridge you have, a used one you found, or a lease: typed, or read from a photo of a rating label, a lease page or a listing screenshot. There is no sign-up and no question about income or anything personal.
+2. The receipt lays out every way to get the item side by side: keep the one you have, repair it (when you enter a repair quote), used or refurbished (from a listing you enter), new paid four ways (cash, credit card, buy now pay later, credit union PAL), and rent-to-own (when you enter a lease). The new fridge is the store listing most like yours: the same model family, then the same type, then the closest size. Its line says which.
+3. Each way shows three numbers: what you pay today, the total over 3 years, and the cost per year of use. Totals are ranges, low to high. Complete ways come first, cheapest 3-year total first; a way with a cost not estimated comes after them and says so. If you say how much you can spend today, the ways that cost more today are dimmed, not hidden.
 4. Tap any cost line to see its source, the formula, and whether the figure is **Rated**, **Published**, **You entered** or **Not estimated**. A carbon line (kg CO2e over 3 years) sits beside the cost.
+5. A shopping page takes a plain-words request ("About $300, small space, need it this week"), shows the filters it read as editable chips, and ranks store listings by cost per year, not by price. Each links to the store; nothing is bought in the app.
 
-**How the numbers are made.** AI only reads input: Grok turns a photo of a label, price tag, lease or listing into typed fields, and turns a plain-words shopping request ("about $300, small space, need it this week") into filters. It does not produce or change any number on the receipt. The numbers come from a deterministic engine in `api/app/engine/` and the committed data in `api/app/data/`, both covered by the tests in `api/tests/`. The check for this is "not a wrapper": typing a unit's brand, model and serial by hand gives the same receipt as scanning its label.
-
-**Status (2026-09-26):** typed entry and the receipt with its source sheet are on `main`. The scan (PLAN.md tasks 3.7 to 3.10, which also add the lease form) and the plain-words shopping page (4.1 to 4.4) are still being built; until they land, `/scan` and `/shop/*` return placeholders.
+**How the numbers are made.** AI only reads input: Grok turns a photo into typed fields and a shopping request into filters. It does not produce or change any number on the receipt. The numbers come from a deterministic engine in [`api/app/engine/`](api/app/engine/) and the committed data in [`api/app/data/`](api/app/data/). The proof is [`api/tests/test_not_a_wrapper.py`](api/tests/test_not_a_wrapper.py): scanning each demo card gives the identical receipt to typing it by hand. Everything also works without the AI: typed entry needs no API key, and a scan that cannot be read falls back to the form.
 
 ## Scope: refrigerators today, cars next
 
@@ -76,9 +113,7 @@ cloudflared tunnel --url http://localhost:5173
 
 Use `http://localhost:8000` instead when running the one-address mode. Open the printed address on the phone; it changes every time the tunnel starts. Troubleshooting (allowed hosts, proxy errors, tunnel limits) is in [`docs/runbook.md`](docs/runbook.md).
 
-### Deployed
-
-The deployed app is the one-address mode as a single Render web service. How to create it, point the team's .tech domain at it and keep it awake during judging is in the "Deploy" section of [`docs/runbook.md`](docs/runbook.md).
+There is no hosted deployment: the demo runs on a laptop, with phones reaching it over the tunnel. [`render.yaml`](render.yaml) and the "Deploy" section of the runbook are kept for later.
 
 ### Tests
 
@@ -92,7 +127,7 @@ These are the checks CI runs on every pull request.
 
 ## Data sources
 
-All data is recorded ahead of time and committed: no price, rate or rating is fetched live while the app runs, and the only outside calls are to Grok, for the scan and the shopping request. Each source below was retrieved on 2026-09-26, and its entry in [`api/app/data/sources.json`](api/app/data/sources.json) quotes the exact figures used.
+All data is recorded ahead of time and committed: no price, rate or rating is fetched live while the app runs, and the only outside calls are to Grok, for the scan and the shopping request. Each source below was retrieved on 2026-09-26 (three store prices on 2026-09-27), and its entry in [`api/app/data/sources.json`](api/app/data/sources.json) quotes the exact figures used.
 
 **Electricity price** ($0.15641 per kWh; how it is built is in [`api/app/data/rates.json`](api/app/data/rates.json)):
 - Georgia Power, [Residential Service Schedule R-31](https://www.georgiapower.com/content/dam/georgia-power/pdfs/tariffs/r.pdf). The rate uses the 651 to 1,000 kWh block in summer and the single winter block, weighted 4 summer months to 8 winter months. That block is a team choice, not a claim about typical household use.
@@ -120,7 +155,7 @@ All data is recorded ahead of time and committed: no price, rate or rating is fe
 - [Whirlpool Date Codes](https://www.electrical-forensics.com/MajorAppliances/WhirlpoolDateCodes.html) and [Electrolux Date Codes](https://www.electrical-forensics.com/MajorAppliances/ElectroluxDateCodes.html) (Frigidaire and related brands), third-party references by Dr. Ray Franco, PE. When a year code repeats on a cycle and cannot be pinned down, the receipt says the year made may not be exact.
 
 **New prices:**
-- 14 new refrigerator listings recorded by hand from [Best Buy](https://www.bestbuy.com/), [The Home Depot](https://www.homedepot.com/) and [Lowe's](https://www.lowes.com/), each with its own product URL and the day its price was read, in [`api/app/data/retailer_cache.json`](api/app/data/retailer_cache.json). They are not a live feed. Used prices come only from the listing you enter.
+- 17 new refrigerator listings in [`api/app/data/retailer_cache.json`](api/app/data/retailer_cache.json), each with its own product URL and the day its price was read: 14 recorded by hand from [Best Buy](https://www.bestbuy.com/), [The Home Depot](https://www.homedepot.com/) and [Lowe's](https://www.lowes.com/), and 3 Best Buy prices as Google Shopping showed them on 2026-09-27 (a side-by-side, a French door, and the lease card's own model), because Best Buy's pages block scripts. They are not a live feed. Used prices come only from the listing you enter.
 
 **The energy burden finding** in the pitch:
 - U.S. EIA, [2020 Residential Energy Consumption Survey (RECS) microdata](https://www.eia.gov/consumption/residential/data/2020/index.php?view=microdata), household-weighted with replicate-weight standard errors, for the South Census region. The analysis is in [`analysis/recs/`](analysis/recs/) and its variables are quoted from EIA in [`analysis/recs/VARIABLES.md`](analysis/recs/VARIABLES.md).
@@ -144,21 +179,27 @@ When there is no source for a figure, the receipt leaves it blank and labels it 
 | Sales tax, delivery and installation | No source was recorded for them, so no amount is added. |
 | Future changes in the electricity price | The rate is held at the current tariff for all 36 months. |
 | Carbon from making, shipping or disposing of the unit | The carbon line covers only the electricity the unit uses. |
-| A like-for-like comparison of ratings from before and after 2014 | DOE's refrigerator test procedure changed around then, so when the receipt compares units made on both sides of 2014 (years known), it flags the older one. |
+| A like-for-like comparison of ratings from before and after 2014 | DOE's refrigerator test procedure changed around then, so when the receipt compares a unit that could have been made before 2014 with a newer one, it flags the older one. |
 | Anything about the shopper | The app asks no income or personal questions, so it does not say whether a shopper qualifies for any loan or assistance. |
 
 ## Where things are
 
-| Path | What it holds |
-|---|---|
-| `api/app/main.py` | FastAPI routes, and the one-address serving of `web/dist` |
-| `api/app/engine/` | The cost engine: cash, card, PAL, buy now pay later, rent-to-own, running cost, carbon, lifespan and ranking |
-| `api/app/data/` | Sources, rates, the refrigerator profile, energy ratings and the retailer cache |
-| `api/app/serial/` | Serial number decoders, by brand |
-| `web/src/` | The React app: entry form, receipt and source sheet |
-| `contracts/` | A sample receipt shared by the API and web tests |
-| `analysis/recs/` | The RECS 2020 energy burden analysis |
-| `demo/cards/` | Printable demo cards and their sources |
-| `docs/` | The build spec, the runbook and the pitch |
+- [`api/app/main.py`](api/app/main.py): the FastAPI routes, and serving the built web app at the same address.
+- [`api/app/engine/`](api/app/engine/): the cost engine (cash, card, PAL, buy now pay later, rent-to-own, running cost, carbon, lifespan, matching and ranking).
+- [`api/app/grok/`](api/app/grok/): the Grok client, the scan and the shopping-request parser, with every reply checked before use.
+- [`api/app/data/`](api/app/data/): sources, rates, the refrigerator profile, energy ratings and the retailer cache.
+- [`api/app/serial/`](api/app/serial/): serial number decoders, by brand.
+- [`web/src/`](web/src/): the React app (entry and scan, receipt, source sheet, shopping page).
+- [`contracts/`](contracts/): a sample receipt shared by the API and web tests.
+- [`analysis/recs/`](analysis/recs/): the RECS 2020 energy burden analysis and its chart.
+- [`demo/cards/`](demo/cards/README.md): the printable demo cards and where each came from.
+- [`docs/`](docs/): the build spec, the runbook and the pitch.
 
-`PLAN.md` is the living plan with each task's acceptance check, `BRIEF.md` the frozen problem statement, and `AGENTS.md` how the team branches and lands work.
+[`PLAN.md`](PLAN.md) is the living plan with each task's acceptance check, [`BRIEF.md`](BRIEF.md) the frozen problem statement, and [`AGENTS.md`](AGENTS.md) how the team branched and landed work.
+
+## Team
+
+- Aarav Chadha ([@AaravChadha](https://github.com/AaravChadha))
+- Neil ([@sachdevneil35-web](https://github.com/sachdevneil35-web))
+- Krish Agrawal ([@KrishAgrawal595](https://github.com/KrishAgrawal595))
+- Adhyayan Agarwal ([@adhyayancs50](https://github.com/adhyayancs50))
