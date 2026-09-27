@@ -32,20 +32,42 @@ function toChips(f: ShopFilters): Chips {
   }
 }
 
-// '' or anything that is not a number >= 0 -> null, so a half-typed chip drops that filter.
-function toNumber(raw: string, wholeOnly = false): number | null {
+type ChipName = 'budget' | 'days' | 'width'
+type ChipErrors = Partial<Record<ChipName, string>>
+
+const CHIP_ERRORS: Record<ChipName, string> = {
+  budget: 'Spend must be a number, like 300.',
+  days: 'Days must be a whole number, like 7.',
+  width: 'Width must be a number, like 28.',
+}
+
+// '' is a cleared chip: no filter. Text that is not a number >= 0 is an error, never a
+// dropped filter, so the person sees it and fixes it.
+function toNumber(raw: string, wholeOnly = false): number | null | 'bad' {
   const s = raw.replace(/[$,\s]/g, '')
-  if (!(wholeOnly ? /^\d+$/ : /^\d+(\.\d+)?$/).test(s)) return null
+  if (s === '') return null
+  if (!(wholeOnly ? /^\d+$/ : /^\d+(\.\d+)?$/).test(s)) return 'bad'
   return Number(s)
 }
 
-function toFilters(parsed: ShopFilters, c: Chips): ShopFilters {
+// The filters to rank with, or the chips that could not be read.
+function toFilters(parsed: ShopFilters, c: Chips): { filters: ShopFilters } | { errors: ChipErrors } {
+  const budget = toNumber(c.budget)
+  const days = toNumber(c.days, true)
+  const width = toNumber(c.width)
+  const errors: ChipErrors = {}
+  if (budget === 'bad') errors.budget = CHIP_ERRORS.budget
+  if (days === 'bad') errors.days = CHIP_ERRORS.days
+  if (width === 'bad') errors.width = CHIP_ERRORS.width
+  if (budget === 'bad' || days === 'bad' || width === 'bad') return { errors }
   return {
-    category: parsed.category ?? null,
-    budget_today: toNumber(c.budget),
-    need_within_days: toNumber(c.days, true),
-    max_width_in: toNumber(c.width),
-    conditions: c.conditions,
+    filters: {
+      category: parsed.category ?? null,
+      budget_today: budget,
+      need_within_days: days,
+      max_width_in: width,
+      conditions: c.conditions,
+    },
   }
 }
 
@@ -63,6 +85,7 @@ function Chip({
   prefix,
   suffix,
   inputMode,
+  error,
 }: {
   id: string
   label: string
@@ -71,23 +94,40 @@ function Chip({
   prefix?: string
   suffix?: string
   inputMode: 'decimal' | 'numeric'
+  error?: string
 }) {
+  const errorId = `${id}-error`
   return (
-    <div className="flex min-h-11 items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 dark:border-emerald-800 dark:bg-emerald-950">
-      <label htmlFor={id} className="text-sm font-medium text-emerald-900 dark:text-emerald-200">
-        {label}
-      </label>
-      {prefix && <span aria-hidden="true" className="text-sm text-stone-600 dark:text-stone-400">{prefix}</span>}
-      <input
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        inputMode={inputMode}
-        autoComplete="off"
-        placeholder="any"
-        className="w-16 rounded border border-stone-300 bg-white px-1.5 py-0.5 text-base tabular-nums text-stone-900 focus:outline-2 focus:outline-offset-1 focus:outline-emerald-600 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
-      />
-      {suffix && <span className="text-sm text-stone-600 dark:text-stone-400">{suffix}</span>}
+    <div>
+      <div
+        className={`flex min-h-11 items-center gap-1.5 rounded-full border px-3 py-1 ${
+          error
+            ? 'border-red-400 bg-red-50 dark:border-red-700 dark:bg-red-950'
+            : 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950'
+        }`}
+      >
+        <label htmlFor={id} className="text-sm font-medium text-emerald-900 dark:text-emerald-200">
+          {label}
+        </label>
+        {prefix && <span aria-hidden="true" className="text-sm text-stone-600 dark:text-stone-400">{prefix}</span>}
+        <input
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          inputMode={inputMode}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
+          autoComplete="off"
+          placeholder="any"
+          className="w-16 rounded border border-stone-300 bg-white px-1.5 py-0.5 text-base tabular-nums text-stone-900 focus:outline-2 focus:outline-offset-1 focus:outline-emerald-600 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+        />
+        {suffix && <span className="text-sm text-stone-600 dark:text-stone-400">{suffix}</span>}
+      </div>
+      {error && (
+        <p id={errorId} role="alert" className="mt-1 px-3 text-sm text-red-800 dark:text-red-200">
+          {error}
+        </p>
+      )}
     </div>
   )
 }
@@ -151,6 +191,7 @@ export default function Shop() {
   const [text, setText] = useState('')
   const [parsed, setParsed] = useState<ShopFilters | null>(null)
   const [chips, setChips] = useState<Chips>(toChips({}))
+  const [chipErrors, setChipErrors] = useState<ChipErrors>({})
   const [parseStatus, setParseStatus] = useState<Status>('idle')
   const [rankStatus, setRankStatus] = useState<Status>('idle')
   const [offers, setOffers] = useState<RankedOffer[]>([])
@@ -168,6 +209,7 @@ export default function Shop() {
       const filters = await parseShopRequest(text.trim())
       setParsed(filters)
       setChips(toChips(filters))
+      setChipErrors({})
       setParseStatus('done')
     } catch (err) {
       setFailure(message(err))
@@ -177,9 +219,17 @@ export default function Shop() {
 
   async function onRank() {
     if (parsed === null) return
+    const read = toFilters(parsed, chips)
+    if ('errors' in read) {
+      setChipErrors(read.errors)
+      setRankStatus('idle')
+      setOffers([])
+      return
+    }
+    setChipErrors({})
     setRankStatus('loading')
     try {
-      setOffers(await rankShopOffers({ filters: toFilters(parsed, chips) }))
+      setOffers(await rankShopOffers({ filters: read.filters }))
       setRankStatus('done')
     } catch (err) {
       setFailure(message(err))
@@ -187,7 +237,10 @@ export default function Shop() {
     }
   }
 
-  const setChip = (name: 'budget' | 'days' | 'width') => (v: string) => setChips((c) => ({ ...c, [name]: v }))
+  const setChip = (name: ChipName) => (v: string) => {
+    setChips((c) => ({ ...c, [name]: v }))
+    setChipErrors(({ [name]: _cleared, ...rest }) => rest)
+  }
   const toggle = (cond: Condition) =>
     setChips((c) => ({
       ...c,
@@ -240,9 +293,9 @@ export default function Shop() {
               : 'Check these before ranking. Change any value, or clear it to drop that filter.'}
           </p>
           <div className="flex flex-wrap gap-2">
-            <Chip id="chip-budget" label="Spend today up to" prefix="$" value={chips.budget} onChange={setChip('budget')} inputMode="decimal" />
-            <Chip id="chip-days" label="Need it within" suffix="days" value={chips.days} onChange={setChip('days')} inputMode="numeric" />
-            <Chip id="chip-width" label="Width up to" suffix="in" value={chips.width} onChange={setChip('width')} inputMode="decimal" />
+            <Chip id="chip-budget" label="Spend today up to" prefix="$" value={chips.budget} onChange={setChip('budget')} inputMode="decimal" error={chipErrors.budget} />
+            <Chip id="chip-days" label="Need it within" suffix="days" value={chips.days} onChange={setChip('days')} inputMode="numeric" error={chipErrors.days} />
+            <Chip id="chip-width" label="Width up to" suffix="in" value={chips.width} onChange={setChip('width')} inputMode="decimal" error={chipErrors.width} />
           </div>
           <div role="group" aria-label="Condition" className="flex flex-wrap gap-2">
             {CONDITIONS.map((cond) => {

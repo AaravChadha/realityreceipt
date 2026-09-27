@@ -480,7 +480,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `web/src/pages/Shop.tsx`: a text box for the request, the parsed filters shown as editable chips (the visible AI step), ranked offers with cost per year and a "View at retailer" link that opens the offer's `url`. No in-app checkout. `Shop.test.tsx` renders ranked offers from a stub and finds each link.
   **Acceptance:** `npm --prefix web test -- Shop` passes.
 
-- [ ] **4.4.1 Reach the shop page (Track C1 file, by the C4 owner with Addy's OK)** (NEW 2026-09-26 22:05, Codex review of #73)
+- [x] **4.4.1 Reach the shop page (Track C1 file, by the C4 owner with Addy's OK)** (NEW 2026-09-26 22:05, Codex review of #73)
   `web/src/App.tsx`: a route to `Shop` and a visible link to it from the Entry page. In `Shop.tsx`, a filter chip whose text is not a number shows an error and keeps the filter, never dropping it silently.
   **Acceptance:** `npm --prefix web test -- Shop App` passes, including a test that the shop page is reachable from the app's first screen and one that a bad width chip shows an error and keeps the width.
 
