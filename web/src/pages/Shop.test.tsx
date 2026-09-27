@@ -171,3 +171,40 @@ test('an API error shows its message', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Read my request' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not read the request: The model did not answer.')
 })
+
+test('a chip that is not a number shows an error and keeps the filter', async () => {
+  await readRequest()
+  const width = screen.getByLabelText('Width up to')
+  type(width, 'wide')
+  rankOffers()
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('Width must be a number, like 28.')
+  expect(width).toHaveValue('wide')
+  expect(width).toHaveAttribute('aria-invalid', 'true')
+  expect(rank).not.toHaveBeenCalled()
+  expect(screen.queryByRole('heading', { name: 'Offers ranked by cost per year' })).toBeNull()
+
+  // Fixing the chip clears the error, and the fixed value is what gets ranked.
+  type(width, '28')
+  expect(screen.queryByRole('alert')).toBeNull()
+  rankOffers()
+  await screen.findByRole('heading', { name: 'Offers ranked by cost per year' })
+  expect(rank).toHaveBeenCalledWith({
+    filters: {
+      category: 'refrigerator',
+      budget_today: 300,
+      need_within_days: 7,
+      max_width_in: 28,
+      conditions: ['new', 'used_as_is'],
+    },
+  })
+})
+
+test('a days chip with a decimal is an error, not a dropped filter', async () => {
+  await readRequest()
+  type(screen.getByLabelText('Need it within'), '2.5')
+  rankOffers()
+  expect(await screen.findByRole('alert')).toHaveTextContent('Days must be a whole number, like 7.')
+  expect(screen.getByLabelText('Need it within')).toHaveValue('2.5')
+  expect(rank).not.toHaveBeenCalled()
+})
