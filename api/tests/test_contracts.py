@@ -1,9 +1,10 @@
 import pathlib
+import re
 
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from app.models import MONTHS, CostLine, Item, Lease, Offer, Path, RepairRange, ScanResult, UpkeepItem
+from app.models import MONTHS, CostLine, Item, Lease, ModelEnergy, Offer, Path, RepairRange, ScanResult, UpkeepItem
 
 FIXTURE = pathlib.Path(__file__).resolve().parents[2] / "contracts" / "receipt_fridge.json"
 
@@ -132,3 +133,17 @@ def test_a_payment_today_above_the_total_is_refused() -> None:
     assert Lease(weekly_payment=30, term_weeks=1, cash_price=700, payment_today=30, total_of_payments=30)
     assert Lease(weekly_payment=30, term_weeks=52, cash_price=700, payment_today=50, total_of_payments=50)
     assert Lease(weekly_payment=30, term_weeks=52, cash_price=700, payment_today=100)  # no total: nothing to fit
+
+
+CONTRACTS_TS = pathlib.Path(__file__).resolve().parents[2] / "web" / "src" / "contracts.ts"
+
+
+def test_a_kwh_figure_has_no_note_unless_a_rule_picked_it() -> None:
+    energy = ModelEnergy(kwh_per_year=505, source_type="rated", source_id="doe_wap_refrigerators")
+    assert (energy.note, energy.note_source_ids) == ("", [])
+
+
+def test_the_web_mirror_of_model_energy_has_every_field() -> None:
+    keys = re.search(r"export const MODEL_ENERGY_KEYS = \[(.*?)\]", CONTRACTS_TS.read_text(), re.S)
+    assert keys is not None
+    assert re.findall(r"'(\w+)'", keys.group(1)) == list(ModelEnergy.model_fields)
