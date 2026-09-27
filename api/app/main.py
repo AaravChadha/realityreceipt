@@ -1,3 +1,4 @@
+import logging
 from functools import lru_cache
 from pathlib import Path as FilePath
 from typing import Annotated
@@ -28,6 +29,8 @@ from app.serial.decode import decode
 WEB_DIST = FilePath(__file__).resolve().parents[2] / "web" / "dist"
 MAX_SCAN_BYTES = 15 * 1024 * 1024  # a full-size phone photo is 3 to 8 MB
 CATEGORIES = ["refrigerator"]
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -123,10 +126,15 @@ def scan(kind: Annotated[ScanKind, Form()], image: Annotated[UploadFile, File()]
 @router.post("/shop/parse", response_model=ShopFilters)
 def shop_parse(req: ShopParseRequest, grok: Grok) -> ShopFilters:
     """The shopper's words as filters, read by Grok (tasks 4.1, 4.3). Without a key, or when Grok's
-    reply fails, the filters come back empty and the Shop page asks the user to set them by hand."""
+    reply fails, the filters come back empty and the Shop page asks the user to set them by hand.
+    Any other failure in parsing gives the same empty filters, never a 500."""
     if grok is None:
         return ShopFilters()
-    return parse_request(req.text, grok)
+    try:
+        return parse_request(req.text, grok)
+    except Exception:
+        log.exception("/shop/parse failed; returning empty filters")
+        return ShopFilters()
 
 
 @router.post("/shop/rank", response_model=list[RankedOffer])

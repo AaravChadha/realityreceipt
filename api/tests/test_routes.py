@@ -236,6 +236,44 @@ def test_shop_parse_rejects_a_missing_text(client: TestClient) -> None:
     assert client.post("/shop/parse", json={}).status_code == 422
 
 
+def test_shop_parse_without_a_key_never_calls_the_parser(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app import main
+    from app.main import get_grok_client
+
+    calls: list[str] = []
+
+    def parser(text: str, client: object) -> ShopFilters:  # stands in for parse_request; must not run
+        calls.append(text)
+        return ShopFilters(budget_today=1)
+
+    monkeypatch.setattr(main, "parse_request", parser)
+    app.dependency_overrides[get_grok_client] = lambda: None
+    try:
+        assert _parse(client, "about $300") == ShopFilters()
+    finally:
+        app.dependency_overrides.pop(get_grok_client, None)
+    assert calls == []
+
+
+class CrashingGrok:
+    def chat_json(self, *_args, **_kwargs) -> dict:
+        raise RuntimeError("Grok is down")
+
+
+def test_shop_parse_with_a_crashing_client_gives_empty_filters(client: TestClient, grok: FakeGrok) -> None:
+    from app.main import get_grok_client
+
+    # A reply parse_request does not catch: a non-string condition raises TypeError (unhashable dict).
+    grok.reply = {**PARSE_REPLY, "conditions": [{"new": True}]}
+    assert _parse(client, "about $300, new") == ShopFilters()
+
+    app.dependency_overrides[get_grok_client] = lambda: CrashingGrok()
+    try:
+        assert _parse(client, "about $300") == ShopFilters()
+    finally:
+        app.dependency_overrides[get_grok_client] = lambda: grok  # the fixture removes it afterwards
+
+
 def _rank(client: TestClient, body: dict, path: str = "/shop/rank") -> list[RankedOffer]:
     response = client.post(path, json=body)
     assert response.status_code == 200, response.text
