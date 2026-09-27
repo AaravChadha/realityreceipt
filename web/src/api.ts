@@ -17,9 +17,10 @@ export const API_BASE = '/api'
 // A request with no full answer after this long is stopped (PLAN.md task 2.8.1).
 export const TIMEOUT_MS = 15_000
 export const TIMEOUT_MESSAGE = 'No answer after 15 seconds. Check your connection and try again.'
-// A scan waits on a Grok read, which can outlast the ordinary 15 second limit (task 3.10).
-export const SCAN_TIMEOUT_MS = 60_000
-export const SCAN_TIMEOUT_MESSAGE = 'No answer after 60 seconds. Check your connection and try again.'
+// A scan waits on a Grok read, which can outlast the ordinary 15 second limit (task 3.10). 75 seconds
+// lets the server's own 60-second Grok error arrive first (task 3.10.1).
+export const SCAN_TIMEOUT_MS = 75_000
+export const SCAN_TIMEOUT_MESSAGE = 'No answer after 75 seconds. Check your connection and try again.'
 
 export class ApiError extends Error {
   readonly status: number
