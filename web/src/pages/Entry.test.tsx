@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import sample from '../../../contracts/receipt_fridge.json'
 import type { Path, Source } from '../contracts'
@@ -270,7 +270,7 @@ test('an invalid scan pre-fills the brand and shows the errors, and does not quo
   fireEvent.change(input, { target: { files: [new File(['label'], 'label.jpg', { type: 'image/jpeg' })] } })
 
   const now = section('Your fridge now')
-  expect(await now.findByLabelText('Brand')).toHaveValue('Maytag')
+  await waitFor(() => expect(now.getByLabelText('Brand')).toHaveValue('Maytag'))
   expect(now.getByLabelText('Model number')).toHaveValue('MB2562')
   expect(now.getByLabelText('Serial number (optional)')).toHaveValue('')
   expect(now.getByLabelText('Year made (optional)')).toHaveValue('2004')
@@ -373,7 +373,7 @@ test('a lease scan pre-fills printed fields and stores the early purchase percen
   fireEvent.change(input, { target: { files: [new File(['lease'], 'lease.jpg', { type: 'image/jpeg' })] } })
 
   const lease = section('A rent-to-own lease')
-  expect(await lease.findByLabelText('Brand')).toHaveValue('Frigidaire')
+  await waitFor(() => expect(lease.getByLabelText('Brand')).toHaveValue('Frigidaire'))
   expect(lease.getByLabelText('Model number')).toHaveValue('FRTE1936AV')
   expect(lease.getByLabelText('Weekly payment')).toHaveValue('33.48')
   expect(lease.getByLabelText('Early purchase rule')).toHaveValue('pct_of_remaining')
@@ -403,7 +403,7 @@ test('an early purchase percent of 33.3 is stored as 0.333', async () => {
   fireEvent.change(screen.getByLabelText('What are you scanning?'), { target: { value: 'lease' } })
   const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
   fireEvent.change(input, { target: { files: [new File(['lease'], 'lease.jpg', { type: 'image/jpeg' })] } })
-  expect(await section('A rent-to-own lease').findByLabelText('Early purchase fraction')).toHaveValue('0.333')
+  await waitFor(() => expect(section('A rent-to-own lease').getByLabelText('Early purchase fraction')).toHaveValue('0.333'))
 })
 
 test('a second lease scan does not keep the first lease buyout', async () => {
@@ -435,10 +435,10 @@ test('a second lease scan does not keep the first lease buyout', async () => {
   const file = () => fireEvent.change(input, { target: { files: [new File(['lease'], 'lease.jpg', { type: 'image/jpeg' })] } })
   file()
   const lease = section('A rent-to-own lease')
-  expect(await lease.findByLabelText('Early purchase fraction')).toHaveValue('0.5')
+  await waitFor(() => expect(lease.getByLabelText('Early purchase fraction')).toHaveValue('0.5'))
   expect(lease.getByLabelText('Early purchase rule')).toHaveValue('pct_of_remaining')
   file()
-  expect(await lease.findByLabelText('Brand')).toHaveValue('GE')
+  await waitFor(() => expect(lease.getByLabelText('Brand')).toHaveValue('GE'))
   expect(lease.getByLabelText('Early purchase rule')).toHaveValue('none')
   expect(lease.getByLabelText('Early purchase fraction')).toHaveValue('')
 })
@@ -465,7 +465,7 @@ test('a fee the scan did not print stays empty', async () => {
   const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
   fireEvent.change(input, { target: { files: [new File(['lease'], 'lease.jpg', { type: 'image/jpeg' })] } })
   const lease = section('A rent-to-own lease')
-  expect(await lease.findByLabelText('Weekly payment')).toHaveValue('33.48')
+  await waitFor(() => expect(lease.getByLabelText('Weekly payment')).toHaveValue('33.48'))
   expect(lease.getByLabelText('Fees (optional)')).toHaveValue('')
 })
 
@@ -524,9 +524,9 @@ test('a later scan drops a serial the new image did not read', async () => {
   const file = () => fireEvent.change(input, { target: { files: [new File(['label'], 'label.jpg', { type: 'image/jpeg' })] } })
   file()
   const now = section('Your fridge now')
-  expect(await now.findByLabelText('Serial number (optional)')).toHaveValue('VS123456')
+  await waitFor(() => expect(now.getByLabelText('Serial number (optional)')).toHaveValue('VS123456'))
   file()
-  expect(await now.findByLabelText('Brand')).toHaveValue('GE')
+  await waitFor(() => expect(now.getByLabelText('Brand')).toHaveValue('GE'))
   expect(now.getByLabelText('Serial number (optional)')).toHaveValue('')
 })
 
@@ -552,7 +552,7 @@ test('a listing scan can mark the fridge new', async () => {
   const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
   fireEvent.change(input, { target: { files: [new File(['listing'], 'listing.jpg', { type: 'image/jpeg' })] } })
   const used = section('A used one you found')
-  expect(await used.findByLabelText('Brand')).toHaveValue('GE')
+  await waitFor(() => expect(used.getByLabelText('Brand')).toHaveValue('GE'))
   expect(used.getByLabelText('Condition')).toHaveValue('new')
   expect(used.getByLabelText('Listing price')).toHaveValue('400')
 })
