@@ -149,6 +149,46 @@ test('tapping a line calls onLineTap with that line', () => {
   expect(onLineTap).toHaveBeenCalledWith(expected)
 })
 
+const OVER_SPEND = 'More than you can spend today'
+
+test('paths that cost more today than you can spend are dimmed and still shown', () => {
+  render(<Receipt paths={fixture} budgetToday={100} />)
+  expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(9)
+
+  const cash = screen.getByRole('article', { name: 'New, pay cash' })
+  expect(cash).toBeVisible()
+  expect(cash).toHaveClass('opacity-60')
+  expect(within(cash).getByText(OVER_SPEND)).toBeVisible()
+  expect(within(cash).getByText('$899')).toBeVisible()
+
+  const credit = screen.getByRole('article', { name: 'New, credit card' })
+  expect(credit).toBeVisible()
+  expect(credit).not.toHaveClass('opacity-60')
+  expect(within(credit).queryByText(OVER_SPEND)).toBeNull()
+})
+
+test('a path that costs exactly what you can spend today is not dimmed', () => {
+  const path = { ...fixture[0], name: 'Exactly the budget', pay_today: 100 }
+  render(<Receipt paths={[path]} budgetToday={100} />)
+  expect(screen.getByRole('heading', { level: 3, name: 'Exactly the budget' })).toBeVisible()
+  expect(screen.queryByText(OVER_SPEND)).toBeNull()
+})
+
+test('without a spend limit, nothing is marked as more than you can spend', () => {
+  render(<Receipt paths={fixture} budgetToday={null} />)
+  expect(screen.queryByText(OVER_SPEND)).toBeNull()
+})
+
+test('the over_budget_today flag dims a path even when pay today is within a spend limit', () => {
+  const path = { ...fixture[4], flags: [...fixture[4].flags, 'over_budget_today'] }
+  render(<Receipt paths={[path]} budgetToday={1000} />)
+  const article = screen.getByRole('article')
+  expect(article).toBeVisible()
+  expect(article).toHaveClass('opacity-60')
+  expect(within(article).getByText(OVER_SPEND)).toBeVisible()
+  expect(within(article).getByText('This costs more today than the amount you said you can spend.')).toBeVisible()
+})
+
 test('the rendered receipt has no em dash, no "APR", and nothing about qualifying', () => {
   const { container } = render(<Receipt paths={fixture} />)
   for (const toggle of screen.getAllByRole('button', { name: "What's in this number" })) fireEvent.click(toggle)

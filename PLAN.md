@@ -376,7 +376,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   **Acceptance:** `npm --prefix web test -- Entry` passes.
   **Status (2026-09-26, task 1.7):** pre-fill the correction form from `ScanResult.fields`; `item`, `offer` and `lease` arrive only when the scan is valid.
 
-- [ ] **3.11 Budget, flags and motion (Track C2)**
+- [x] **3.11 Budget, flags and motion (Track C2)**
   In `Receipt.tsx`: paths whose `pay_today` exceeds the "spend up to" amount are dimmed with "More than you can spend today" (never hidden); flags render as plain sentences; a Framer Motion print-in animation on first render, off under `prefers-reduced-motion`. `Receipt.test.tsx` covers the dimming.
   **Acceptance:** `npm --prefix web test -- Receipt` passes.
 
