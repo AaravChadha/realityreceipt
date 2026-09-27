@@ -87,7 +87,7 @@ The option that looks cheapest today often costs the most over time: an old used
 
 > **Decision (2026-09-26 22:05): third Codex review** (main at 54a9954, rechecked on d3c366c). (1) A lease whose printed payment today exceeds its printed total makes `/quote` answer HTTP 500 (`lease.py:113`); the contract refuses it, so a scan with it comes back for correction, and `/quote` turns any engine `ValueError` into a 422. Task 1.8. (2) When the printed total does not equal the weekly payments (the Aaron's card: 52 × $33.48 is $1,740.96, the total $1,739.88), the engine spreads the printed total evenly over the remaining weeks (about $34.11); the keep-paying formula says so. Task 3.2.5. (3) The shop page (#73) is not reachable from the app. Task 4.4.1. (4) Scenario 3's shop ranks new offers from a plain-words request; used against new is shown on the Entry receipt, not by carrying a listing into the shop. (5) Picking one of two DOE figures by the icemaker adder (2.2.6) is an inference; the receipt should say so. Open item.
 
-> **Decision (2026-09-26 22:00): all coding ends at 23:00** (the operator's call). After 23:00, merge only a fix for something that breaks a demo scenario; 23:00 to 02:00 is the deploy, the phone check, rehearsal and the Devpost. A scenario whose code is not on main at 23:00 is cut from the demo: Scenario 3 needs 4.4.1, Scenario 4's live scan needs 3.10. Deferred past the event: the icemaker-inference open item.
+> **Decision (2026-09-26 22:00):** ~~all coding ends at 23:00 (the operator's call). After 23:00, merge only a fix for something that breaks a demo scenario; 23:00 to 02:00 is the deploy, the phone check, rehearsal and the Devpost. A scenario whose code is not on main at 23:00 is cut from the demo: Scenario 3 needs 4.4.1, Scenario 4's live scan needs 3.10. Deferred past the event: the icemaker-inference open item.~~ → **Verdict (2026-09-26 22:15):** 23:00 is the target for finishing all coding, not a cutoff. Every open task still gets done, the icemaker item included (tasks 1.9 and 2.2.7); nothing is cut at 23:00. The hard freeze stays at 02:00 (4.9).
 
 ## Index of phases
 
@@ -230,6 +230,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `Lease` in `api/app/models.py`: `payment_today` must not exceed `total_of_payments` when both are printed, so a scan with them comes back invalid for correction. `POST /quote` returns a 422 with the engine's message for any `ValueError`, never a 500.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py api/tests/test_routes.py -q` passes, including tests that `payment_today=100, total_of_payments=50` is refused by the contract and that `/quote` answers 422, not 500, when the engine raises `ValueError`.
 
+- [ ] **1.9 A kWh figure can carry how it was chosen (Track A1, with A5's `running.py`)** (NEW 2026-09-26 22:15, Codex review)
+  `ModelEnergy` gains `note: str = ""` and `note_source_ids: list[str] = []` (mirror both in `web/src/contracts.ts`). `running.py` appends a non-empty note to the electricity line's formula and adds `note_source_ids` to its `other_source_ids`. 2.2.7 fills the note.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py api/tests/test_running.py -q` passes, including a test that a `ModelEnergy` with a note puts that note in the electricity formula and its source ids in `other_source_ids`, and `npm --prefix web test -- contracts` passes.
+
 <a id="phase-2"></a>
 ### [ ] Phase 2 — Vertical slice
 > Goal: a typed fridge model, plus a used listing price, produces a real sourced receipt with `used_as_is` and `new`/`cash` paths, on a real phone over HTTPS. Proves every track connects before widening.
@@ -267,6 +271,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [x] **2.2.5 DOE listing years as a range (Track B1/B2)** (NEW 2026-09-26, Codex review; numbered 2.2.4 in #59, renumbered because #60 took 2.2.4)
   Add `Repository.model_year_range(brand, model, product_class=None) -> tuple[int, int] | None`: the first and last year the DOE historical data lists the model, with the same matching rules as `model_energy`. Keep `model_year` for now.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_profile.py -q` passes, including a test that the Maytag family on `label-older-maytag-mb2562.png` returns the DOE file's first and last listing years, and that an unknown model returns `None`.
+
+- [ ] **2.2.7 Say when the icemaker rule picked the figure (Track B2)** (NEW 2026-09-26 22:15, Codex review; needs 1.9)
+  When `model_energy` chooses one of two DOE figures by the icemaker adder (2.2.6), return `note` = "DOE lists this model at two figures one icemaker apart; the lower is taken for a unit without an automatic icemaker" (or "the higher … with"), and `note_source_ids` = the DOE standards source the adder comes from.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_repository.py -q` passes, including a test that an adder-picked figure carries that note and the standards source id, and a directly rated one carries no note.
 
 - [x] **2.3 Retailer cache (Track B3)**
   `api/app/data/retailer_cache.json`: 8 to 15 real new refrigerator listings recorded by hand, each an `Offer` with `source: "retailer_cache"`, `url`, `retrieved_at`, a `source_id` present in `sources.json`, and an `item_id` whose `Item` (brand, model, `product_class`, `volume_cuft`, `width_in`) is stored alongside. Every model appears in `energystar_refrigerators.csv` or is noted as missing. `api/tests/test_retailer_cache.py`: every offer validates, has a URL and date, and resolves its source.
@@ -378,6 +386,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   When `total_of_payments` is printed, `_schedule` spreads it, less the payment today, evenly over the remaining weeks. The keep-paying formula states that (for the Aaron's card, the remaining $1,739.87 spread evenly over 51 weekly payments of about $34.11), so the monthly figures are not read as printed payments. Also, from session 4's note on 3.2.4: the effective annual cost uses the same total as the "more than the cash price" figure, fees included (a $30 × 52 lease with $20 fees showed "$780.00 more" beside a 95% worked out from $760).
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including a test that the Aaron's demo lease's keep-paying formula names the even spread and its weekly figure, and one that a lease with fees computes its effective annual cost from the same total as its "more than the cash price" figure.
 
+- [ ] **3.2.6 The buyout line counts fees the same way (Track A4)** (NEW 2026-09-26 22:15, session 4's note on 3.2.5)
+  `rto_buyout`'s "more than the cash price" figure uses the same fee-inclusive total as `rto_full`'s since 3.2.5.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including a test that a lease with early purchase terms and fees states its buyout's "more than the cash price" figure with the fees included.
+
 - [x] **3.3 All paths in the quote (Track A2)**
   Extend `quote` to all 9 path kinds: `repair` (when `current` is given; repair cost from `repair_quote_*` as `user_entered`, else the profile's repair ranges as `published`; running cost from the current unit), `refurbished` (from a refurbished listing; warranty months shown in a flag), `new` x4 via A3, `rent_to_own` x2 via A4 (when `lease` is given). A path whose inputs are absent is omitted, never invented. Apply flags: `past_typical_life`, `test_procedure_changed` (when comparing a pre-2014 unit with a newer one), `year_from_serial_low_confidence`. `api/tests/test_quote_all_paths.py`: a full request returns 9 paths sorted by `total_3yr_high`; each path's totals equal the sums of its arrays. `api/tests/test_copy.py`: no label, formula or flag in that output contains an em dash, `APR` or `qualif`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py api/tests/test_copy.py -q` passes.
@@ -436,6 +448,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   **Acceptance:** `npm --prefix web test -- Entry` passes.
   **Status (2026-09-26, task 1.7):** pre-fill the correction form from `ScanResult.fields`; `item`, `offer` and `lease` arrive only when the scan is valid.
   **Status (2026-09-26 21:10, reviews of #48 and #52):** also: the lease form gets `payment_today`, `total_of_payments` and the leased fridge's brand and model, and no "Lease source" field; pass `budgetToday` into `Receipt` so 3.11's dimming works; drop "Price tag" from the scan picker tonight; give the `/scan` request a 60-second timeout with a visible reading state.
+
+- [ ] **3.10.1 Scan and lease form, last fixes (Track C1)** (NEW 2026-09-26 22:15, review of #48)
+  In `Entry.tsx`: remove the "New" listing condition and map a scanned `condition: "new"` to `used_as_is` (the engine prices only used and refurbished listings, so a "New" listing vanished from the receipt); label the fee field "Fees ($0 if none)"; strip a leading "Value error, " from a 422 message and show the "does not fit" error beside "Paid today". In `api.ts`: the scan timeout 75 seconds, so the server's own 60-second Grok error arrives first.
+  **Acceptance:** `npm --prefix web test -- Entry` passes, including tests that the listing condition picker has no "New" option and a scanned `condition: "new"` becomes "Used, as-is", and `npm --prefix web run build` exits 0.
 
 - [x] **3.11 Budget, flags and motion (Track C2)**
   In `Receipt.tsx`: paths whose `pay_today` exceeds the "spend up to" amount are dimmed with "More than you can spend today" (never hidden); flags render as plain sentences; a Framer Motion print-in animation on first render, off under `prefers-reduced-motion`. `Receipt.test.tsx` covers the dimming.
@@ -513,7 +529,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_demo_script.py -q` passes.
 
 - [ ] **4.9 Code freeze at Sun 02:00 (Track 0 — operator)**
-  ~~Merge nothing new after 02:00 except demo-breaking fixes.~~ → **Verdict (2026-09-26 22:00):** coding ends at 23:00; tag at 23:00 once main's CI is green. Merge nothing new after 23:00 except demo-breaking fixes. Tag the last green `main` commit: `git tag freeze origin/main` then `git push origin freeze`.
+  Merge nothing new after 02:00 except demo-breaking fixes. (A 22:00 verdict moved this to 23:00; superseded at 22:15: 23:00 is the target, 02:00 stays the freeze.) Tag the last green `main` commit: `git tag freeze origin/main` then `git push origin freeze`.
   **Acceptance:** `git rev-parse -q --verify refs/tags/freeze && echo tagged` prints `tagged`.
 
 ## Demo Script for Judges
@@ -533,12 +549,12 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - Don't state a year (the label prints none), and don't claim big energy savings: against a new fridge the gap is about $20 a year ($78.99 against $56.31 on main at 54a9954).
 - The receipt also shows two flag sentences, both true: the year made is estimated from the years DOE lists this model (3.3.5), and the energy test changed around 2014. Read them if asked; still state no year.
 
-**Scenario 3: used vs new, asked in plain words (Visa).** ~~Only if the shop (4.1, 4.3, 4.4) is on main by 23:30.~~ → **Verdict (2026-09-26 22:00):** only if the shop, including 4.4.1 (reachable from the app), is on main by 23:00.
+**Scenario 3: used vs new, asked in plain words (Visa).** ~~Only if the shop (4.1, 4.3, 4.4) is on main by 23:30.~~ → **Verdict (2026-09-26 22:15):** needs 4.4.1 (the shop reachable from the app); target 23:00.
 > "About $300, small space, need it this week."
 - Type the request → Grok's parsed filters appear as editable chips → offers ranked by cost per year, with unknown delivery or width flagged, not hidden → "View at retailer". ~~Include the used GE listing (`listing-used-ge-gie18gsnrss.png`, $175): ask its age and enter it, since the listing states none.~~ → **Verdict (2026-09-26 22:05):** the shop ranks new offers only; show used against new on the Entry receipt instead, entering the $175 used GE there as a listing (ask its age). "Small space" gives no width chip, because no inch figure was typed: add one by hand. Needs 4.4.1.
 - Check the numbers before going on stage: at some prices and years a used and a new option land on the same cost per year, which looks like a bug. Measured on main at 54a9954 through `/quote`: the $175 used GE is rated 443 kWh, $94.29 a year, against $98.46 for the cheapest new: close, not equal.
 
-**Scenario 4: not a wrapper.** ~~Only if a real scan works by 22:00.~~ → **Verdict (2026-09-26 22:00):** only if 3.10 is on main by 23:00 and a real scan through the app works.
+**Scenario 4: not a wrapper.** ~~Only if a real scan works by 22:00.~~ → **Verdict (2026-09-26 22:15):** 3.10 is on main (#48); needs the xAI key and a real scan through the app checked by hand.
 > "The AI only reads the label. Watch me type the same thing by hand."
 - Scan `label-current-frigidaire-ffht1822u.png` (it prints the maker, "Electrolux Home Products Inc."; leave it as read: the app treats Electrolux and Frigidaire as one maker, task 2.2.4, and task 3.8 checks that the scanned and typed receipts match), then type `FFHT1822U*` by hand: the identical receipt, rated 360 kWh.
 
@@ -580,7 +596,7 @@ Scenario 1 is the strongest talking point: its numbers come straight off a real 
 
 ## Open items
 
-- [ ] (2026-09-26 22:05, Codex review) When `model_energy` picks one of two DOE figures by the icemaker adder (task 2.2.6), the figure is an inference, not a direct rating: the electricity line should say which rule picked it and cite the DOE standards source. Owner: B2 (Neil), with an A1 contract change if `ModelEnergy` needs a note field.
+- [x] (2026-09-26 22:05, Codex review) When `model_energy` picks one of two DOE figures by the icemaker adder (task 2.2.6), the figure is an inference, not a direct rating. → Tasks 1.9 and 2.2.7 (22:15).
 
 - [ ] **Team names and row assignment (NEW 2026-09-26).** Track A to D placeholders until assigned; each person claims rows in the team chat.
 - [ ] **Grok API key and vision model name (NEW 2026-09-26).** SpaceXAI gives credits (spec §1); a working key is not confirmed. Blocks 3.7 onward; checked in 0.8.
