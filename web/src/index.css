@@ -1,13 +1,114 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
+/* Theme tokens (task 4.10): shadcn/ui's names, warm stone neutrals and an emerald primary.
+   Dark follows the phone's setting, the same as Tailwind's `dark:` variant. */
 :root {
   color-scheme: light dark;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --radius: 0.75rem;
+  --background: oklch(0.975 0.006 85);
+  --foreground: oklch(0.21 0.01 60);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.51 0.12 163);
+  --primary-foreground: oklch(0.99 0.01 163);
+  --secondary: oklch(0.95 0.01 80);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.955 0.008 80);
+  --muted-foreground: oklch(0.47 0.012 60);
+  --accent: oklch(0.95 0.012 80);
+  --accent-foreground: var(--foreground);
+  --destructive: oklch(0.53 0.2 27);
+  --border: oklch(0.9 0.01 75);
+  --input: oklch(0.86 0.012 75);
+  --ring: oklch(0.6 0.12 163);
+  /* The receipt slip: thermal paper and its ink. */
+  --paper: oklch(0.995 0.004 90);
+  --ink: oklch(0.2 0.01 60);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: oklch(0.16 0.006 60);
+    --foreground: oklch(0.96 0.006 80);
+    --card: oklch(0.21 0.007 60);
+    --primary: oklch(0.72 0.14 163);
+    --primary-foreground: oklch(0.18 0.03 163);
+    --secondary: oklch(0.27 0.008 60);
+    --muted: oklch(0.25 0.008 60);
+    --muted-foreground: oklch(0.72 0.01 70);
+    --accent: oklch(0.28 0.01 60);
+    --destructive: oklch(0.7 0.18 25);
+    --border: oklch(0.32 0.008 60);
+    --input: oklch(0.38 0.01 60);
+    --ring: oklch(0.68 0.13 163);
+    --paper: oklch(0.23 0.007 70);
+    --ink: oklch(0.95 0.006 80);
+  }
+}
+
+@theme inline {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+}
+
+:root {
+  font-family: var(--font-sans);
   -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
-  @apply bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-100;
+  background-color: var(--background);
+  color: var(--foreground);
+  /* A faint wash of the brand color at the top of the page. */
+  background-image: radial-gradient(120% 60% at 50% -10%, color-mix(in oklch, var(--primary) 12%, transparent), transparent 70%);
+  background-repeat: no-repeat;
+}
+
+@layer components {
+  /* The torn top and bottom of a printed receipt. */
+  .receipt-edge {
+    --tooth: 10px;
+    mask:
+      conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / var(--tooth) 51% repeat-x,
+      conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / var(--tooth) 51% repeat-x;
+    padding-block: calc(var(--tooth) + 0.5rem);
+  }
+
+  /* A dotted leader between a receipt row's label and its amount. */
+  .leader {
+    flex: 1 1 1rem;
+    min-width: 1rem;
+    align-self: end;
+    margin-bottom: 0.4rem;
+    border-bottom: 2px dotted var(--border);
+  }
 }

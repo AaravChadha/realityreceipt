@@ -1,7 +1,12 @@
 // Shop (PLAN.md task 4.4). A request in plain words goes to /shop/parse; the filters
 // read from it come back as editable chips (the visible AI step), and only after the
 // person checks them does /shop/rank run. Offers link out to the retailer: no checkout here.
+import { ArrowUpRight, CircleAlert, Info, ListOrdered, LoaderCircle, SlidersHorizontal, Sparkles } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Textarea } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
 import { parseShopRequest, rankShopOffers } from '../api'
 import type { Condition, RankedOffer, ShopFilters } from '../contracts'
 import { CONDITIONS } from '../contracts'
@@ -100,16 +105,15 @@ function Chip({
   return (
     <div>
       <div
-        className={`flex min-h-11 items-center gap-1.5 rounded-full border px-3 py-1 ${
-          error
-            ? 'border-red-400 bg-red-50 dark:border-red-700 dark:bg-red-950'
-            : 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950'
-        }`}
+        className={cn(
+          'flex min-h-11 items-center gap-1.5 rounded-full border px-3 py-1 transition-colors focus-within:ring-[3px] focus-within:ring-ring/40',
+          error ? 'border-destructive/50 bg-destructive/10' : 'border-primary/30 bg-primary/10',
+        )}
       >
-        <label htmlFor={id} className="text-sm font-medium text-emerald-900 dark:text-emerald-200">
+        <label htmlFor={id} className="text-sm font-medium text-foreground">
           {label}
         </label>
-        {prefix && <span aria-hidden="true" className="text-sm text-stone-600 dark:text-stone-400">{prefix}</span>}
+        {prefix && <span aria-hidden="true" className="font-mono text-sm text-muted-foreground">{prefix}</span>}
         <input
           id={id}
           value={value}
@@ -119,12 +123,12 @@ function Chip({
           aria-describedby={error ? errorId : undefined}
           autoComplete="off"
           placeholder="any"
-          className="w-16 rounded border border-stone-300 bg-white px-1.5 py-0.5 text-base tabular-nums text-stone-900 focus:outline-2 focus:outline-offset-1 focus:outline-emerald-600 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+          className="w-16 rounded-md border border-input bg-card px-1.5 py-0.5 font-mono text-base tabular-nums text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring"
         />
-        {suffix && <span className="text-sm text-stone-600 dark:text-stone-400">{suffix}</span>}
+        {suffix && <span className="text-sm text-muted-foreground">{suffix}</span>}
       </div>
       {error && (
-        <p id={errorId} role="alert" className="mt-1 px-3 text-sm text-red-800 dark:text-red-200">
+        <p id={errorId} role="alert" className="mt-1 px-3 text-sm text-destructive">
           {error}
         </p>
       )}
@@ -140,50 +144,54 @@ function OfferCard({ ranked, place }: { ranked: RankedOffer; place: number }) {
     <li>
       <article
         aria-labelledby={headingId}
-        className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900/40"
+        className={cn(
+          'rounded-2xl border bg-card p-4 shadow-sm',
+          place === 1 ? 'border-primary/50 ring-1 ring-primary/20' : 'border-border',
+        )}
       >
-        <h3 id={headingId} className="text-base font-semibold">
+        <h3 id={headingId} className="font-mono text-base font-semibold tracking-tight">
           {place}. {modelLabel(offer.item_id)}
         </h3>
-        <p className="text-sm text-stone-600 dark:text-stone-400">{path.name}</p>
-        <dl className="mt-3 grid grid-cols-2 gap-3">
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-wide text-stone-600 dark:text-stone-400">Price</dt>
-            <dd className="text-2xl font-bold tabular-nums">{money(offer.price)}</dd>
+        <p className="text-sm text-muted-foreground">{path.name}</p>
+        <dl className="mt-3 grid grid-cols-2 gap-3 rounded-xl bg-muted/60 p-3">
+          <div className="min-w-0">
+            <dt className="font-mono text-[0.7rem] font-semibold tracking-widest text-muted-foreground uppercase">Price</dt>
+            <dd className="font-mono text-xl font-bold tabular-nums">{money(offer.price)}</dd>
           </div>
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-wide text-stone-600 dark:text-stone-400">
+          <div className="min-w-0">
+            <dt className="font-mono text-[0.7rem] font-semibold tracking-widest text-muted-foreground uppercase">
               Cost per year
             </dt>
-            <dd className="text-2xl font-bold tabular-nums">{range(path.cost_per_year_low, path.cost_per_year_high)}</dd>
+            <dd className="font-mono text-xl font-bold tabular-nums wrap-break-word">{range(path.cost_per_year_low, path.cost_per_year_high)}</dd>
           </div>
         </dl>
         {sentences.length > 0 && (
-          <ul className="mt-3 space-y-1 text-sm text-stone-700 dark:text-stone-300">
+          <ul className="mt-3 space-y-1.5 text-sm text-muted-foreground">
             {sentences.map((s) => (
-              <li key={s}>{s}</li>
+              <li key={s} className="flex items-start gap-1.5">
+                <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+                {s}
+              </li>
             ))}
           </ul>
         )}
         {offer.url && (
-          <a
-            href={offer.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-3 inline-flex min-h-11 items-center rounded-lg border border-emerald-700 px-4 text-sm font-semibold text-emerald-800 hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 dark:border-emerald-500 dark:text-emerald-300 dark:hover:bg-emerald-950"
-          >
-            View at retailer
-            <span className="sr-only"> (opens in a new tab)</span>
-          </a>
+          <Button asChild variant={place === 1 ? 'default' : 'outline'} className="mt-4 w-full">
+            <a href={offer.url} target="_blank" rel="noopener noreferrer">
+              View at retailer
+              <ArrowUpRight aria-hidden="true" />
+              <span className="sr-only"> (opens in a new tab)</span>
+            </a>
+          </Button>
         )}
       </article>
     </li>
   )
 }
 
-const buttonClass =
-  'min-h-12 w-full rounded-lg bg-emerald-700 px-4 py-3 text-base font-semibold text-white hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:opacity-60'
-const hintClass = 'text-sm text-stone-600 dark:text-stone-400'
+const hintClass = 'text-sm text-muted-foreground'
+const failureClass =
+  'flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive'
 
 type Status = 'idle' | 'loading' | 'done' | 'error'
 
@@ -256,35 +264,42 @@ export default function Shop() {
 
   return (
     <div className="space-y-6">
+      <Card className="p-4">
       <form noValidate onSubmit={onParse} className="space-y-3">
-        <label htmlFor="shop-request" className="block text-base font-semibold">
+        <label htmlFor="shop-request" className="flex items-center gap-2.5 text-base font-semibold">
+          <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+            <Sparkles className="size-4" />
+          </span>
           What are you looking for?
         </label>
         <p id="shop-request-hint" className={hintClass}>
           In your own words, for example: About $300, small space, need it this week.
         </p>
-        <textarea
+        <Textarea
           id="shop-request"
           aria-describedby="shop-request-hint"
           rows={3}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className="block w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-base text-stone-900 focus:outline-2 focus:outline-offset-1 focus:outline-emerald-600 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
         />
-        <button type="submit" disabled={parseStatus === 'loading' || text.trim() === ''} className={buttonClass}>
+        <Button type="submit" size="lg" className="w-full" disabled={parseStatus === 'loading' || text.trim() === ''}>
+          {parseStatus === 'loading' ? <LoaderCircle aria-hidden="true" className="animate-spin" /> : <Sparkles aria-hidden="true" />}
           {parseStatus === 'loading' ? 'Reading your request...' : 'Read my request'}
-        </button>
+        </Button>
       </form>
+      </Card>
 
       {parseStatus === 'error' && (
-        <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-          Could not read the request: {failure}
+        <p role="alert" className={failureClass}>
+          <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+          <span>Could not read the request: {failure}</span>
         </p>
       )}
 
       {parseStatus === 'done' && (
-        <section aria-labelledby="filters-heading" className="space-y-3">
-          <h2 id="filters-heading" className="text-lg font-semibold">
+        <section aria-labelledby="filters-heading" className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+          <h2 id="filters-heading" className="flex items-center gap-2 text-lg font-semibold">
+            <SlidersHorizontal aria-hidden="true" className="size-4 text-primary" />
             What we read from it
           </h2>
           <p className={hintClass}>
@@ -301,38 +316,38 @@ export default function Shop() {
             {CONDITIONS.map((cond) => {
               const on = chips.conditions.includes(cond)
               return (
-                <button
+                <Button
                   key={cond}
                   type="button"
+                  variant={on ? 'default' : 'outline'}
                   aria-pressed={on}
                   onClick={() => toggle(cond)}
-                  className={`min-h-11 rounded-full border px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${
-                    on
-                      ? 'border-emerald-700 bg-emerald-700 text-white'
-                      : 'border-stone-300 bg-white text-stone-800 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200'
-                  }`}
+                  className="rounded-full"
                 >
                   {CONDITION_LABELS[cond]}
-                </button>
+                </Button>
               )
             })}
           </div>
           <p className={hintClass}>With no condition picked, new and used offers are both shown.</p>
-          <button type="button" onClick={onRank} disabled={rankStatus === 'loading'} className={buttonClass}>
+          <Button type="button" size="lg" className="w-full" onClick={onRank} disabled={rankStatus === 'loading'}>
+            {rankStatus === 'loading' ? <LoaderCircle aria-hidden="true" className="animate-spin" /> : <ListOrdered aria-hidden="true" />}
             {rankStatus === 'loading' ? 'Ranking offers...' : 'Rank offers by cost per year'}
-          </button>
+          </Button>
         </section>
       )}
 
       {rankStatus === 'error' && (
-        <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-          Could not rank offers: {failure}
+        <p role="alert" className={failureClass}>
+          <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+          <span>Could not rank offers: {failure}</span>
         </p>
       )}
 
       {rankStatus === 'done' && (
         <section aria-labelledby="offers-heading">
-          <h2 id="offers-heading" className="text-lg font-semibold">
+          <h2 id="offers-heading" className="flex items-center gap-2 text-lg font-semibold">
+            <ListOrdered aria-hidden="true" className="size-4 text-primary" />
             Offers ranked by cost per year
           </h2>
           {offers.length === 0 ? (

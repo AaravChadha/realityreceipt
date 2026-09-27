@@ -1,32 +1,54 @@
 // One way to get the item: its three headline numbers, its carbon, its flags
 // as plain sentences, and the cost lines behind them (PLAN.md tasks 2.9, 2.9.1, 3.11).
+// Styled as one section of a printed receipt (task 4.10).
 
+import { ChevronDown, Info, Leaf, TrendingDown, TriangleAlert, Wallet } from 'lucide-react'
 import { useId, useState } from 'react'
-import type { CostLine, Path } from '../contracts'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+import type { CostLine, Path, PathGroup, SourceType } from '../contracts'
 import { FLAG_SENTENCES, NOT_ESTIMATED, PERIOD_SUFFIX, SOURCE_LABELS, flagSentence, money, range, rangeNote } from '../format'
 
 // Shown elsewhere: the incomplete-costs note under the numbers, the sample banner on the receipt.
 const NOT_IN_FLAG_LIST = new Set(['costs_not_estimated', 'fixture'])
+
+const GROUP_LABELS: Record<PathGroup, string> = {
+  repair: 'Repair',
+  used_as_is: 'Used',
+  refurbished: 'Refurbished',
+  new: 'New',
+  rent_to_own: 'Rent-to-own',
+}
+
+const SOURCE_BADGE: Record<SourceType, 'success' | 'secondary' | 'outline'> = {
+  rated: 'success',
+  published: 'secondary',
+  user_entered: 'outline',
+  not_estimated: 'outline',
+}
 
 function Figure({
   label,
   value,
   prefix,
   note,
+  big = false,
 }: {
   label: string
   value: string
   prefix?: string
   note?: string | null
+  big?: boolean
 }) {
   return (
-    <div>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-stone-600 dark:text-stone-400">{label}</dt>
-      <dd className="text-3xl font-bold leading-tight tabular-nums text-stone-900 dark:text-stone-100">
-        {prefix && <span className="text-base font-semibold">{prefix} </span>}
+    <div className="min-w-0">
+      <dt className="font-mono text-[0.7rem] font-semibold tracking-widest text-muted-foreground uppercase">{label}</dt>
+      <dd className={cn('font-mono leading-tight font-bold tabular-nums text-ink', big ? 'text-4xl' : 'text-xl wrap-break-word')}>
+        {prefix && <span className="font-sans text-sm font-semibold text-muted-foreground">{prefix} </span>}
         {value}
       </dd>
-      {note && <dd className="text-sm text-stone-600 dark:text-stone-400">{note}</dd>}
+      {note && <dd className="text-xs text-muted-foreground">{note}</dd>}
     </div>
   )
 }
@@ -36,18 +58,23 @@ function LineButton({ line, onLineTap }: { line: CostLine; onLineTap?: (line: Co
     <button
       type="button"
       onClick={() => onLineTap?.(line)}
-      className="flex w-full items-center justify-between gap-3 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-900 dark:focus-visible:outline-stone-100"
+      className="group flex min-h-11 w-full items-center gap-2 rounded-md px-1 py-2 text-left outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50"
     >
       <span className="min-w-0">
-        <span className="block text-sm text-stone-900 dark:text-stone-100">{line.label}</span>
-        <span className="block text-xs text-stone-600 dark:text-stone-400">{SOURCE_LABELS[line.source_type]}</span>
+        <span className="block text-sm text-ink underline decoration-border decoration-dotted underline-offset-4 group-hover:decoration-primary">
+          {line.label}
+        </span>
+        <Badge variant={SOURCE_BADGE[line.source_type]} className="mt-1">
+          {SOURCE_LABELS[line.source_type]}
+        </Badge>
       </span>
+      <span aria-hidden="true" className="leader" />
       {line.source_type === 'not_estimated' ? (
-        <span className="h-6 w-20 shrink-0 rounded border border-dashed border-stone-400 dark:border-stone-600">
+        <span className="h-6 w-20 shrink-0 rounded border border-dashed border-muted-foreground/50">
           <span className="sr-only">{NOT_ESTIMATED}</span>
         </span>
       ) : (
-        <span className="shrink-0 text-sm font-semibold tabular-nums text-stone-900 dark:text-stone-100">
+        <span className="shrink-0 text-right font-mono text-sm font-semibold tabular-nums text-ink">
           {range(line.amount_low, line.amount_high)}
           {PERIOD_SUFFIX[line.period]}
         </span>
@@ -62,10 +89,13 @@ export function PathCard({
   path,
   onLineTap,
   overBudget = false,
+  lowest = false,
 }: {
   path: Path
   onLineTap?: (line: CostLine) => void
   overBudget?: boolean
+  /** This path's whole 3-year range sits below every other path's on the same receipt. */
+  lowest?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const headingId = useId()
@@ -75,60 +105,85 @@ export function PathCard({
     .map(flagSentence)
     .filter((s) => s !== null)
   return (
-    <article
-      aria-labelledby={headingId}
-      className={`rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-stone-800 dark:bg-stone-900 ${overBudget ? 'opacity-60' : ''}`}
-    >
-      <h3 id={headingId} className="text-lg font-semibold leading-snug text-stone-900 dark:text-stone-100">
+    <article aria-labelledby={headingId} className={cn('px-5 py-5 transition-opacity', overBudget && 'opacity-60')}>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Badge variant="outline" className="font-mono tracking-wider uppercase">
+          {GROUP_LABELS[path.group]}
+        </Badge>
+        {lowest && (
+          <Badge variant="success">
+            <TrendingDown aria-hidden="true" />
+            Lowest 3-year total here
+          </Badge>
+        )}
+        {overBudget && (
+          <Badge variant="warning">
+            <Wallet aria-hidden="true" />
+            {OVER_SPEND}
+          </Badge>
+        )}
+      </div>
+      <h3 id={headingId} className="mt-2 text-lg leading-snug font-semibold text-ink">
         {path.name}
       </h3>
-      {overBudget && <p className="mt-1 text-sm font-semibold text-stone-700 dark:text-stone-300">{OVER_SPEND}</p>}
       <dl className="mt-3 space-y-3">
         <Figure
           label="Pay today"
           value={money(path.pay_today)}
           prefix={path.payment_method === 'pal' ? 'up to' : undefined}
+          big
         />
-        <Figure
-          label="Total over 3 years"
-          value={range(path.total_3yr_low, path.total_3yr_high)}
-          note={rangeNote(path.total_3yr_low, path.total_3yr_high)}
-        />
-        <Figure
-          label="Cost per year of use"
-          value={range(path.cost_per_year_low, path.cost_per_year_high)}
-          note={rangeNote(path.cost_per_year_low, path.cost_per_year_high)}
-        />
+        <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted/60 p-3">
+          <Figure
+            label="Total over 3 years"
+            value={range(path.total_3yr_low, path.total_3yr_high)}
+            note={rangeNote(path.total_3yr_low, path.total_3yr_high)}
+          />
+          <Figure
+            label="Cost per year of use"
+            value={range(path.cost_per_year_low, path.cost_per_year_high)}
+            note={rangeNote(path.cost_per_year_low, path.cost_per_year_high)}
+          />
+        </div>
       </dl>
       {incomplete && (
-        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+        <p className="mt-3 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
           {FLAG_SENTENCES.costs_not_estimated}
         </p>
       )}
       {path.carbon_kg !== null && (
-        <p className="mt-3 text-sm text-emerald-900 dark:text-emerald-300">
-          Carbon over 3 years:{' '}
-          <span className="font-semibold tabular-nums">{Math.round(path.carbon_kg).toLocaleString('en-US')} kg CO2e</span>
+        <p className="mt-3 flex items-center gap-1.5 text-sm text-emerald-800 dark:text-emerald-300">
+          <Leaf aria-hidden="true" className="size-4 shrink-0" />
+          <span>
+            Carbon over 3 years:{' '}
+            <span className="font-mono font-semibold tabular-nums">{Math.round(path.carbon_kg).toLocaleString('en-US')} kg CO2e</span>
+          </span>
         </p>
       )}
       {sentences.length > 0 && (
-        <ul className="mt-3 space-y-1 text-sm text-stone-700 dark:text-stone-300">
+        <ul className="mt-3 space-y-1.5 text-sm text-muted-foreground">
           {sentences.map((s) => (
-            <li key={s}>{s}</li>
+            <li key={s} className="flex items-start gap-1.5">
+              <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+              {s}
+            </li>
           ))}
         </ul>
       )}
-      <button
+      <Button
         type="button"
+        variant="outline"
         aria-expanded={open}
         aria-controls={linesId}
         onClick={() => setOpen((o) => !o)}
-        className="mt-3 min-h-11 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm font-semibold text-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-900 dark:border-stone-700 dark:text-stone-100 dark:focus-visible:outline-stone-100"
+        className="mt-4 min-h-11 w-full justify-between"
       >
         What's in this number
-      </button>
+        <ChevronDown aria-hidden="true" className={cn('transition-transform', open && 'rotate-180')} />
+      </Button>
       {open && (
-        <ul id={linesId} className="mt-2 divide-y divide-stone-200 dark:divide-stone-800">
+        <ul id={linesId} className="mt-2 divide-y divide-dashed divide-border animate-in fade-in slide-in-from-top-1">
           {path.lines.map((line, i) => (
             <li key={`${i}-${line.label}`}>
               <LineButton line={line} onLineTap={onLineTap} />

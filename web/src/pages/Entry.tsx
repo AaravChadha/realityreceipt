@@ -3,7 +3,25 @@
 // different units. A scan pre-fills those same fields; the user confirms before quoting.
 // No personal or income questions.
 import { useReducedMotion } from 'framer-motion'
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type InputHTMLAttributes } from 'react'
+import {
+  Camera,
+  CircleAlert,
+  CircleCheck,
+  FileText,
+  LoaderCircle,
+  ReceiptText,
+  Refrigerator,
+  Tag,
+  TriangleAlert,
+  Upload,
+  type LucideIcon,
+} from 'lucide-react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type InputHTMLAttributes, type ReactNode } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { NativeSelect } from '@/components/ui/native-select'
 import { checkItem, quote, scan, sources } from '../api'
 import { Receipt } from '../components/Receipt'
 import { SourceSheet } from '../components/SourceSheet'
@@ -453,32 +471,29 @@ function Field({ id, label, hint, error, prefix, ...input }: FieldProps) {
   const describedBy = [hint && `${id}-hint`, error && `${id}-error`].filter(Boolean).join(' ') || undefined
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-medium">
-        {label}
-      </label>
+      <Label htmlFor={id}>{label}</Label>
       {hint && (
-        <p id={`${id}-hint`} className="mt-0.5 text-sm text-stone-600 dark:text-stone-400">
+        <p id={`${id}-hint`} className="mt-0.5 text-sm text-muted-foreground">
           {hint}
         </p>
       )}
       <div className="relative mt-1">
         {prefix && (
-          <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-stone-500">
+          <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-3 flex items-center font-mono text-muted-foreground">
             {prefix}
           </span>
         )}
-        <input
+        <Input
           id={id}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy}
-          className={`block min-h-11 w-full rounded-lg border bg-white py-2 pr-3 text-base text-stone-900 focus:outline-2 focus:outline-offset-1 focus:outline-emerald-600 dark:bg-stone-900 dark:text-stone-100 ${
-            prefix ? 'pl-7' : 'pl-3'
-          } ${error ? 'border-red-600 dark:border-red-400' : 'border-stone-300 dark:border-stone-700'}`}
+          className={prefix ? 'pl-7' : undefined}
           {...input}
         />
       </div>
       {error && (
-        <p id={`${id}-error`} className="mt-1 text-sm text-red-700 dark:text-red-400">
+        <p id={`${id}-error`} className="mt-1 flex items-start gap-1 text-sm text-destructive">
+          <CircleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
           {error}
         </p>
       )}
@@ -486,13 +501,28 @@ function Field({ id, label, hint, error, prefix, ...input }: FieldProps) {
   )
 }
 
-const fieldsetClass = 'space-y-4 rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900/40'
-const legendClass = 'px-1 text-base font-semibold'
-const sectionHintClass = 'text-sm text-stone-600 dark:text-stone-400'
-const selectClass =
-  'mt-1 block min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-base text-stone-900 focus:outline-2 focus:outline-offset-1 focus:outline-emerald-600 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100'
-const secondaryButton =
-  'inline-flex min-h-11 items-center justify-center rounded-lg border border-stone-300 bg-white px-4 py-2 text-base font-semibold text-stone-900 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:opacity-60 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:hover:bg-stone-800'
+// One optional part of the form: a card whose legend names the group for screen readers.
+function Section({ title, hint, icon: Icon, children }: { title: string; hint: string; icon: LucideIcon; children: ReactNode }) {
+  return (
+    <fieldset className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <legend className="float-left flex w-full items-center gap-2.5 text-base font-semibold">
+        <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+          <Icon className="size-4" />
+        </span>
+        {title}
+      </legend>
+      <div className="clear-both space-y-4 pt-2">
+        <p className={sectionHintClass}>{hint}</p>
+        {children}
+      </div>
+    </fieldset>
+  )
+}
+
+const sectionHintClass = 'text-sm text-muted-foreground'
+const alertClass = 'flex items-start gap-2 rounded-xl border p-3 text-sm'
+const failureClass = `${alertClass} border-destructive/30 bg-destructive/10 text-destructive`
+const warningClass = `${alertClass} border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100`
 
 export default function Entry() {
   const [fields, setFields] = useState<Fields>(EMPTY)
@@ -604,30 +634,35 @@ export default function Entry() {
   const errorCount = Object.keys(errors).length
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 lg:grid lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:items-start lg:gap-8 lg:space-y-0">
       <form noValidate onSubmit={onSubmit} className="space-y-5">
-        <fieldset className={fieldsetClass}>
-          <legend className={legendClass}>Scan or upload</legend>
-          <p className={sectionHintClass}>A photo of a label, lease or listing. Correct anything it reads before the quote.</p>
+        <Section title="Scan or upload" icon={Camera} hint="A photo of a label, lease or listing. Correct anything it reads before the quote.">
           <div>
-            <label htmlFor="scan-kind" className="block text-sm font-medium">
-              What are you scanning?
-            </label>
-            <select id="scan-kind" value={kind} onChange={(e) => setKind(e.target.value as ScanKind)} className={selectClass}>
+            <Label htmlFor="scan-kind">What are you scanning?</Label>
+            <NativeSelect id="scan-kind" value={kind} onChange={(e) => setKind(e.target.value as ScanKind)}>
               {SCAN_KIND_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <button type="button" className={secondaryButton} disabled={scanStatus === 'loading'} onClick={() => scanInput.current?.click()}>
+          <div className="grid grid-cols-2 gap-3">
+            <Button type="button" size="lg" disabled={scanStatus === 'loading'} onClick={() => scanInput.current?.click()}>
+              <Camera aria-hidden="true" />
               Scan
-            </button>
-            <button type="button" className={secondaryButton} disabled={scanStatus === 'loading'} onClick={() => uploadInput.current?.click()}>
+            </Button>
+            <Button
+              type="button"
+              size="lg"
+              variant="outline"
+              className="px-3 whitespace-normal"
+              disabled={scanStatus === 'loading'}
+              onClick={() => uploadInput.current?.click()}
+            >
+              <Upload aria-hidden="true" />
               Upload saved image
-            </button>
+            </Button>
           </div>
           <input
             ref={scanInput}
@@ -649,33 +684,39 @@ export default function Entry() {
             onChange={onPicked}
           />
           {scanStatus === 'loading' && (
-            <p role="status" className={sectionHintClass}>
+            <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+              <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
               Reading the image...
             </p>
           )}
           {scanStatus === 'error' && (
-            <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-              Could not read the image: {scanFailure}
+            <p role="alert" className={failureClass}>
+              <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+              <span>Could not read the image: {scanFailure}</span>
             </p>
           )}
           {scanErrors.length > 0 && (
-            <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
-              <p className="font-medium">The scan needs a correction.</p>
-              <ul className="mt-1 list-disc pl-5">
-                {scanErrors.map((err, i) => (
-                  <li key={`${err}-${i}`}>{err}</li>
-                ))}
-              </ul>
+            <div role="alert" className={warningClass}>
+              <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+              <div>
+                <p className="font-medium">The scan needs a correction.</p>
+                <ul className="mt-1 list-disc pl-5">
+                  {scanErrors.map((err, i) => (
+                    <li key={`${err}-${i}`}>{err}</li>
+                  ))}
+                </ul>
+              </div>
             </div>
           )}
           {scanned && scanStatus === 'idle' && (
-            <p className={sectionHintClass}>Correct anything that looks wrong, then show every way to get it.</p>
+            <p className="flex items-center gap-2 text-sm font-medium text-primary">
+              <CircleCheck aria-hidden="true" className="size-4 shrink-0" />
+              Correct anything that looks wrong, then show every way to get it.
+            </p>
           )}
-        </fieldset>
+        </Section>
 
-        <fieldset className={fieldsetClass}>
-          <legend className={legendClass}>Your fridge now</legend>
-          <p className={sectionHintClass}>Optional. Fill this in to see what repairing the one you have would cost.</p>
+        <Section title="Your fridge now" icon={Refrigerator} hint="Optional. Fill this in to see what repairing the one you have would cost.">
           <Field id="now-brand" label="Brand" {...text('nowBrand')} autoComplete="off" />
           <Field id="now-model" label="Model number" {...text('nowModel')} {...typed} />
           <Field id="now-serial" label="Serial number (optional)" {...text('nowSerial')} {...typed} />
@@ -690,24 +731,20 @@ export default function Entry() {
           <Field id="now-volume" label="Volume in cubic feet (optional)" {...text('nowVolume')} {...decimal} />
           <Field id="now-kwh" label="kWh per year on the yellow label (optional)" {...text('nowKwh')} {...decimal} />
           <Field id="now-repair" label="Repair quote (optional)" prefix="$" {...text('nowRepair')} {...decimal} />
-        </fieldset>
+        </Section>
 
-        <fieldset className={fieldsetClass}>
-          <legend className={legendClass}>A used one you found</legend>
-          <p className={sectionHintClass}>Optional. From a listing, a yard sale or a refurbisher.</p>
+        <Section title="A used one you found" icon={Tag} hint="Optional. From a listing, a yard sale or a refurbisher.">
           <Field id="used-brand" label="Brand" {...text('usedBrand')} autoComplete="off" />
           <Field id="used-model" label="Model number" {...text('usedModel')} {...typed} />
           <Field id="used-year" label="Year made (optional)" {...text('usedYear')} {...wholeNumber} />
           <Field id="used-price" label="Listing price" prefix="$" {...text('usedPrice')} {...decimal} />
           <div>
-            <label htmlFor="used-condition" className="block text-sm font-medium">
-              Condition
-            </label>
-            <select id="used-condition" value={fields.usedCondition} onChange={set('usedCondition')} className={selectClass}>
+            <Label htmlFor="used-condition">Condition</Label>
+            <NativeSelect id="used-condition" value={fields.usedCondition} onChange={set('usedCondition')}>
               <option value="new">New</option>
               <option value="used_as_is">Used, as-is</option>
               <option value="refurbished">Refurbished</option>
-            </select>
+            </NativeSelect>
           </div>
           {fields.usedCondition === 'refurbished' && (
             <Field
@@ -718,11 +755,9 @@ export default function Entry() {
               autoComplete="off"
             />
           )}
-        </fieldset>
+        </Section>
 
-        <fieldset className={fieldsetClass}>
-          <legend className={legendClass}>A rent-to-own lease</legend>
-          <p className={sectionHintClass}>Optional. The fridge on the lease, and every term. You confirm these details before any quote.</p>
+        <Section title="A rent-to-own lease" icon={FileText} hint="Optional. The fridge on the lease, and every term. You confirm these details before any quote.">
           <Field id="lease-brand" label="Brand" {...text('leaseBrand')} autoComplete="off" />
           <Field id="lease-model" label="Model number" {...text('leaseModel')} {...typed} />
           <Field id="lease-weekly" label="Weekly payment" prefix="$" {...text('leaseWeekly')} {...decimal} />
@@ -732,16 +767,14 @@ export default function Entry() {
           <Field id="lease-paid" label="Paid today" prefix="$" {...text('leasePaid')} {...decimal} />
           <Field id="lease-total" label="Total of all payments, as printed" prefix="$" {...text('leaseTotal')} {...decimal} />
           <div>
-            <label htmlFor="lease-rule" className="block text-sm font-medium">
-              Early purchase rule
-            </label>
-            <select id="lease-rule" value={fields.leaseRule} onChange={set('leaseRule')} className={selectClass}>
+            <Label htmlFor="lease-rule">Early purchase rule</Label>
+            <NativeSelect id="lease-rule" value={fields.leaseRule} onChange={set('leaseRule')}>
               {EARLY_PURCHASE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </div>
           <Field
             id="lease-pct"
@@ -752,40 +785,54 @@ export default function Entry() {
           />
           <Field id="lease-early-text" label="Early purchase terms" {...text('leaseEarlyText')} autoComplete="off" />
           <Field id="lease-missed" label="Missed payment rule" {...text('leaseMissed')} autoComplete="off" />
-        </fieldset>
+        </Section>
 
-        <Field id="budget" label="I can spend up to this much today (optional)" prefix="$" {...text('budget')} {...decimal} />
+        <Card className="p-4">
+          <Field id="budget" label="I can spend up to this much today (optional)" prefix="$" {...text('budget')} {...decimal} />
+        </Card>
 
         {errorCount > 0 && (
-          <p role="alert" className="text-sm font-medium text-red-700 dark:text-red-400">
+          <p role="alert" className="flex items-center gap-1.5 text-sm font-medium text-destructive">
+            <CircleAlert aria-hidden="true" className="size-4 shrink-0" />
             {errorCount === 1 ? 'One field needs a fix.' : `${errorCount} fields need a fix.`}
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={status === 'loading' || scanStatus === 'loading'}
-          className="min-h-12 w-full rounded-lg bg-emerald-700 px-4 py-3 text-base font-semibold text-white hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:opacity-60"
-        >
+        <Button type="submit" size="lg" className="w-full shadow-md" disabled={status === 'loading' || scanStatus === 'loading'}>
+          {status === 'loading' ? <LoaderCircle aria-hidden="true" className="animate-spin" /> : <ReceiptText aria-hidden="true" />}
           {status === 'loading' ? 'Working it out...' : 'Show every way to get it'}
-        </button>
+        </Button>
       </form>
 
-      {status === 'error' && (
-        <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-          Could not get a receipt: {failure}
-        </p>
-      )}
+      <div className="space-y-6">
+        {status === 'error' && (
+          <p role="alert" className={failureClass}>
+            <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+            <span>Could not get a receipt: {failure}</span>
+          </p>
+        )}
 
-      {status === 'done' && (
-        <div ref={results} tabIndex={-1} className="scroll-mt-4 outline-none">
-          {paths.length === 0 ? (
-            <p className={sectionHintClass}>No paths came back for these details.</p>
-          ) : (
-            <Receipt paths={paths} onLineTap={setOpenLine} budgetToday={budgetToday} />
-          )}
-        </div>
-      )}
+        {status === 'done' && (
+          <div ref={results} tabIndex={-1} className="scroll-mt-4 outline-none">
+            {paths.length === 0 ? (
+              <p className={sectionHintClass}>No paths came back for these details.</p>
+            ) : (
+              <Receipt paths={paths} onLineTap={setOpenLine} budgetToday={budgetToday} />
+            )}
+          </div>
+        )}
+
+        {/* Wide screens only: the receipt's place is held open beside the form until it prints. */}
+        {status !== 'done' && (
+          <div
+            aria-hidden="true"
+            className="hidden flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border p-10 text-center text-muted-foreground lg:flex"
+          >
+            <ReceiptText className="size-10" />
+            <p className="font-mono text-xs tracking-widest uppercase">Your receipt prints here</p>
+          </div>
+        )}
+      </div>
 
       {openLine && <SourceSheet line={openLine} sources={sourceList} onClose={() => setOpenLine(null)} />}
     </div>

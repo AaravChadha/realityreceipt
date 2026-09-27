@@ -1,19 +1,20 @@
 import { motion, useReducedMotion } from 'framer-motion'
+import { Calculator, ExternalLink, FileQuestion, Library, X } from 'lucide-react'
 import { useEffect, useId, useRef, type KeyboardEvent } from 'react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import type { CostLine, Source } from '../contracts'
 import { PERIOD_SUFFIX, SOURCE_LABELS, rangeNote } from '../format'
 
-// Semantic roles over Tailwind's stone and blue palettes. The project has no token file
-// yet, so the sheet's markup uses only these names, never a colour of its own.
+// Semantic roles over the theme tokens in index.css (task 4.10), so the sheet's markup
+// uses only these names, never a colour of its own.
 const ui = {
-  surface: 'bg-white dark:bg-stone-900',
-  text: 'text-stone-900 dark:text-stone-50',
-  muted: 'text-stone-600 dark:text-stone-300',
-  border: 'border-stone-200 dark:border-stone-700',
-  divider: 'divide-stone-200 dark:divide-stone-700',
-  link: 'text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-200',
-  focus:
-    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 dark:focus-visible:outline-blue-300',
+  surface: 'bg-paper',
+  text: 'text-ink',
+  muted: 'text-muted-foreground',
+  border: 'border-border',
+  link: 'text-primary underline underline-offset-2 hover:text-primary/80',
+  focus: 'outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 rounded-sm',
 }
 
 // Reserved source ids (PLAN.md "Fixed interfaces"): never in GET /sources.
@@ -56,18 +57,21 @@ function isWebUrl(url: string): boolean {
 
 function SourceEntry({ id, source }: { id: string; source: Source | undefined }) {
   if (Object.hasOwn(RESERVED_SOURCES, id)) {
-    return <li className="wrap-break-word">{RESERVED_SOURCES[id]}</li>
+    return <li className="rounded-xl border border-border bg-card p-3 wrap-break-word">{RESERVED_SOURCES[id]}</li>
   }
   if (source === undefined) {
     return (
-      <li>
-        <p>Source details are not available right now.</p>
+      <li className="rounded-xl border border-dashed border-border p-3">
+        <p className="flex items-center gap-1.5">
+          <FileQuestion aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+          Source details are not available right now.
+        </p>
         <p className={`text-sm break-all ${ui.muted}`}>Reference: {id}</p>
       </li>
     )
   }
   return (
-    <li>
+    <li className="rounded-xl border border-border bg-card p-3">
       <p className="font-medium wrap-break-word">{source.title}</p>
       <p className={`text-sm wrap-break-word ${ui.muted}`}>{source.publisher}</p>
       <p className={`text-sm ${ui.muted}`}>Retrieved {retrieved(source.retrieved_date)}</p>
@@ -76,8 +80,9 @@ function SourceEntry({ id, source }: { id: string; source: Source | undefined })
           href={source.url}
           target="_blank"
           rel="noreferrer"
-          className={`inline-flex min-h-11 items-center text-sm break-all ${ui.link} ${ui.focus}`}
+          className={`inline-flex min-h-11 items-center gap-1 text-sm break-all ${ui.link} ${ui.focus}`}
         >
+          <ExternalLink aria-hidden="true" className="size-3.5 shrink-0" />
           {source.url}{' '}
           <span className="sr-only">(opens in a new tab)</span>
         </a>
@@ -146,7 +151,7 @@ export function SourceSheet({ line, sources, onClose }: { line: CostLine; source
       <motion.div
         aria-hidden="true"
         data-testid="source-sheet-backdrop"
-        className="absolute inset-0 bg-stone-950/50"
+        className="absolute inset-0 bg-stone-950/55 backdrop-blur-[2px]"
         onClick={onClose}
         initial={{ opacity: reduceMotion ? 1 : 0 }}
         animate={{ opacity: 1 }}
@@ -164,39 +169,44 @@ export function SourceSheet({ line, sources, onClose }: { line: CostLine; source
         transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 420, damping: 40 }}
         className={`relative max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl border-t px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-xl outline-none sm:max-w-lg sm:rounded-2xl sm:border ${ui.surface} ${ui.text} ${ui.border}`}
       >
-        <div aria-hidden="true" className="mx-auto mb-3 h-1 w-10 rounded-full bg-stone-300 sm:hidden dark:bg-stone-600" />
+        <div aria-hidden="true" className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-border sm:hidden" />
 
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className={`inline-block rounded-full border px-2.5 py-0.5 text-sm font-medium ${ui.border} ${ui.muted}`}>
+            <Badge variant={blank ? 'outline' : line.source_type === 'rated' ? 'success' : 'secondary'} className="text-sm">
               {SOURCE_LABELS[line.source_type]}
-            </p>
+            </Badge>
             <h2 id={titleId} className="mt-2 text-xl leading-snug font-semibold wrap-break-word">
               {line.label}
             </h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className={`min-h-11 min-w-11 shrink-0 rounded-lg px-3 font-medium hover:bg-stone-100 active:bg-stone-200 dark:hover:bg-stone-800 dark:active:bg-stone-700 ${ui.muted} ${ui.focus}`}
-          >
+          <Button type="button" variant="ghost" onClick={onClose} className="shrink-0 px-3">
+            <X aria-hidden="true" />
             Close
-          </button>
+          </Button>
         </div>
 
-        <p className="mt-3 text-2xl font-semibold wrap-break-word">{amount.text}</p>
+        <p className={`mt-3 font-mono text-2xl font-bold tabular-nums wrap-break-word ${blank ? ui.muted : ''}`}>{amount.text}</p>
         {amount.note && <p className={`text-sm ${ui.muted}`}>{amount.note}</p>}
 
         <section className="mt-5">
-          <h3 className="font-semibold">{blank ? 'Why it is left blank' : 'How it is worked out'}</h3>
+          <h3 className="flex items-center gap-1.5 font-semibold">
+            <Calculator aria-hidden="true" className="size-4 text-muted-foreground" />
+            {blank ? 'Why it is left blank' : 'How it is worked out'}
+          </h3>
           {blank && <p className="mt-1">Left blank on purpose rather than guessed.</p>}
-          <p className={`mt-1 wrap-break-word ${blank ? ui.muted : ''}`}>{line.formula}</p>
+          <p className={`mt-2 rounded-xl border border-dashed border-border bg-muted/60 p-3 font-mono text-sm leading-relaxed wrap-break-word ${blank ? ui.muted : ''}`}>
+            {line.formula}
+          </p>
         </section>
 
         {ids.length > 0 && (
           <section className="mt-5">
-            <h3 className="font-semibold">{ids.length === 1 ? 'Source' : 'Sources'}</h3>
-            <ul className={`mt-2 divide-y ${ui.divider} [&>li]:py-3`}>
+            <h3 className="flex items-center gap-1.5 font-semibold">
+            <Library aria-hidden="true" className="size-4 text-muted-foreground" />
+            {ids.length === 1 ? 'Source' : 'Sources'}
+          </h3>
+            <ul className="mt-2 space-y-2">
               {ids.map((id) => (
                 <SourceEntry key={id} id={id} source={byId.get(id)} />
               ))}
