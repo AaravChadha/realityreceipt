@@ -1,0 +1,332 @@
+{
+  "retrieved_note": "Hand-recorded from live retailer product pages on 2026-09-26. Prices and availability vary by ZIP; never invent a listing.",
+  "energystar_notes": {
+    "_file": "energystar_refrigerators.csv is not on main yet (task 2.2). Every model below is noted missing until that CSV lands.",
+    "GTE18DTNRWW": "missing",
+    "GTS18HGNRWW": "missing",
+    "FFHT1822UV": "missing",
+    "FFTR1814WB": "missing",
+    "WRT311FZDW": "missing",
+    "WRT318FZDM": "missing",
+    "GTE18GTNRWW": "missing",
+    "GTE18DTNRBB": "missing",
+    "FFHT1822UW": "missing",
+    "FFHT1814WW": "missing",
+    "FFTR1814WW": "missing",
+    "GTS22KGNRWW": "missing",
+    "LTCS20020W": "missing",
+    "WRT318FZDW": "missing"
+  },
+  "items": [
+    {
+      "id": "bb-gte18dtnrww",
+      "category": "refrigerator",
+      "brand": "GE",
+      "model": "GTE18DTNRWW",
+      "condition": "new",
+      "attributes": {
+        "product_class": "3",
+        "volume_cuft": 17.5,
+        "width_in": 28.0
+      }
+    },
+    {
+      "id": "bb-gts18hgnrww",
+      "category": "refrigerator",
+      "brand": "GE",
+      "model": "GTS18HGNRWW",
+      "condition": "new",
+      "attributes": {
+        "product_class": "3",
+        "volume_cuft": 17.5,
+        "width_in": 28.0
+      }
+    },
+    {
+      "id": "bb-ffht1822uv",
+      "category": "refrigerator",
+      "brand": "Frigidaire",
+      "model": "FFHT1822UV",
+      "condition": "new",
+      "attributes": {
+        "product_class": "3",
+        "volume_cuft": 17.6,
+        "width_in": 28.0
+      }
+    },
+    {
+      "id": "bb-fftr1814wb",
+      "category": "refrigerator",
+      "brand": "Frigidaire",
+      "model": "FFTR1814WB",
+      "condition": "new",
+      "attributes": {
+        "product_class": "3",
+        "volume_cuft": 18.3,
+        "width_in": 30.0
+      }
+    },
+    {
+      "id": "bb-wrt311fzdw",
+      "category": "refrigerator",
+      "brand": "Whirlpool",
+      "model": "WRT311FZDW",
+      "condition": "new",
+      "attributes": {
+        "product_class": "3",
+        "volume_cuft": 20.5,
+        "width_in": 32.8
+      }
+    },
+    {
+      "id": "hd-wrt318fzdm",
+      "category": "refrigerator",
+      "brand": "Whirlpool",
+      "model": "WRT318FZDM",
+      "condition": "new",
+      "attributes": {
+        "product_class": "3",
+        "volume_cuft": 18.2,
+        "width_in": 29.8
+      }
+    },
+    {
+      "id": "hd-gte18gtnrww",
+      "category": "refrigerator",
+      "brand": "GE",
+      "model": "GTE18GTNRWW",
+      "condition": "new",
+      "attributes": {
+        "product_class": "3",
+        "volume_cuft": 17.5,
+        "width_in": 28.0
+      }
+    },
+    {
+      "id": "hd-gte18dtnrbb",
+      "category": "refrigerator",
+      "brand": "GE",
+      "model": "GTE18DTNRBB",
+      "condition": "new",
+      "attributes": {
+        "product_class": "3",
+        "volume_cuft": 17.5,
+        "width_in": 28.0
+      }
+    },
+    {
+      "id": "hd-ffht1822uw",
+      "category": "refrigerator",
+      "brand": "Frigidaire",
+      "model": "FFHT1822UW",
+      "condition": "new",
+      "attributes": {
+        "product_class": "3",
+        "volume_cuft": 18.0,
+        "width_in": 28.0
+      }
+    },
+    {
+      "id": "hd-ffht1814ww",
+      "category": "refrigerator",
+      "brand": "Frigidaire",
+      "model": "FFHT1814WW",
+      "condition": "new",
+      "attributes": {
+        "product_class": "3",
+        "volume_cuft": 18.3,
+        "width_in": 30.0
+      }
+    },
+    {
+      "id": "lw-fftr1814ww",
+      "category": "refrigerator",
+      "brand": "Frigidaire",
+      "model": "FFTR1814WW",
+      "condition": "new",
+      "attributes": {
+        "product_class": "3",
+        "volume_cuft": 18.3,
+        "width_in": 30.0
+      }
+    },
+    {
+      "id": "lw-gts22kgnrww",
+      "category": "refrigerator",
+      "brand": "GE",
+      "model": "GTS22KGNRWW",
+      "condition": "new",
+      "attributes": {
+        "product_class": "3",
+        "volume_cuft": 21.9,
+        "width_in": 32.8
+      }
+    },
+    {
+      "id": "lw-ltcs20020w",
+      "category": "refrigerator",
+      "brand": "LG",
+      "model": "LTCS20020W",
+      "condition": "new",
+      "attributes": {
+        "product_class": "3",
+        "volume_cuft": 20.2,
+        "width_in": 29.8
+      }
+    },
+    {
+      "id": "lw-wrt318fzdw",
+      "category": "refrigerator",
+      "brand": "Whirlpool",
+      "model": "WRT318FZDW",
+      "condition": "new",
+      "attributes": {
+        "product_class": "3",
+        "volume_cuft": 18.2,
+        "width_in": 29.8
+      }
+    }
+  ],
+  "offers": [
+    {
+      "item_id": "bb-gte18dtnrww",
+      "price": 889.99,
+      "seller_type": "retailer",
+      "source": "retailer_cache",
+      "source_id": "retailer_cache_bestbuy",
+      "url": "https://www.bestbuy.com/site/ge-17-5-cu-ft-top-freezer-refrigerator-with-led-interior-lighting-white/6368551.p?skuId=6368551",
+      "retrieved_at": "2026-09-26",
+      "available_within_days": null
+    },
+    {
+      "item_id": "bb-gts18hgnrww",
+      "price": 649.99,
+      "seller_type": "retailer",
+      "source": "retailer_cache",
+      "source_id": "retailer_cache_bestbuy",
+      "url": "https://www.bestbuy.com/site/ge-17-5-cu-ft-top-freezer-refrigerator-with-edge-to-edge-glass-shelves-white/6390228.p?skuId=6390228",
+      "retrieved_at": "2026-09-26",
+      "available_within_days": null
+    },
+    {
+      "item_id": "bb-ffht1822uv",
+      "price": 649.99,
+      "seller_type": "retailer",
+      "source": "retailer_cache",
+      "source_id": "retailer_cache_bestbuy",
+      "url": "https://www.bestbuy.com/site/frigidaire-17-6-cu-ft-top-freezer-refrigerator-stainless-steel/6501279.p?skuId=6501279",
+      "retrieved_at": "2026-09-26",
+      "available_within_days": null
+    },
+    {
+      "item_id": "bb-fftr1814wb",
+      "price": 629.99,
+      "seller_type": "retailer",
+      "source": "retailer_cache",
+      "source_id": "retailer_cache_bestbuy",
+      "url": "https://www.bestbuy.com/site/frigidaire-18-3-cu-ft-garage-ready-top-freezer-refrigerator-black/6486379.p?skuId=6486379",
+      "retrieved_at": "2026-09-26",
+      "available_within_days": null
+    },
+    {
+      "item_id": "bb-wrt311fzdw",
+      "price": 739.99,
+      "seller_type": "retailer",
+      "source": "retailer_cache",
+      "source_id": "retailer_cache_bestbuy",
+      "url": "https://www.bestbuy.com/site/whirlpool-20-5-cu-ft-top-freezer-refrigerator-white/8982107.p?skuId=8982107",
+      "retrieved_at": "2026-09-26",
+      "available_within_days": null
+    },
+    {
+      "item_id": "hd-wrt318fzdm",
+      "price": 799.0,
+      "seller_type": "retailer",
+      "source": "retailer_cache",
+      "source_id": "retailer_cache_homedepot",
+      "url": "https://www.homedepot.com/p/Whirlpool-18-2-cu-ft-Top-Freezer-Refrigerator-in-Monochromatic-Stainless-Steel-WRT318FZDM/205730331",
+      "retrieved_at": "2026-09-26",
+      "available_within_days": null
+    },
+    {
+      "item_id": "hd-gte18gtnrww",
+      "price": 944.0,
+      "seller_type": "retailer",
+      "source": "retailer_cache",
+      "source_id": "retailer_cache_homedepot",
+      "url": "https://www.homedepot.com/p/GE-17-5-cu-ft-Top-Freezer-Refrigerator-in-White-GTE18GTNRWW/311529010",
+      "retrieved_at": "2026-09-26",
+      "available_within_days": null
+    },
+    {
+      "item_id": "hd-gte18dtnrbb",
+      "price": 881.0,
+      "seller_type": "retailer",
+      "source": "retailer_cache",
+      "source_id": "retailer_cache_homedepot",
+      "url": "https://www.homedepot.com/p/GE-17-5-cu-ft-Top-Freezer-Refrigerator-in-Black-ENERGY-STAR-GTE18DTNRBB/311102078",
+      "retrieved_at": "2026-09-26",
+      "available_within_days": null
+    },
+    {
+      "item_id": "hd-ffht1822uw",
+      "price": 548.0,
+      "seller_type": "retailer",
+      "source": "retailer_cache",
+      "source_id": "retailer_cache_homedepot",
+      "url": "https://www.homedepot.com/p/Frigidaire-28-in-18-cu-ft-Top-Freezer-Refrigerator-in-White-ENERGY-STAR-FFHT1822UW/320640746",
+      "retrieved_at": "2026-09-26",
+      "available_within_days": null
+    },
+    {
+      "item_id": "hd-ffht1814ww",
+      "price": 849.0,
+      "seller_type": "retailer",
+      "source": "retailer_cache",
+      "source_id": "retailer_cache_homedepot",
+      "url": "https://www.homedepot.com/p/Frigidaire-18-3-cu-ft-Top-Freezer-Refrigerator-in-White-Energy-Star-Garage-Ready-FFHT1814WW/322962039",
+      "retrieved_at": "2026-09-26",
+      "available_within_days": null
+    },
+    {
+      "item_id": "lw-fftr1814ww",
+      "price": 599.0,
+      "seller_type": "retailer",
+      "source": "retailer_cache",
+      "source_id": "retailer_cache_lowes",
+      "url": "https://www.lowes.com/pd/Frigidaire-18-3-cu-ft-Top-Freezer-Refrigerator-White/1001165000",
+      "retrieved_at": "2026-09-26",
+      "available_within_days": null
+    },
+    {
+      "item_id": "lw-gts22kgnrww",
+      "price": 699.0,
+      "seller_type": "retailer",
+      "source": "retailer_cache",
+      "source_id": "retailer_cache_lowes",
+      "url": "https://www.lowes.com/pd/GE-Garage-Ready-21-9-cu-ft-Top-Freezer-Refrigerator-White/1001431370",
+      "retrieved_at": "2026-09-26",
+      "available_within_days": null
+    },
+    {
+      "item_id": "lw-ltcs20020w",
+      "price": 649.0,
+      "seller_type": "retailer",
+      "source": "retailer_cache",
+      "source_id": "retailer_cache_lowes",
+      "url": "https://www.lowes.com/pd/LG-20-2-cu-ft-Top-Freezer-Refrigerator-White-ENERGY-STAR/1002886012",
+      "retrieved_at": "2026-09-26",
+      "available_within_days": null
+    },
+    {
+      "item_id": "lw-wrt318fzdw",
+      "price": 679.0,
+      "seller_type": "retailer",
+      "source": "retailer_cache",
+      "source_id": "retailer_cache_lowes",
+      "url": "https://www.lowes.com/pd/Whirlpool-18-2-cu-ft-Top-Freezer-Refrigerator-White/50285239",
+      "retrieved_at": "2026-09-26",
+      "available_within_days": null
+    }
+  ]
+}

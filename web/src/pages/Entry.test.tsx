@@ -1,25 +1,53 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, expect, test, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import sample from '../../../contracts/receipt_fridge.json'
-import type { Path } from '../contracts'
+import type { Path, Source } from '../contracts'
 import Entry from './Entry'
 
 const fixture = sample as Path[]
 
+// jsdom has no scrollIntoView; record the calls instead.
+const scrollIntoView = vi.fn()
+
+beforeEach(() => {
+  scrollIntoView.mockClear()
+  Element.prototype.scrollIntoView = scrollIntoView
+})
+
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 const section = (name: string) => within(screen.getByRole('group', { name }))
 
 const type = (input: HTMLElement, value: string) => fireEvent.change(input, { target: { value } })
 
-// A fake API: /item echoes the unit back, /quote returns `paths`.
+const submit = () => fireEvent.click(screen.getByRole('button', { name: 'Show every way to get it' }))
+
+const SOURCES: Source[] = [
+  {
+    id: 'frb_g19',
+    title: 'Consumer Credit G.19',
+    publisher: 'Federal Reserve Board',
+    url: 'https://www.federalreserve.gov/releases/g19/current/',
+    retrieved_date: '2026-09-24',
+  },
+  {
+    id: 'energystar_refrigerators',
+    title: 'ENERGY STAR Certified Residential Refrigerators',
+    publisher: 'U.S. EPA ENERGY STAR',
+    url: 'https://data.energystar.gov/example',
+    retrieved_date: '2026-09-26',
+  },
+]
+
+// A fake API: /item echoes the unit back, /sources returns SOURCES, /quote returns `paths`.
 function fakeApi(paths: Path[] = fixture) {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-    const body = url === '/api/item' ? JSON.parse(String(init?.body)) : paths
+    const body = url === '/api/item' ? JSON.parse(String(init?.body)) : url === '/api/sources' ? SOURCES : paths
     return { ok: true, status: 200, json: async () => body } as Response
   })
   vi.stubGlobal('fetch', fetchMock)
@@ -27,6 +55,24 @@ function fakeApi(paths: Path[] = fixture) {
 }
 
 const bodyOf = (call: unknown[]) => JSON.parse(String((call[1] as RequestInit).body))
+
+// A used listing alone: the smallest form that sends a quote.
+function fillUsed() {
+  const used = section('A used one you found')
+  type(used.getByLabelText('Brand'), 'Whirlpool')
+  type(used.getByLabelText('Model number'), 'WRT318FZDW')
+  type(used.getByLabelText('Listing price'), '300')
+}
+
+// Quotes the fixture and opens one card's cost lines.
+async function quoteAndOpen(cardName: string) {
+  render(<Entry />)
+  fillUsed()
+  submit()
+  const card = within(await screen.findByRole('article', { name: cardName }))
+  fireEvent.click(card.getByRole('button', { name: "What's in this number" }))
+  return card
+}
 
 test('brand, model and serial inputs are found by their labels', () => {
   render(<Entry />)
@@ -40,28 +86,41 @@ test('brand, model and serial inputs are found by their labels', () => {
   expect(used.getByLabelText('Listing price')).toBeInTheDocument()
 })
 
-test('both units go through /item, then /quote gets current, the listing and the amounts', async () => {
+test('"Year made" is on both sections and the label kWh only on "Your fridge now"', () => {
+  render(<Entry />)
+  const now = section('Your fridge now')
+  expect(now.getByLabelText('Year made (optional)')).toHaveAttribute('inputmode', 'numeric')
+  expect(now.getByLabelText('kWh per year on the yellow label (optional)')).toHaveAttribute('inputmode', 'decimal')
+  const used = section('A used one you found')
+  expect(used.getByLabelText('Year made (optional)')).toHaveAttribute('inputmode', 'numeric')
+  expect(used.queryByLabelText(/kWh/)).toBeNull()
+})
+
+test('both units go through /item, then /quote gets current, the listing, the years, the label kWh and the amounts', async () => {
   const fetchMock = fakeApi()
   render(<Entry />)
   const now = section('Your fridge now')
   type(now.getByLabelText('Brand'), 'GE')
   type(now.getByLabelText('Model number'), 'GTE18GTHRWW')
   type(now.getByLabelText('Serial number (optional)'), 'VS123456')
+  type(now.getByLabelText('Year made (optional)'), '2004')
   type(now.getByLabelText('Product class (optional)'), '3')
   type(now.getByLabelText('Volume in cubic feet (optional)'), '18.2')
+  type(now.getByLabelText('kWh per year on the yellow label (optional)'), '586')
   type(now.getByLabelText('Repair quote (optional)'), '$180')
   const used = section('A used one you found')
   type(used.getByLabelText('Brand'), 'Whirlpool')
   type(used.getByLabelText('Model number'), 'WRT318FZDW')
+  type(used.getByLabelText('Year made (optional)'), '2015')
   type(used.getByLabelText('Listing price'), '350')
   type(used.getByLabelText('Condition'), 'refurbished')
   type(used.getByLabelText('Warranty in months (optional)'), '6')
   type(screen.getByLabelText('I can spend up to this much today (optional)'), '1,000')
-  fireEvent.click(screen.getByRole('button', { name: 'Show every way to get it' }))
+  submit()
 
   await screen.findByText('Sample data, not a real quote')
   const urls = fetchMock.mock.calls.map((c) => c[0])
-  expect(urls).toEqual(['/api/item', '/api/item', '/api/quote'])
+  expect(urls).toEqual(['/api/item', '/api/item', '/api/quote', '/api/sources'])
   expect(bodyOf(fetchMock.mock.calls[2])).toEqual({
     current: {
       id: 'current',
@@ -69,8 +128,9 @@ test('both units go through /item, then /quote gets current, the listing and the
       brand: 'GE',
       model: 'GTE18GTHRWW',
       serial: 'VS123456',
+      mfg_year: 2004,
       condition: 'used_as_is',
-      attributes: { product_class: '3', volume_cuft: 18.2 },
+      attributes: { product_class: '3', volume_cuft: 18.2, label_kwh_per_year: 586 },
     },
     items: [
       {
@@ -78,6 +138,7 @@ test('both units go through /item, then /quote gets current, the listing and the
         category: 'refrigerator',
         brand: 'Whirlpool',
         model: 'WRT318FZDW',
+        mfg_year: 2015,
         condition: 'refurbished',
         warranty_months: 6,
       },
@@ -89,8 +150,25 @@ test('both units go through /item, then /quote gets current, the listing and the
     repair_quote_high: 180,
     budget_today: 1000,
   })
-  const list = within(screen.getByRole('region', { name: 'Every way to get it' }))
-  for (const path of fixture) expect(list.getByText(path.name)).toBeInTheDocument()
+  const receipt = within(screen.getByRole('region', { name: 'Your receipt' }))
+  for (const path of fixture) expect(receipt.getByRole('article', { name: path.name })).toBeInTheDocument()
+})
+
+test('the /quote response renders through Receipt: one card per path with its three headline numbers', async () => {
+  fakeApi()
+  render(<Entry />)
+  fillUsed()
+  submit()
+
+  const receipt = within(await screen.findByRole('region', { name: 'Your receipt' }))
+  expect(receipt.getByText('Sample data, not a real quote')).toBeInTheDocument()
+  const names = receipt.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
+  expect(names).toEqual(fixture.map((p) => p.name))
+  const used = within(receipt.getByRole('article', { name: 'Used, as-is' }))
+  expect(used.getByText('Pay today')).toBeInTheDocument()
+  expect(used.getByText('$250')).toBeInTheDocument()
+  expect(used.getByText('$484 to $1,383')).toBeInTheDocument()
+  expect(used.getByText('$128 to $328')).toBeInTheDocument()
 })
 
 test('a used one alone is sent as a used_as_is listing with no current unit', async () => {
@@ -103,9 +181,10 @@ test('a used one alone is sent as a used_as_is listing with no current unit', as
   fireEvent.click(screen.getByRole('button', { name: 'Show every way to get it' }))
 
   await screen.findByText('No paths came back for these details.')
-  const req = bodyOf(fetchMock.mock.calls.at(-1)!)
+  const req = bodyOf(fetchMock.mock.calls.find((c) => c[0] === '/api/quote')!)
   expect(req.current).toBeNull()
   expect(req.items[0].condition).toBe('used_as_is')
+  expect(req.items[0].mfg_year).toBeNull()
   expect(req.items[0].warranty_months).toBeNull()
   expect(req.offers[0].seller_type).toBe('private')
   expect(req.repair_quote_low).toBeNull()
@@ -133,4 +212,125 @@ test('an API failure is shown, not swallowed', async () => {
   render(<Entry />)
   fireEvent.click(screen.getByRole('button', { name: 'Show every way to get it' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not get a receipt: quote engine failed')
+})
+
+test('tapping a cost line opens the source sheet with that line and its sources from /sources', async () => {
+  fakeApi()
+  const card = await quoteAndOpen('New, credit card')
+  fireEvent.click(card.getByRole('button', { name: /Card interest/ }))
+
+  const sheet = within(screen.getByRole('dialog', { name: 'Card interest' }))
+  expect(sheet.getByText('Published')).toBeInTheDocument()
+  expect(sheet.getByText('Consumer Credit G.19')).toBeInTheDocument()
+  expect(sheet.getByText('Federal Reserve Board')).toBeInTheDocument()
+
+  fireEvent.click(sheet.getByRole('button', { name: 'Close' }))
+  expect(screen.queryByRole('dialog')).toBeNull()
+})
+
+test('/sources is fetched once, however many lines are tapped or quotes are made', async () => {
+  const fetchMock = fakeApi()
+  const card = await quoteAndOpen('New, credit card')
+  fireEvent.click(card.getByRole('button', { name: /Card interest/ }))
+  fireEvent.keyDown(document, { key: 'Escape' })
+  fireEvent.click(card.getByRole('button', { name: /^Electricity/ }))
+  expect(screen.getByRole('dialog', { name: 'Electricity' })).toHaveTextContent('ENERGY STAR Certified Residential Refrigerators')
+  fireEvent.keyDown(document, { key: 'Escape' })
+
+  submit()
+  await screen.findByRole('article', { name: 'New, credit card' })
+  const urls = fetchMock.mock.calls.map((c) => c[0])
+  expect(urls.filter((u) => u === '/api/quote')).toHaveLength(2)
+  expect(urls.filter((u) => u === '/api/sources')).toHaveLength(1)
+})
+
+test('if /sources fails, the sheet still opens, and the next quote asks again', async () => {
+  let sourcesUp = false
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === '/api/sources' && !sourcesUp) return { ok: false, status: 503, json: async () => null } as Response
+    const body = url === '/api/item' ? JSON.parse(String(init?.body)) : url === '/api/sources' ? SOURCES : fixture
+    return { ok: true, status: 200, json: async () => body } as Response
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  const card = await quoteAndOpen('New, credit card')
+  fireEvent.click(card.getByRole('button', { name: /Card interest/ }))
+  expect(screen.getByRole('dialog', { name: 'Card interest' })).toHaveTextContent('Source details are not available right now.')
+  fireEvent.keyDown(document, { key: 'Escape' })
+
+  sourcesUp = true
+  submit()
+  const again = within(await screen.findByRole('article', { name: 'New, credit card' }))
+  fireEvent.click(again.getByRole('button', { name: "What's in this number" }))
+  fireEvent.click(again.getByRole('button', { name: /Card interest/ }))
+  expect(await screen.findByText('Consumer Credit G.19')).toBeInTheDocument()
+  expect(fetchMock.mock.calls.filter((c) => c[0] === '/api/sources')).toHaveLength(2)
+})
+
+test('after a quote, focus moves to the results and they scroll into view', async () => {
+  fakeApi()
+  render(<Entry />)
+  fillUsed()
+  const button = screen.getByRole('button', { name: 'Show every way to get it' })
+  button.focus()
+  submit()
+
+  const receipt = await screen.findByRole('region', { name: 'Your receipt' })
+  const focused = document.activeElement as HTMLElement
+  expect(focused).not.toBe(button)
+  expect(focused).toContainElement(receipt)
+  expect(focused).toHaveAttribute('tabindex', '-1')
+  expect(scrollIntoView).toHaveBeenCalledTimes(1)
+  expect(scrollIntoView.mock.contexts[0]).toBe(focused)
+  expect(scrollIntoView.mock.calls[0][0]).toMatchObject({ block: 'start' })
+})
+
+test('a year that is not four digits from 1940 to this year, or a label kWh of 0, is an error and nothing is sent', () => {
+  const fetchMock = fakeApi()
+  render(<Entry />)
+  const thisYear = new Date().getFullYear()
+  const now = section('Your fridge now')
+  type(now.getByLabelText('Brand'), 'Maytag')
+  type(now.getByLabelText('Model number'), 'MB2562')
+  type(now.getByLabelText('Year made (optional)'), '04')
+  type(now.getByLabelText('kWh per year on the yellow label (optional)'), '0')
+  fillUsed()
+  type(section('A used one you found').getByLabelText('Year made (optional)'), String(thisYear + 1))
+  submit()
+
+  expect(fetchMock).not.toHaveBeenCalled()
+  const yearError = `Enter the year as four digits, from 1940 to ${thisYear}.`
+  expect(now.getByLabelText('Year made (optional)')).toHaveAccessibleDescription(yearError)
+  expect(now.getByLabelText('kWh per year on the yellow label (optional)')).toHaveAccessibleDescription(
+    'Enter the kWh per year as a number above 0, for example 586.',
+  )
+  expect(section('A used one you found').getByLabelText('Year made (optional)')).toHaveAccessibleDescription(yearError)
+  expect(screen.getByRole('alert')).toHaveTextContent('3 fields need a fix.')
+})
+
+test('a request with no answer after 15 seconds is stopped with a plain message', async () => {
+  vi.useFakeTimers()
+  const fetchMock = vi.fn(
+    (_url: string, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError')))
+      }),
+  )
+  vi.stubGlobal('fetch', fetchMock)
+  render(<Entry />)
+  submit()
+  await act(async () => {}) // let the submit handler reach fetch, which starts the 15-second timer
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(14_999)
+  })
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(screen.getByRole('button', { name: 'Working it out...' })).toBeDisabled()
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1)
+  })
+  expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(true)
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'Could not get a receipt: No answer after 15 seconds. Check your connection and try again.',
+  )
 })
