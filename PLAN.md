@@ -95,6 +95,8 @@ The option that looks cheapest today often costs the most over time: an old used
 
 > **Decision (2026-09-26 23:35): entries, from the operator.** General track: AI/ML, analytics and visualizations (the RECS energy-burden analysis and chart, the cost engine, Grok as a reader, not a calculator). Sponsor challenges, at most two: Aramco's social-good challenge (A Marina's Mission) and SpaceXAI. Not entered: Visa (the operator reads it as needing Visa's APIs), Notability, TigerData. The shop stays in the product and the demo as a feature, not as a Visa entry.
 
+> **Decision (2026-09-27 00:20): the unit you have always shows.** Found in a demo run: with no repair quote, a scanned fridge added nothing to the receipt, so every scan gave the same four "New" paths ($716.84 over 3 years). A current unit now always gets "Keep the one you have": nothing paid today, and its own electricity, aging and replacement lines. Tasks 1.10, 3.3.9, 2.9.5. Matching "New" to the unit you have is deferred (Future Extensions): the cache holds only top-freezers of 17.5 to 21.9 cu ft, so matching would change little and would move demo numbers before the freeze.
+
 ## Index of phases
 
 Phases are milestones, not time slots. A task in a later phase starts as soon as its inputs are on `origin/main`; Track D's scan and RECS work can start right after Phase 1.
@@ -245,6 +247,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `ModelEnergy` gains `note: str = ""` and `note_source_ids: list[str] = []` (mirror both in `web/src/contracts.ts`). `running.py` appends a non-empty note to the electricity line's formula and adds `note_source_ids` to its `other_source_ids`. 2.2.7 fills the note.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py api/tests/test_running.py -q` passes, including a test that a `ModelEnergy` with a note puts that note in the electricity formula and its source ids in `other_source_ids`, and `npm --prefix web test -- contracts` passes.
 
+- [x] **1.10 A path group for keeping the unit you have (Track A1)** (NEW 2026-09-27 00:20)
+  `PathGroup` gains `keep` (first), mirrored in `web/src/contracts.ts`; `contracts/receipt_fridge.json` gains a Keep path derived from its Repair path without the repair.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py -q` and `npm --prefix web test -- contracts` pass, with the fixture covering all six groups.
+
 <a id="phase-2"></a>
 ### [ ] Phase 2 — Vertical slice
 > Goal: a typed fridge model, plus a used listing price, produces a real sourced receipt with `used_as_is` and `new`/`cash` paths, on a real phone over HTTPS. Proves every track connects before widening.
@@ -356,6 +362,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   Tests in `web/src/components/Receipt.test.tsx` for `lowestTotal` (added in #106): the badge shows only when one path's whole 3-year range sits below every other path's and that path is not flagged `costs_not_estimated`.
   **Acceptance:** `npm --prefix web test -- Receipt` passes, including tests that a clear winner shows the badge once, overlapping ranges show none, and a winner flagged `costs_not_estimated` shows none.
 
+- [x] **2.9.5 The Keep badge (Track C2)** (NEW 2026-09-27 00:20)
+  `PathCard`'s group labels gain `keep: 'Keep'`.
+  **Acceptance:** `npm --prefix web test -- Receipt` passes, including a test that the Keep path shows its "Keep" badge and $0 today.
+
 - [x] **2.10 Tap-to-source sheet (Track C3)**
   `web/src/components/SourceSheet.tsx`: tapping any cost line opens a sheet with its label, amount range, formula, source label (`Rated`, `Published`, `You entered`, `Not estimated`) and, from `/sources`, the title, publisher, URL and retrieved date. `SourceSheet.test.tsx` renders one line of each `source_type` and finds the four label texts.
   **Acceptance:** `npm --prefix web test -- SourceSheet` passes.
@@ -446,6 +456,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [x] **3.3.8 Flags that match a range (Track A2)** (NEW 2026-09-26 22:20, Codex review)
   `_flag_test_procedure` uses the first possible year: a unit that could be made before 2014 is flagged when the quote also holds a newer unit. `past_typical_life` only when `life_high` is 0; when only `life_low` is 0, `may_be_past_typical_life` instead. `api/tests/test_demo_script.py` must still pass.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py api/tests/test_demo_script.py -q` passes, including tests that a 2012 to 2016 undated unit beside a new fridge gets `test_procedure_changed`, and a unit with 0 to 3 years left gets `may_be_past_typical_life`, not `past_typical_life`.
+
+- [x] **3.3.9 Keep the one you have (Track A2)** (NEW 2026-09-27 00:20)
+  Whenever `current` is entered, `quote` adds "Keep the one you have": a zero acquisition ("Keep it", nothing paid today, cost per year from running costs only) through `_unit_path`, so the unit's own electricity, aging and replacement lines follow. The repair path is unchanged.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py api/tests/test_demo_script.py -q` passes, including tests that a current unit with no quote gets the Keep path with $0 today and its own electricity, and that two units with different kWh give different Keep totals and identical new paths.
 
 - [x] **3.4 Serial decode (Track B4)**
   `api/app/serial/decode.py`: decoders keyed by brand, only for the brands on the demo cards and in the retailer cache, each rule's `source_id` in `sources.json`. A year code that repeats on a cycle resolves from model era when possible, otherwise returns `year_confidence="low"`. An unknown brand returns `SerialDecode(None, "none", None, "no decoder for brand")`. `api/tests/test_serial.py`: one known serial per supported brand decodes to its year; an unknown brand returns confidence `none`.
@@ -589,6 +603,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - Card: `label-older-maytag-mb2562.png`. Enter it as "Your fridge now" with a repair quote (for example $180): with no quote there are no repair ranges, so there is no repair path.
 - Tap the electricity line: **Rated, 505 kWh a year, from DOE's historical refrigerator ratings**, times the Georgia Power rate (tap through to both sources). Tap the replacement line: "not estimated", left blank on purpose. ~~because the unit is past its typical life.~~ → **Verdict (2026-09-26 22:30):** since 3.3.5 its year is estimated from DOE's listing years, so the line says the unit "may be at or past" the low end of its typical life; say it that way.
 - Don't state a year (the label prints none), and don't claim big energy savings: against a new fridge the gap is about $20 a year ($78.99 against $56.31 on main at 54a9954).
+- Since 3.3.9 (2026-09-27): the receipt also shows "Keep the one you have": $0 today, $236.88 over 3 years from the Maytag's own 505 kWh, flagged past its typical life, after the complete paths. The new paths are unchanged.
 - The receipt also shows two flag sentences, both true: the year made is estimated from the years DOE lists this model (3.3.5), and the energy test changed around 2014. Read them if asked; still state no year.
 
 **Scenario 3: used vs new, asked in plain words (the shop; not a Visa entry since 23:35).** ~~Only if the shop (4.1, 4.3, 4.4) is on main by 23:30.~~ → **Verdict (2026-09-26 22:15):** needs 4.4.1 (the shop reachable from the app); target 23:00.
@@ -599,7 +614,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 
 **Scenario 4: not a wrapper.** ~~Only if a real scan works by 22:00.~~ → **Verdict (2026-09-26 22:15):** 3.10 is on main (#48); needs the xAI key and a real scan through the app checked by hand.
 > "The AI only reads the label. Watch me type the same thing by hand."
-- Scan `label-current-frigidaire-ffht1822u.png` (it prints the maker, "Electrolux Home Products Inc."; leave it as read: the app treats Electrolux and Frigidaire as one maker, task 2.2.4, and task 3.8 checks that the scanned and typed receipts match), then type `FFHT1822U*` by hand: the identical receipt, rated 360 kWh.
+- Scan `label-current-frigidaire-ffht1822u.png` (it prints the maker, "Electrolux Home Products Inc."; leave it as read: the app treats Electrolux and Frigidaire as one maker, task 2.2.4, and task 3.8 checks that the scanned and typed receipts match), then type `FFHT1822U*` by hand: the identical receipt, rated 360 kWh. Since 3.3.9 the receipt includes "Keep the one you have" ($0 today, $168.84 over 3 years from its own 360 kWh), so it depends on the fridge scanned.
 
 **Presenter rules:** say the cards are printouts of real labels and pages; tap any *line*, not any number; no year for the Maytag, no "2004", no buyout week, no APR, no "you qualify", no absolute claims.
 
@@ -609,6 +624,7 @@ Scenario 1 is the strongest talking point: its numbers come straight off a real 
 
 - A Spanish version of the screen, from written templates, so no model touches a number.
 
+- **"New" matched to the unit you have** (deferred 2026-09-27 00:20): same product class, then the closest volume, cheapest on a tie; the cheapest overall, said so on the line, when nothing comparable is cached. Worth it once the cache holds more than top-freezers.
 - **Cars, the next category (decision 2026-09-26 23:20).** Used vs new from the user's listing, as now; buy-here-pay-here lots through the existing lease math (printed payment, term and total); auto loans beside the card and PAL paths (Federal Reserve G.19 new-car rate). Fuel like the electricity line: miles a year (default: FHWA's national average) divided by MPG (fueleconomy.gov, by make, model and year) times the Georgia gasoline price (EIA). Upkeep by miles, not months: oil changes, tires and tune-ups (AAA's published per-mile maintenance cost, or the maker's schedule). Georgia's title ad valorem tax on the purchase (rate from the Georgia Department of Revenue). Insurance, major repairs and resale value show as not estimated. Every figure sourced before it is used. Engine work: per-mile upkeep and remaining life from the odometer.
 - More appliances as data profiles: dishwashers and clothes washers (closest to fridges: ENERGY STAR kWh a year and a published lifespan), water heaters (gas and electric lines), room air conditioners (usage hours).
 - Electricity rates projected forward from EIA monthly Georgia prices instead of held flat (TigerData, if that prize is confirmed).

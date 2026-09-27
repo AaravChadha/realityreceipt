@@ -25,7 +25,7 @@ export type SellerType = (typeof SELLER_TYPES)[number]
 export const SCAN_KINDS = ['label', 'price_tag', 'lease', 'listing'] as const
 export type ScanKind = (typeof SCAN_KINDS)[number]
 
-export const PATH_GROUPS = ['repair', 'used_as_is', 'refurbished', 'new', 'rent_to_own'] as const
+export const PATH_GROUPS = ['keep', 'repair', 'used_as_is', 'refurbished', 'new', 'rent_to_own'] as const
 export type PathGroup = (typeof PATH_GROUPS)[number]
 
 export const PAYMENT_METHODS = ['cash', 'card', 'bnpl', 'pal', 'rto_full', 'rto_buyout'] as const

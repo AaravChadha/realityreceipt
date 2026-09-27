@@ -4,8 +4,8 @@ import { MODEL_ENERGY_KEYS, MONTHS, PATH_GROUPS, PATH_KEYS, SOURCE_TYPES, type P
 
 const fixture = sample as Path[]
 
-test('the sample receipt has 9 paths across all 5 groups', () => {
-  expect(fixture).toHaveLength(9)
+test('the sample receipt has 10 paths across all 6 groups', () => {
+  expect(fixture).toHaveLength(10)
   expect(new Set(fixture.map((p) => p.group))).toEqual(new Set(PATH_GROUPS))
 })
 

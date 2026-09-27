@@ -147,7 +147,7 @@ def pick(paths: list[Path], group: str, method: str | None) -> Path:
 
 
 ALL_KINDS = {
-    ("repair", None), ("used_as_is", "cash"), ("refurbished", "cash"),
+    ("keep", None), ("repair", None), ("used_as_is", "cash"), ("refurbished", "cash"),
     ("new", "cash"), ("new", "card"), ("new", "bnpl"), ("new", "pal"),
     ("rent_to_own", "rto_full"), ("rent_to_own", "rto_buyout"),
 }
@@ -157,16 +157,16 @@ def sort_keys(paths: list[Path]) -> list[tuple[bool, float, float]]:
     return [(INCOMPLETE in p.flags, p.total_3yr_high, p.pay_today) for p in paths]
 
 
-def test_full_request_returns_nine_paths_complete_ones_first() -> None:
+def test_full_request_returns_ten_paths_complete_ones_first() -> None:
     paths = quote(full_request(), FakeRepo())
-    assert len(paths) == 9
+    assert len(paths) == 10  # nine, plus Keep the one you have (task 3.3.9)
     assert {(p.group, p.payment_method) for p in paths} == ALL_KINDS
     # Complete paths by total (high end), then pay today; then the flagged ones in the same order.
     assert sort_keys(paths) == sorted(sort_keys(paths))
     # Blank costs here: buy now pay later with no cached terms, and (since task 3.3.2) the 2004
     # unit's replacement timing, since it is past its typical life.
     flagged = [(p.group, p.payment_method) for p in paths if INCOMPLETE in p.flags]
-    assert sorted(flagged, key=str) == [("new", "bnpl"), ("repair", None)]
+    assert sorted(flagged, key=str) == [("keep", None), ("new", "bnpl"), ("repair", None)]  # Keep: the same old unit
     assert paths[-len(flagged):] == [p for p in paths if INCOMPLETE in p.flags]
 
 
@@ -273,7 +273,7 @@ def test_pal_is_flagged_and_left_out_over_the_loan_cap() -> None:
     pricey = [Offer(item_id="new-a", price=2500.0, seller_type="retailer", source="retailer_cache", source_id="retailer_src")]
     paths = quote(full_request(), FakeRepo(new=pricey))
     assert ("new", "pal") not in {(p.group, p.payment_method) for p in paths}
-    assert len(paths) == 8
+    assert len(paths) == 9
 
 
 def test_repair_from_the_users_quote() -> None:
@@ -302,7 +302,7 @@ def test_old_unit_energy_is_the_standard_ceiling_for_its_adjusted_volume() -> No
     electricity = repair.lines[1]
     assert (electricity.label, electricity.source_type, electricity.source_id) == ("Electricity, up to when new", "published", "doe_standards")
     assert electricity.amount_high == round((8.0 * 20.5 + 300.0) * 0.15, 2)
-    assert repo.ceiling_calls == [(2004, "3", 20.5)]
+    assert repo.ceiling_calls == [(2004, "3", 20.5)] * 2  # the same unit on Keep and on Repair
 
 
 def test_total_volume_alone_gives_no_ceiling() -> None:
@@ -360,14 +360,16 @@ def test_flags_on_the_old_unit() -> None:
     repair = pick(paths, "repair", None)
     assert {"past_typical_life", "test_procedure_changed", "year_from_serial_low_confidence"} <= set(repair.flags)
     assert (repair.cost_per_year_low, repair.cost_per_year_high) == (None, None)
-    others = [p for p in paths if p.group != "repair"]
+    keep = pick(paths, "keep", None)  # the same old unit, so the same flags
+    assert {"past_typical_life", "test_procedure_changed", "year_from_serial_low_confidence"} <= set(keep.flags)
+    others = [p for p in paths if p.group not in ("repair", "keep")]
     assert not any("test_procedure_changed" in p.flags or "year_from_serial_low_confidence" in p.flags for p in others)
 
 
 def test_no_test_procedure_flag_without_a_newer_unit() -> None:
     paths = quote(QuoteRequest(current=CURRENT), FakeRepo(new=[]))
-    assert [p.group for p in paths] == ["repair"]
-    assert "test_procedure_changed" not in paths[0].flags
+    assert [p.group for p in paths] == ["keep", "repair"]
+    assert all("test_procedure_changed" not in p.flags for p in paths)
 
 
 def test_nothing_is_invented_from_an_empty_request() -> None:
@@ -836,3 +838,24 @@ def test_zero_years_left_at_both_ends_is_past_typical_life() -> None:
 def test_life_left_at_both_ends_gets_neither_flag() -> None:
     used = used_path(unit("OLD123", year=THIS_YEAR - 8))
     assert not {"past_typical_life", "may_be_past_typical_life"} & set(used.flags)
+
+
+def test_a_current_unit_is_kept_even_without_a_repair_quote() -> None:
+    # Task 3.3.9: with no quote there is no repair path, but the unit you have still shows,
+    # with nothing paid today and its own electricity, so each scanned unit changes the receipt.
+    paths = quote(QuoteRequest(current=CURRENT), FakeRepo())
+    keep = pick(paths, "keep", None)
+    assert keep.name == "Keep the one you have"
+    assert keep.pay_today == 0.0
+    assert [line.label for line in keep.lines][0] == "Keep it"
+    assert any(line.kind == "running" and line.label.startswith("Electricity") for line in keep.lines)
+
+
+def test_keep_uses_the_units_own_energy() -> None:
+    # Two current units with different label kWh give different Keep totals; the new paths are unchanged.
+    small = CURRENT.model_copy(update={"attributes": {**CURRENT.attributes, "label_kwh_per_year": 300.0}})
+    big = CURRENT.model_copy(update={"attributes": {**CURRENT.attributes, "label_kwh_per_year": 900.0}})
+    a = quote(QuoteRequest(current=small), FakeRepo())
+    b = quote(QuoteRequest(current=big), FakeRepo())
+    assert pick(a, "keep", None).total_3yr_high < pick(b, "keep", None).total_3yr_high
+    assert [(p.name, p.total_3yr_high) for p in a if p.group == "new"] == [(p.name, p.total_3yr_high) for p in b if p.group == "new"]

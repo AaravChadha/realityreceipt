@@ -137,9 +137,16 @@ def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
     # Each path with its unit's manufacture year (the first possible one when it is inferred).
     built: list[tuple[Path, int | None]] = []
     if req.current is not None:
+        years = _years(req.current, repo)
+        # Keeping the unit you have (task 3.3.9): nothing is paid today, and its own electricity, aging
+        # and replacement follow, so every current unit shows on the receipt, with or without a quote.
+        path = _unit_path(
+            "Keep the one you have", "keep", None, _keep(), req.current, _ages(years), True, profile, cheapest_new, repo, [],
+            years=years, replacement_kwh=replacement_kwh, full_cost=0.0,
+        )
+        built.append((path, _first(years)))
         repair = _repair_cost(req, profile)
         if repair is not None:
-            years = _years(req.current, repo)
             path = _unit_path("Repair the one you have", "repair", None, repair, req.current, _ages(years), True, profile, cheapest_new, repo, [], years=years, replacement_kwh=replacement_kwh)
             built.append((path, _first(years)))
 
@@ -563,6 +570,15 @@ def _positive(value: str | float | None) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if math.isfinite(number) and number > 0 else None
+
+
+def _keep() -> Contribution:
+    """Keeping the unit you have: nothing is bought, so nothing is paid today."""
+    line = CostLine(
+        kind="purchase", label="Keep it", amount_low=0.0, amount_high=0.0, period="once",
+        source_type="user_entered", source_id="user", formula="You keep the unit you have: nothing is paid today",
+    )
+    return Contribution(pay_today=0.0, monthly_low=[0.0] * MONTHS, monthly_high=[0.0] * MONTHS, lines=[line])
 
 
 def _repair_cost(req: QuoteRequest, profile: CategoryProfile) -> Contribution | None:

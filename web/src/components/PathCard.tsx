@@ -14,6 +14,7 @@ import { FLAG_SENTENCES, NOT_ESTIMATED, PERIOD_SUFFIX, SOURCE_LABELS, flagSenten
 const NOT_IN_FLAG_LIST = new Set(['costs_not_estimated', 'fixture'])
 
 const GROUP_LABELS: Record<PathGroup, string> = {
+  keep: 'Keep',
   repair: 'Repair',
   used_as_is: 'Used',
   refurbished: 'Refurbished',

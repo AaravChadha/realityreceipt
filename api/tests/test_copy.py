@@ -19,7 +19,7 @@ def test_no_label_formula_or_flag_breaks_the_copy_rules(name: str) -> None:
     paths = quote(req, repo)
     texts = [p.name for p in paths] + [f for p in paths for f in p.flags]
     texts += [t for p in paths for line in p.lines for t in (line.label, line.formula)]
-    assert len(paths) == 9
+    assert len(paths) == 10  # includes Keep the one you have (task 3.3.9)
     for text in texts:
         assert "\u2014" not in text, text
         assert not re.search(r"\bapr\b", text, re.IGNORECASE), text
