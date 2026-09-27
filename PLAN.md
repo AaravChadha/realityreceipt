@@ -340,7 +340,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   Add the plain sentence for the new pinned flag `year_from_rating_data`: "The year made is estimated from the years DOE lists this model, so its remaining life is a range."
   **Acceptance:** `npm --prefix web test -- Receipt` passes, including a test that the flag renders that sentence.
 
-- [ ] **2.9.3 Sentence for "may be past its typical life" (Track C2)** (NEW 2026-09-26 22:20, with 3.3.8)
+- [x] **2.9.3 Sentence for "may be past its typical life" (Track C2)** (NEW 2026-09-26 22:20, with 3.3.8)
   The flag `may_be_past_typical_life` reads "This unit may be at or past its typical life."
   **Acceptance:** `npm --prefix web test -- Receipt` passes, including a test that the flag renders that sentence and never its code name.
 
