@@ -27,7 +27,7 @@ def test_not_estimated_lines_are_blank(paths: list[Path]) -> None:
 
 
 def test_every_group_and_source_type_is_present(paths: list[Path]) -> None:
-    assert {p.group for p in paths} == {"repair", "used_as_is", "refurbished", "new", "rent_to_own"}
+    assert {p.group for p in paths} == {"keep", "repair", "used_as_is", "refurbished", "new", "rent_to_own"}
     assert {line.source_type for p in paths for line in p.lines} == {
         "rated", "published", "user_entered", "not_estimated"
     }

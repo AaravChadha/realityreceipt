@@ -13,11 +13,11 @@ function card(name: string) {
   return within(screen.getByRole('article', { name }))
 }
 
-test('shows the sample banner and all 9 paths in API order', () => {
+test('shows the sample banner and all 10 paths in API order', () => {
   render(<Receipt paths={fixture} />)
   expect(screen.getByText('Sample data, not a real quote')).toBeVisible()
   const names = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
-  expect(names).toHaveLength(9)
+  expect(names).toHaveLength(10)
   expect(names).toEqual(fixture.map((p) => p.name))
 })
 
@@ -173,7 +173,7 @@ const OVER_SPEND = 'More than you can spend today'
 
 test('paths that cost more today than you can spend are dimmed and still shown', () => {
   render(<Receipt paths={fixture} budgetToday={100} />)
-  expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(9)
+  expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(10)
 
   const cash = screen.getByRole('article', { name: 'New, pay cash' })
   expect(cash).toBeVisible()
@@ -260,4 +260,11 @@ test('the rendered receipt has no em dash, no "APR", and nothing about qualifyin
   expect(text).not.toContain(String.fromCharCode(0x2014))
   expect(text).not.toContain('APR')
   expect(text.toLowerCase()).not.toContain('qualif')
+})
+
+test('the Keep path shows its group badge and pays nothing today', () => {
+  render(<Receipt paths={fixture} />)
+  const keep = screen.getByRole('article', { name: 'Keep the one you have' })
+  expect(within(keep).getByText('Keep')).toBeVisible()
+  expect(within(keep).getAllByText('$0').length).toBeGreaterThan(0)
 })
