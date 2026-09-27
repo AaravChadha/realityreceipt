@@ -83,6 +83,8 @@ The option that looks cheapest today often costs the most over time: an old used
 
 > **Decision (2026-09-26 21:10): fixes from the second Codex review** (main at f435b79). (1) Cost per year uses the full acquisition cost: a lease or BNPL total beyond 36 months still counts, even though the 3-year total leaves those payments out. Tasks 3.2.3, 3.3.4. (2) Every range is built from the min and max of its scenarios, so low never exceeds high; an earlier, more efficient replacement can be the cheaper case. Task 3.3.4. (3) A manufacture year inferred from DOE listing years is a range with a visible flag, never written in as if typed. Tasks 2.2.5, 3.3.5, 2.9.2. (4) The scan picker drops "Price tag" tonight, because the quote prices new paths from the cached offers, not from a scanned tag. Task 3.10's status. (5) docs/pitch.md follows the rewritten demo script. Task 4.8.2.
 
+> **Decision (2026-09-26 21:45): from the demo check on main (session 4, 54a9954).** (1) The keep-paying path states its cost over the cash price ($542.89 on the demo lease, the cost of lease services), as the demo script says; 3.2.1 had put that comparison on the buyout path only. Task 3.2.4. (2) With no early purchase terms there is no buyout card: it repeated the keep-paying numbers, which asserts a buyout price nobody knows. Task 3.3.6. (3) The script follows the pinned sort (complete paths by 3-year total), so the lease is the last path, the most expensive over 3 years; Scenarios 1 to 4 now say what main shows.
+
 ## Index of phases
 
 Phases are milestones, not time slots. A task in a later phase starts as soon as its inputs are on `origin/main`; Track D's scan and RECS work can start right after Phase 1.
@@ -360,6 +362,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   Add `full_term_total(lease: Lease) -> float` to `api/app/engine/lease.py`: ~~`total_of_payments` if printed, else `weekly_payment * term_weeks`, plus `fees`~~ → **Verdict (2026-09-26):** the sum of 3.2.2's payment schedule (so a printed payment today replaces the first weekly payment), plus fees — it must match the keep-paying line. Pinned in "Fixed interfaces"; 3.3.4 uses it for cost per year.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including tests that a 208-week $30 lease totals $6,240, that a printed total wins over the weekly figure, and that fees are added.
 
+- [ ] **3.2.4 Keep-paying states its cost over the cash price (Track A4)** (NEW 2026-09-26 21:45, demo check)
+  ~~`rto_full` keeps the effective annual cost in its formula; `rto_buyout` drops it and states its total minus the cash price~~ (3.2.1) → **Verdict (2026-09-26):** `rto_full`'s formula also states `full_term_total(lease)` minus the cash price ("That is $X more than the cash price of $Y"), before the effective annual cost, and says "No early purchase terms entered" when `early_purchase_rule` is "none" (3.3.6 drops the buyout path in that case). `rto_buyout` keeps its own comparison.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including a test that the Aaron's demo lease (`demo/cards/cards.json`) gives a keep-paying formula containing "$542.89 more than the cash price of $1,196.99", "45%" and "No early purchase terms entered".
+
 - [x] **3.3 All paths in the quote (Track A2)**
   Extend `quote` to all 9 path kinds: `repair` (when `current` is given; repair cost from `repair_quote_*` as `user_entered`, else the profile's repair ranges as `published`; running cost from the current unit), `refurbished` (from a refurbished listing; warranty months shown in a flag), `new` x4 via A3, `rent_to_own` x2 via A4 (when `lease` is given). A path whose inputs are absent is omitted, never invented. Apply flags: `past_typical_life`, `test_procedure_changed` (when comparing a pre-2014 unit with a newer one), `year_from_serial_low_confidence`. `api/tests/test_quote_all_paths.py`: a full request returns 9 paths sorted by `total_3yr_high`; each path's totals equal the sums of its arrays. `api/tests/test_copy.py`: no label, formula or flag in that output contains an em dash, `APR` or `qualif`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py api/tests/test_copy.py -q` passes.
@@ -383,6 +389,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [ ] **3.3.5 An inferred year is a range, flagged (Track A2)** (NEW 2026-09-26, Codex review; needs 2.2.5)
   When `mfg_year` is missing and `repo.model_year_range` returns years, use both ends for the age, so expected life and cost per year become ranges; add the flag `year_from_rating_data`; never write an inferred year into `mfg_year`. Call `model_year_range` only if the repository has it until 2.2.5 lands.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including a test that an undated unit whose model DOE lists over several years gets an expected-life range from both ends and the `year_from_rating_data` flag, with `mfg_year` left `None`.
+
+- [ ] **3.3.6 No buyout path without buyout terms (Track A2)** (NEW 2026-09-26 21:45, demo check; after 3.3.4)
+  In `quote`, build "Rent-to-own, early buyout" only when `req.lease.early_purchase_rule` is not "none". Without terms it repeated the keep-paying numbers on a second card; 3.2.4 puts "No early purchase terms entered" on the keep-paying path instead.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including tests that a lease with `early_purchase_rule="none"` gives exactly one rent-to-own path and a lease with terms gives two.
 
 - [x] **3.4 Serial decode (Track B4)**
   `api/app/serial/decode.py`: decoders keyed by brand, only for the brands on the demo cards and in the retailer cache, each rule's `source_id` in `sources.json`. A year code that repeats on a cycle resolves from model era when possible, otherwise returns `year_confidence="low"`. An unknown brand returns `SerialDecode(None, "none", None, "no decoder for brand")`. `api/tests/test_serial.py`: one known serial per supported brand decodes to its year; an unknown brand returns confidence `none`.
@@ -492,23 +502,24 @@ One row = one session's file set. A person with fewer sessions runs several rows
 **Scenario 1: the lease (the poverty premium). Lead with this.**
 > "This is a real rent-to-own page for a fridge, printed out."
 - Card: `lease-aarons-frigidaire-frte1936av.png` (Aaron's, ZIP 30309, retrieved 2026-09-26). Enter the lease (scan, or the lease form from 3.10): 52 weekly payments of $33.48, cash price $1,196.99, paid today $0.01, total of payments $1,739.88.
-- The receipt: "Rent-to-own, keep paying" shows **$0.01 today** and **$1,739.88 in total, as printed on the lease: $542.89 more than its own cash price, an effective annual cost of 45%.** Beside it, new fridges from store listings (the cheapest is a $548 Frigidaire at Home Depot: a different, smaller model, so say "a new fridge", not "the same fridge") and the PAL line ("up to", with its caps).
-- Needs: 3.2.2 (printed numbers) and a lease form (3.10). Never say a buyout week, "120 days", or APR.
+- The receipt: "Rent-to-own, keep paying" shows **$0.01 today** and **$1,739.88 in total, as printed on the lease: $542.89 more than its own cash price, an effective annual cost of 45%.** ~~Beside it, new fridges from store listings~~ → **Verdict (2026-09-26 21:45):** the paths sort by 3-year total, so the new fridges come first and the lease is the last card, with the highest 3-year total on the receipt: point at that. The new fridges come from store listings (the cheapest is a $548 Frigidaire at Home Depot: a different, smaller model, so say "a new fridge", not "the same fridge"; the card itself shows no brand), then the PAL line ("up to", with its caps).
+- Needs: 3.2.2 (printed numbers), 3.2.4 (the $542.89 on the keep-paying path), 3.3.6 (one lease card, not two) and a lease form (3.10); until 3.10 is on main, the only way in is the scan. Never say a buyout week, "120 days", or APR.
 
 **Scenario 2: every line has a source (the trust layer).**
 > "This is the label from an older Maytag."
 - Card: `label-older-maytag-mb2562.png`. Enter it as "Your fridge now" with a repair quote (for example $180): with no quote there are no repair ranges, so there is no repair path.
 - Tap the electricity line: **Rated, 505 kWh a year, from DOE's historical refrigerator ratings**, times the Georgia Power rate (tap through to both sources). Tap the replacement line: "not estimated", left blank on purpose, because the unit is past its typical life.
-- Don't state a year (the label prints none), and don't claim big energy savings: against a new fridge the gap is about $20 a year.
+- Don't state a year (the label prints none), and don't claim big energy savings: against a new fridge the gap is about $20 a year ($78.99 against $56.31 on main at 54a9954).
+- The receipt also shows two flag sentences, both true: the year made is estimated from the years DOE lists this model (3.3.5), and the energy test changed around 2014. Read them if asked; still state no year.
 
 **Scenario 3: used vs new, asked in plain words (Visa).** Only if the shop (4.1, 4.3, 4.4) is on main by 23:30.
 > "About $300, small space, need it this week."
 - Type the request → Grok's parsed filters appear as editable chips → offers ranked by cost per year, with unknown delivery or width flagged, not hidden → "View at retailer". Include the used GE listing (`listing-used-ge-gie18gsnrss.png`, $175): ask its age and enter it, since the listing states none.
-- Check the numbers before going on stage: at some prices and years a used and a new option land on the same cost per year, which looks like a bug.
+- Check the numbers before going on stage: at some prices and years a used and a new option land on the same cost per year, which looks like a bug. Measured on main at 54a9954 through `/quote`: the $175 used GE is rated 443 kWh, $94.29 a year, against $98.46 for the cheapest new: close, not equal.
 
 **Scenario 4: not a wrapper.** Only if a real scan works by 22:00.
 > "The AI only reads the label. Watch me type the same thing by hand."
-- Scan `label-current-frigidaire-ffht1822u.png` (it prints the brand as "Electrolux Home Products Inc.": correct it to Frigidaire in the form unless the brand alias has landed), then type `FFHT1822U*` by hand: the identical receipt, rated 360 kWh.
+- Scan `label-current-frigidaire-ffht1822u.png` (it prints the maker, "Electrolux Home Products Inc."; leave it as read: the app treats Electrolux and Frigidaire as one maker, task 2.2.4, and task 3.8 checks that the scanned and typed receipts match), then type `FFHT1822U*` by hand: the identical receipt, rated 360 kWh.
 
 **Presenter rules:** say the cards are printouts of real labels and pages; tap any *line*, not any number; no year for the Maytag, no "2004", no buyout week, no APR, no "you qualify", no absolute claims.
 
