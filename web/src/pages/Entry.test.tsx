@@ -406,6 +406,102 @@ test('an early purchase percent of 33.3 is stored as 0.333', async () => {
   expect(await section('A rent-to-own lease').findByLabelText('Early purchase fraction')).toHaveValue('0.333')
 })
 
+test('a second lease scan does not keep the first lease buyout', async () => {
+  let scan = 0
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      scan += 1
+      const fields =
+        scan === 1
+          ? {
+              brand: 'Frigidaire',
+              model: 'FRTE1936AV',
+              weekly_payment: 33.48,
+              early_purchase_rule: 'pct_of_remaining',
+              early_purchase_percent: 50,
+            }
+          : { brand: 'GE', model: 'GTE18', weekly_payment: 20 }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ kind: 'lease', valid: false, errors: [], fields, item: null, offer: null, lease: null }),
+      } as Response
+    }),
+  )
+  const { container } = render(<Entry />)
+  fireEvent.change(screen.getByLabelText('What are you scanning?'), { target: { value: 'lease' } })
+  const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
+  const file = () => fireEvent.change(input, { target: { files: [new File(['lease'], 'lease.jpg', { type: 'image/jpeg' })] } })
+  file()
+  const lease = section('A rent-to-own lease')
+  expect(await lease.findByLabelText('Early purchase fraction')).toHaveValue('0.5')
+  expect(lease.getByLabelText('Early purchase rule')).toHaveValue('pct_of_remaining')
+  file()
+  expect(await lease.findByLabelText('Brand')).toHaveValue('GE')
+  expect(lease.getByLabelText('Early purchase rule')).toHaveValue('none')
+  expect(lease.getByLabelText('Early purchase fraction')).toHaveValue('')
+})
+
+test('a fee the scan did not print stays empty', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        kind: 'lease',
+        valid: false,
+        errors: ['fees: not printed. Enter 0 if the lease has none.'],
+        fields: { brand: 'Frigidaire', model: 'FRTE1936AV', weekly_payment: 33.48, fees: 'not printed' },
+        item: null,
+        offer: null,
+        lease: null,
+      }),
+    }) as Response),
+  )
+  const { container } = render(<Entry />)
+  fireEvent.change(screen.getByLabelText('What are you scanning?'), { target: { value: 'lease' } })
+  const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
+  fireEvent.change(input, { target: { files: [new File(['lease'], 'lease.jpg', { type: 'image/jpeg' })] } })
+  const lease = section('A rent-to-own lease')
+  expect(await lease.findByLabelText('Weekly payment')).toHaveValue('33.48')
+  expect(lease.getByLabelText('Fees (optional)')).toHaveValue('')
+})
+
+function fillLeaseExceptFees() {
+  const lease = section('A rent-to-own lease')
+  type(lease.getByLabelText('Brand'), 'Frigidaire')
+  type(lease.getByLabelText('Model number'), 'FRTE1936AV')
+  type(lease.getByLabelText('Weekly payment'), '30')
+  type(lease.getByLabelText('Term in weeks'), '52')
+  type(lease.getByLabelText('Cash price'), '800')
+  return lease
+}
+
+test('an empty fee blocks the quote', () => {
+  const fetchMock = fakeApi([])
+  render(<Entry />)
+  const lease = fillLeaseExceptFees()
+  fireEvent.click(screen.getByRole('button', { name: 'Show every way to get it' }))
+  expect(fetchMock).not.toHaveBeenCalled()
+  expect(lease.getByLabelText('Fees (optional)')).toHaveAttribute('aria-invalid', 'true')
+  expect(lease.getByLabelText('Fees (optional)')).toHaveAccessibleDescription(
+    'Enter the fees as a dollar amount, or 0 if there is none.',
+  )
+})
+
+test('a fee of 0 entered on purpose is sent', async () => {
+  const fetchMock = fakeApi([])
+  render(<Entry />)
+  const lease = fillLeaseExceptFees()
+  type(lease.getByLabelText('Fees (optional)'), '0')
+  fireEvent.click(screen.getByRole('button', { name: 'Show every way to get it' }))
+  await screen.findByText('No paths came back for these details.')
+  const quoteCall = fetchMock.mock.calls.find((c) => c[0] === '/api/quote')
+  expect(bodyOf(quoteCall!)).toMatchObject({ lease: { fees: 0, source_id: 'user_lease' } })
+})
+
 test('a later scan drops a serial the new image did not read', async () => {
   let scan = 0
   vi.stubGlobal(

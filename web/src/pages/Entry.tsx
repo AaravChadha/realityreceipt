@@ -218,7 +218,12 @@ function applyScan(fields: Fields, result: ScanResult): Fields {
     put('leaseWeekly', 'weekly_payment')
     put('leaseTerm', 'term_weeks')
     put('leaseCash', 'cash_price')
-    put('leaseFees', 'fees')
+    // A missing fee, or one the scan marks not printed, stays blank. 0 is a real entry.
+    const feeRaw = presentText(raw, 'fees')
+    if (feeRaw !== undefined && feeRaw.trim().toLowerCase() !== 'not printed') {
+      const fee = Number(feeRaw.replace(/[$,\s]/g, ''))
+      if (Number.isFinite(fee)) next.leaseFees = String(fee)
+    }
     put('leaseEarlyText', 'early_purchase_text')
     put('leaseMissed', 'missed_payment_rule')
     put('leasePaid', 'payment_today')
@@ -325,6 +330,7 @@ function readForm(f: Fields): { draft: Draft; errors: Errors } {
     need('leaseWeekly', 'Enter the weekly payment.')
     need('leaseTerm', 'Enter the term in weeks.')
     need('leaseCash', 'Enter the cash price.')
+    need('leaseFees', 'Enter the fees as a dollar amount, or 0 if there is none.')
     const weekly = amount('leaseWeekly', 'Enter the weekly payment as a dollar amount.')
     const term = amount('leaseTerm', 'Enter the term as a whole number of weeks.', true)
     const cash = amount('leaseCash', 'Enter the cash price as a dollar amount.')
@@ -346,12 +352,12 @@ function readForm(f: Fields): { draft: Draft; errors: Errors } {
     const paid = amount('leasePaid', 'Enter paid today as a dollar amount.')
     const total = amount('leaseTotal', 'Enter the total of all payments as a dollar amount.')
     const leaseErrors = LEASE_TOUCHED.some((name) => errors[name]) || errors.leaseRule
-    if (!leaseErrors && weekly !== null && term !== null && cash !== null) {
+    if (!leaseErrors && weekly !== null && term !== null && cash !== null && fees !== null && !Number.isNaN(fees)) {
       lease = {
         weekly_payment: weekly,
         term_weeks: term,
         cash_price: cash,
-        fees: fees ?? 0,
+        fees,
         early_purchase_rule: f.leaseRule,
         early_purchase_pct: f.leaseRule === 'none' ? null : pct,
         early_purchase_text: f.leaseEarlyText.trim(),
