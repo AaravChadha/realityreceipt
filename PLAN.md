@@ -240,7 +240,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   Add DOE's refrigerator and freezer energy rating database (the Weatherization Assistance Program search tool's data, 1949 to 2021) as `api/app/data/doe_wap_refrigerators.csv.gz`, with its source in `sources.json`. `model_energy` falls back to it, with the same matching rules, when ENERGY STAR has no match, returning `source_type="rated"` and that source's id. Add `Repository.model_year(brand: str, model: str) -> int | None` from the same data.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_profile.py -q` passes, including a test that the Maytag family on demo card `label-older-maytag-mb2562.png` returns the DOE file's kWh (the figure printed on that label) and a model year.
 
-- [ ] **2.3 Retailer cache (Track B3)**
+- [x] **2.3 Retailer cache (Track B3)**
   `api/app/data/retailer_cache.json`: 8 to 15 real new refrigerator listings recorded by hand, each an `Offer` with `source: "retailer_cache"`, `url`, `retrieved_at`, a `source_id` present in `sources.json`, and an `item_id` whose `Item` (brand, model, `product_class`, `volume_cuft`, `width_in`) is stored alongside. Every model appears in `energystar_refrigerators.csv` or is noted as missing. `api/tests/test_retailer_cache.py`: every offer validates, has a URL and date, and resolves its source.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_retailer_cache.py -q` passes.
 
