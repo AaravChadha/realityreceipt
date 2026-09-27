@@ -437,7 +437,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 > **Build order:** D2 (4.1) and A2 (4.2) in parallel → A1 (4.3) → C4 (4.4) → operator (4.7 to 4.9). ~~D3 (4.5, 4.6)~~ dropped 2026-09-26.
 > **Exit criterion:** `gh run list --workflow ci.yml --branch main --limit 1 --json conclusion -q '.[0].conclusion'` prints `success` on the commit tagged `freeze`, and every submission checklist box is ticked.
 
-- [ ] **4.1 Request parsing (Track D2, in Cursor)**
+- [x] **4.1 Request parsing (Track D2, in Cursor)**
   `api/app/grok/parse.py` per "Fixed interfaces": Grok turns text into `ShopFilters` JSON, validated; on failure, empty filters plus the errors. The UI shows the filters for editing before ranking. `api/tests/test_parse.py` with a fake client: "about $300, small space, need it this week" maps to `budget_today=300`, `need_within_days=7`, and a width filter from the recorded response.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_parse.py -q` passes.
 
