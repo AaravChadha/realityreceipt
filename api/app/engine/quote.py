@@ -1,6 +1,6 @@
 """Every way to get the item, as receipt paths (PLAN.md tasks 2.6, 3.3 to 3.3.3 and 3.3.5, row A2).
 
-Nine kinds of path: repair the one you have; each used listing, as-is or refurbished;
+Nine kinds of path: repair the one you have; each listing, used as-is, refurbished or new;
 the cheapest cached new offer paid four ways (cash, card, buy now pay later, credit
 union PAL); and a lease kept to the end or bought out at its cheapest week. A path
 whose inputs are absent is left out, never invented.
@@ -81,6 +81,8 @@ YEAR_FROM_RATING_DATA = "year_from_rating_data"
 LISTING_KINDS: dict[str, tuple[str, PathGroup]] = {
     "used_as_is": ("Used, as-is", "used_as_is"),
     "refurbished": ("Used, refurbished", "refurbished"),
+    # A listing marked new is priced as a new unit, never mapped to used (task 3.3.7).
+    "new": ("New, from your listing", "new"),
 }
 
 # `running.energy` turns this into its blank "not estimated" electricity line.
@@ -145,9 +147,12 @@ def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
             continue
         name, group = LISTING_KINDS[item.condition]
         flags = [f"warranty_{item.warranty_months}_months"] if group == "refurbished" and item.warranty_months else []
+        is_new = group == "new"
         years = _years(item, repo)
-        path = _unit_path(name, group, "cash", cash(offer.price, offer.source_id), item, _ages(years), True, profile, cheapest_new, repo, flags, years=years, replacement_kwh=replacement_kwh)
-        built.append((path, _last(years)))
+        # A new unit is age 0 and not aged: no aging line and no year from the rating data.
+        ages = (0.0, 0.0) if is_new else _ages(years)
+        path = _unit_path(name, group, "cash", cash(offer.price, offer.source_id), item, ages, not is_new, profile, cheapest_new, repo, flags, years=years, replacement_kwh=replacement_kwh)
+        built.append((path, this_year if is_new else _last(years)))
 
     if cheapest_new is not None:
         for name, method, acquire, flags in _new_ways(cheapest_new, repo):

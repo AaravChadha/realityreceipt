@@ -426,7 +426,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   In `quote`, build "Rent-to-own, early buyout" only when `req.lease.early_purchase_rule` is not "none". Without terms it repeated the keep-paying numbers on a second card; 3.2.4 puts "No early purchase terms entered" on the keep-paying path instead.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including tests that a lease with `early_purchase_rule="none"` gives exactly one rent-to-own path and a lease with terms gives two.
 
-- [ ] **3.3.7 Price a listing that is new (Track A2)** (NEW 2026-09-26 22:20, Codex review)
+- [x] **3.3.7 Price a listing that is new (Track A2)** (NEW 2026-09-26 22:20, Codex review)
   `LISTING_KINDS` gains `"new": ("New, from your listing", "new")`: a user listing with `condition: "new"` becomes a cash path in group `new`, age 0, not aged (no aging line, no inferred year). Before this, it was skipped with no message.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including a test that a $400 user listing with `condition: "new"` gives a path "New, from your listing" with pay today $400 and no `past_typical_life` or aging line.
 
