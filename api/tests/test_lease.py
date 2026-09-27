@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from app.engine.lease import cheapest_buyout, effective_annual_cost, rto_buyout, rto_full
+from app.engine.lease import cheapest_buyout, effective_annual_cost, full_term_total, rto_buyout, rto_full
 from app.models import MONTHS, Lease
 
 
@@ -211,3 +211,31 @@ def test_lines_carry_the_lease_source_and_follow_the_copy_rules(terms: Lease) ->
                 assert "\u2014" not in text
                 assert "no early purchase option" not in text.lower()
                 assert not re.search(r"\b1 weekly payments", text)
+
+
+def test_full_term_total_of_a_208_week_lease_is_every_payment() -> None:
+    assert full_term_total(lease(term_weeks=208)) == 6240.0  # not the $4,680 inside the window
+
+
+def test_full_term_total_uses_a_printed_total_over_the_weekly_figure() -> None:
+    assert full_term_total(AARONS) == 1739.88  # 52 x $33.48 would be $1,740.96
+
+
+def test_full_term_total_adds_fees() -> None:
+    assert full_term_total(lease(fees=20.0)) == 1580.0
+    long_lease = lease(term_weeks=208, fees=15.0)
+    assert full_term_total(long_lease) == 6255.0
+    assert "= $6,240.00." in rto_full(long_lease).lines[0].formula  # the keep-paying line's full total
+
+
+def test_full_term_total_with_only_a_printed_payment_today() -> None:
+    # $0.01 today replaces the first $30 payment (task 3.2.2): 0.01 + 51 x 30.
+    assert full_term_total(lease(payment_today=0.01)) == 1530.01
+
+
+@pytest.mark.parametrize("terms", [t for t in LEASES if t.term_weeks <= 156])
+def test_full_term_total_matches_the_keep_paying_path(terms: Lease) -> None:
+    # Every payment falls inside the 36 months, so the keep-paying arrays hold the whole lease, fees included.
+    full = rto_full(terms)
+    assert full_term_total(terms) == pytest.approx(sum(full.monthly_high), abs=0.001)
+    assert full_term_total(terms) == pytest.approx(full.lines[0].amount_high + terms.fees, abs=0.001)
