@@ -362,7 +362,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   Add `full_term_total(lease: Lease) -> float` to `api/app/engine/lease.py`: ~~`total_of_payments` if printed, else `weekly_payment * term_weeks`, plus `fees`~~ → **Verdict (2026-09-26):** the sum of 3.2.2's payment schedule (so a printed payment today replaces the first weekly payment), plus fees — it must match the keep-paying line. Pinned in "Fixed interfaces"; 3.3.4 uses it for cost per year.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including tests that a 208-week $30 lease totals $6,240, that a printed total wins over the weekly figure, and that fees are added.
 
-- [ ] **3.2.4 Keep-paying states its cost over the cash price (Track A4)** (NEW 2026-09-26 21:45, demo check)
+- [x] **3.2.4 Keep-paying states its cost over the cash price (Track A4)** (NEW 2026-09-26 21:45, demo check)
   ~~`rto_full` keeps the effective annual cost in its formula; `rto_buyout` drops it and states its total minus the cash price~~ (3.2.1) → **Verdict (2026-09-26):** `rto_full`'s formula also states `full_term_total(lease)` minus the cash price ("That is $X more than the cash price of $Y"), before the effective annual cost, and says "No early purchase terms entered" when `early_purchase_rule` is "none" (3.3.6 drops the buyout path in that case). `rto_buyout` keeps its own comparison.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including a test that the Aaron's demo lease (`demo/cards/cards.json`) gives a keep-paying formula containing "$542.89 more than the cash price of $1,196.99", "45%" and "No early purchase terms entered".
 
