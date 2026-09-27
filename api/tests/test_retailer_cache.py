@@ -72,25 +72,17 @@ def test_repository_loads_new_offers() -> None:
         assert item.condition == "new"
 
 
-def test_every_model_noted_or_in_energystar_csv() -> None:
+def test_energystar_notes_agree_with_repository() -> None:
+    # Match with the repository's own rules (wildcard families, product class),
+    # and count only an ENERGY STAR hit: a DOE historical match is not ENERGY STAR.
     raw = _load_raw()
     notes = raw.get("energystar_notes") or {}
-    csv_path = DATA_DIR / "energystar_refrigerators.csv"
-    csv_models: set[str] = set()
-    if csv_path.is_file():
-        lines = csv_path.read_text(encoding="utf-8").splitlines()
-        # brand,model_number,model_normalized,annual_kwh
-        for line in lines[1:]:
-            if not line.strip():
-                continue
-            parts = line.split(",")
-            if len(parts) >= 2:
-                csv_models.add(parts[1].strip())
-                if len(parts) >= 3:
-                    csv_models.add(parts[2].strip())
+    repo = Repository.load()
 
     items = TypeAdapter(list[Item]).validate_python(raw["items"])
     for item in items:
-        in_csv = item.model in csv_models
-        noted = notes.get(item.model) == "missing" or str(notes.get(item.model, "")).startswith("missing")
-        assert in_csv or noted, f"{item.model} neither in CSV nor noted missing"
+        hit = repo.model_energy(item.brand, item.model, item.attributes.get("product_class"))
+        in_es = hit is not None and hit.source_id == "energystar_refrigerators"
+        noted = str(notes.get(item.model, "")).startswith("missing")
+        assert in_es or noted, f"{item.model} neither in ENERGY STAR nor noted missing"
+        assert not (in_es and noted), f"{item.model} is in ENERGY STAR but noted missing"
