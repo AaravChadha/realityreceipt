@@ -93,6 +93,8 @@ The option that looks cheapest today often costs the most over time: an old used
 
 > **Decision (2026-09-26 23:20): scope, from the operator.** RealityReceipt is meant for any purchase where the sticker price hides the real cost: appliances generally, and cars next. The build tonight covers refrigerators only (`CATEGORIES = ["refrigerator"]`); the receipt, payment paths, lease math, 3-year window and sourcing do not depend on the item, while each category needs its own sourced data and some lookup work (for fridges: product classes, the icemaker rule, the fridge standards). Cars are pitched as the next category, not built tonight: they need per-mile upkeep and odometer-based remaining life in the engine. See Future Extensions.
 
+> **Decision (2026-09-26 23:35): entries, from the operator.** General track: AI/ML, analytics and visualizations (the RECS energy-burden analysis and chart, the cost engine, Grok as a reader, not a calculator). Sponsor challenges, at most two: Aramco's social-good challenge (A Marina's Mission) and SpaceXAI. Not entered: Visa (the operator reads it as needing Visa's APIs), Notability, TigerData. The shop stays in the product and the demo as a feature, not as a Visa entry.
+
 ## Index of phases
 
 Phases are milestones, not time slots. A task in a later phase starts as soon as its inputs are on `origin/main`; Track D's scan and RECS work can start right after Phase 1.
@@ -187,9 +189,9 @@ One row = one session's file set. A person with fewer sessions runs several rows
   Each teammate clones the repo, installs the 0.6 hook, runs the worktree setup from AGENTS.md "Team workflow", and for Claude Code installs acstack (`git clone https://github.com/AaravChadha/acstack.git ~/acstack && ~/acstack/setup`). Cursor and Codex users confirm their agent reads `AGENTS.md`; if Cursor does not, the operator adds `.cursor/rules/agents.mdc` pointing at it.
   **Acceptance:** in each clone, `api/.venv/bin/python -m pytest api/tests -q` prints `1 passed` and `npm --prefix web run build` exits `0`.
 
-- [ ] **0.8 Keys and Notability (Track 0 — operator)**
+- [x] **0.8 Keys and Notability (Track 0 — operator)**
   Put a working key and model name in `api/.env` (`XAI_API_KEY=...`, `XAI_MODEL=...`, a vision-capable Grok model from xAI's docs) on every machine that runs the API. Start Notability now: an architecture sketch, screenshot saved to `docs/notability/01-architecture.png`.
-  **Acceptance:** `git check-ignore -q api/.env && echo ignored` prints `ignored`, and `ls docs/notability/*.png | wc -l` prints at least `1`.
+  **Acceptance:** `git check-ignore -q api/.env && echo ignored` prints `ignored`~~, and `ls docs/notability/*.png | wc -l` prints at least `1`~~. **Verdict (2026-09-26 23:35):** Notability not entered, so no screenshots. The key and model are in `api/.env` on Aarav's machine (gitignored; all four demo cards scanned live at 22:50).
 
 - [x] **0.9 Tech stack flowchart agent (Track 0 — operator)**
   Add the Claude Code subagent `.claude/agents/techstack-flowchart.md`. It reads the repo and writes `docs/architecture.md` (Mermaid: stack and deploy, request flow, old-unit energy lookup) and `docs/architecture.html` (the same charts on a standalone page), labelling every node with the file or route it came from. It never publishes or commits; the calling session decides.
@@ -540,8 +542,8 @@ One row = one session's file set. A person with fewer sessions runs several rows
   **Acceptance:** `grep -c -E 'api/.venv/bin/uvicorn|npm --prefix web run dev' README.md` prints at least `2`; by hand, a teammate follows it on their clone.
 
 - [ ] **4.8 Demo run sheet and pitch (Track 0 — operator)**
-  In Notability: the pitch storyboard and demo run sheet (spec §6), screenshot saved as `docs/notability/02-run-sheet.png`. Rehearse the demo once end to end with a timer.
-  **Acceptance:** `ls docs/notability/*.png | wc -l` prints at least `2`.
+  ~~In Notability: the pitch storyboard and demo run sheet (spec §6), screenshot saved as `docs/notability/02-run-sheet.png`.~~ (Notability not entered, 23:35; the run sheet is `docs/pitch.md`.) Rehearse the demo once end to end with a timer.
+  **Acceptance:** ~~`ls docs/notability/*.png | wc -l` prints at least `2`.~~ By hand: one timed run-through of `docs/pitch.md` end to end, time noted in the tick.
 
 - [x] **4.8.1 Stage wording fixes (Track 0 — operator)** (NEW 2026-09-26, review)
   In `docs/pitch.md`: "ACEEE's 2016 report" instead of "2016 data" (or ACEEE's 2024 update, after confirming its Atlanta low-income column); no "2004 unit" (say what the card shows); "tap any line" instead of "tap any number"; "energy costs equal to X% of income (EIA-estimated)" instead of "spent"; no claim that a refurbished warranty narrows a range or that other categories work today; crop the under-$5,000 bracket from the chart; about 20 seconds of visible AI (the scan and the shopping request's filter chips); open with the lease story.
@@ -589,7 +591,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - Don't state a year (the label prints none), and don't claim big energy savings: against a new fridge the gap is about $20 a year ($78.99 against $56.31 on main at 54a9954).
 - The receipt also shows two flag sentences, both true: the year made is estimated from the years DOE lists this model (3.3.5), and the energy test changed around 2014. Read them if asked; still state no year.
 
-**Scenario 3: used vs new, asked in plain words (Visa).** ~~Only if the shop (4.1, 4.3, 4.4) is on main by 23:30.~~ → **Verdict (2026-09-26 22:15):** needs 4.4.1 (the shop reachable from the app); target 23:00.
+**Scenario 3: used vs new, asked in plain words (the shop; not a Visa entry since 23:35).** ~~Only if the shop (4.1, 4.3, 4.4) is on main by 23:30.~~ → **Verdict (2026-09-26 22:15):** needs 4.4.1 (the shop reachable from the app); target 23:00.
 > "About $300, small space, need it this week."
 - Type the request → Grok's parsed filters appear as editable chips → offers ranked by cost per year, with unknown delivery or width flagged, not hidden → "View at retailer". ~~Include the used GE listing (`listing-used-ge-gie18gsnrss.png`, $175): ask its age and enter it, since the listing states none.~~ → **Verdict (2026-09-26 22:05):** the shop ranks new offers only; show used against new on the Entry receipt instead, entering the $175 used GE there as a listing (ask its age). "Small space" gives no width chip, because no inch figure was typed: add one by hand. Needs 4.4.1.
 - Check the numbers before going on stage: at some prices and years a used and a new option land on the same cost per year, which looks like a bug. Measured on main at 54a9954 through `/quote`: the $175 used GE is rated 443 kWh, $94.29 a year, against $98.46 for the cheapest new: close, not equal.
@@ -618,10 +620,11 @@ Scenario 1 is the strongest talking point: its numbers come straight off a real 
   `git log --all --name-only --format= | sort -u | grep -iE '(^|/)\.env|\.envrc$|secret|\.pem$|\.key$|service.?account|credential'`
   prints nothing, or only `.env.example` files. No name list is complete: also read `git ls-files` once for anything else that holds a key.
 - [ ] README has run instructions verified on a teammate's clone.
-- [ ] Devpost: main track A Marina's Mission; sponsor challenges Visa, SpaceXAI and Notability; the Create-X checkbox if the team wants it.
-- [ ] Notability: at least 2 screenshots in the Devpost, the "Notability" tag, and a note on how it was used.
+- [ ] Devpost: ~~main track A Marina's Mission; sponsor challenges Visa, SpaceXAI and Notability~~ → **(23:35)** general track AI/ML, analytics and visualizations; sponsor challenges Aramco's social good (A Marina's Mission) and SpaceXAI; the Create-X checkbox if the team wants it.
+- [x] ~~Notability: at least 2 screenshots in the Devpost, the "Notability" tag, and a note on how it was used.~~ Not entered (23:35).
 - [ ] SpaceXAI: the write-up names the Grok vision and request-parsing parts and that they were built in Cursor (no voice feature: dropped).
-- [ ] Visa: the write-up leads with the generative AI shopping flow and used vs new ranking.
+- [x] ~~Visa: the write-up leads with the generative AI shopping flow and used vs new ranking.~~ Not entered (23:35).
+- [ ] AI/ML, analytics and visualizations: the write-up leads with the RECS energy-burden analysis (household-weighted, replicate-weight standard errors, 95% intervals; `analysis/recs/out/burden.png`) and the receipt's cost-over-time comparison, and says where AI is used (Grok reads images and requests) and where it is not (every number comes from the engine and sourced data).
 - [ ] Stage wording checked against spec §6: "effective annual cost", no "APR", no "you qualify", no absolute claims, the ACEEE figure dated 2016, no HL Hunt figure.
 - [ ] Any event-required sections present and **user-authored**; the agent never writes them.
 - [ ] Demo rehearsed once end to end, timed.
