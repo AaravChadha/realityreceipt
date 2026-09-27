@@ -63,11 +63,14 @@ def rto_full(lease: Lease) -> Contribution:
         paid = f"{_printed_text(lease)} Total of payments = {_money(total)}."
     else:
         paid = f"{_weekly(lease.term_weeks)} of {_money(lease.weekly_payment)} from your lease = {_money(total)}."
+    # Fees count toward both the cost over the cash price and the effective annual cost (task 3.2.5).
+    full = full_term_total(lease)
+    fees = f" Plus {_money(lease.fees)} in fees, {_money(full)} in all." if lease.fees > 0 else ""
     no_terms = " No early purchase terms entered." if lease.early_purchase_rule == "none" else ""
     formula = (
-        f"{paid}{_window_text(schedule, lease.term_weeks, 0.0)}"
-        f" {_vs_cash_text(full_term_total(lease), lease.cash_price)}{no_terms}"
-        f" {_eac_text(total, lease.cash_price, lease.term_weeks)}"
+        f"{paid}{fees}{_window_text(schedule, lease.term_weeks, 0.0)}"
+        f" {_vs_cash_text(full, lease.cash_price)}{no_terms}"
+        f" {_eac_text(full, lease.cash_price, lease.term_weeks)}"
     )
     return _contribution(lease, schedule, lease.term_weeks, 0.0, "Total of lease payments", formula)
 
@@ -131,9 +134,16 @@ def _printed_text(lease: Lease) -> str:
         then = f", then {_weekly(n - 1)} of {_money(lease.weekly_payment)}" if n > 1 else ""
         return f"{_money(today)} today, as printed on your lease{then}."
     if today is None:
-        return f"{_money(total)} in all over {_weeks(n)}, as printed on your lease, spread evenly."
-    rest = f"; the remaining {_money(total - today)} is spread evenly over the other {_weeks(n - 1)}" if n > 1 else ""
+        return f"{_money(total)} in all over {_weeks(n)}, as printed on your lease, spread evenly over {_even_text(total, n)}."
+    rest = f"; the remaining {_money(total - today)} is spread evenly over {_even_text(total - today, n - 1)}" if n > 1 else ""
     return f"{_money(today)} today and {_money(total)} in all over {_weeks(n)}, as printed on your lease{rest}."
+
+
+def _even_text(amount: float, weeks: int) -> str:
+    """How `_spread` fills `weeks`: "51 weekly payments of about $34.11" ("about" when the last week
+    takes leftover cents), so the monthly figures are not read as printed payments."""
+    each, extra = divmod(round(amount * 100), weeks)
+    return f"{_weekly(weeks)} of {'about ' if extra else ''}{_money(each / 100)}"
 
 
 def _payment_month(week: int) -> int:
