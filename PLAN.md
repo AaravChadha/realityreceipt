@@ -135,7 +135,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - Reserved source ids: `user` (typed by the user), `user_listing` (from the user's listing), `user_lease` (from the user's lease). Every other id comes from `api/app/data/sources.json`.
 - **Flags** (pinned 2026-09-26; the web shows each as a plain sentence): `year_from_rating_data` (added 21:10, task 3.3.5), `costs_not_estimated`, `past_typical_life`, `test_procedure_changed`, `year_from_serial_low_confidence`, `pal_caps_not_an_offer`, `bnpl_terms_not_an_offer`, `over_budget_today`, `delivery_unknown`, `width_unknown`, `fixture`.
 - **`Item.attributes` keys:** `product_class` (CFR class code, e.g. `"3"`), `volume_cuft` (total volume printed on the label), `adjusted_volume_cuft` (DOE adjusted volume; only this feeds the standard ceiling), `width_in`, `label_kwh_per_year` (kWh printed on the unit's own EnergyGuide label).
-- **Added 2026-09-26 21:10:** `lease.full_term_total(lease: Lease) -> float` (3.2.3: `total_of_payments` if printed, else `weekly_payment * term_weeks`, plus fees); `Repository.model_year_range(brand: str, model: str, product_class: str | float | None = None) -> tuple[int, int] | None` (2.2.5: first and last year DOE lists the model).
+- **Added 2026-09-26 21:10:** `lease.full_term_total(lease: Lease) -> float` (3.2.3: ~~`total_of_payments` if printed, else `weekly_payment * term_weeks`, plus fees~~ → **Verdict (2026-09-26):** the sum of 3.2.2's payment schedule (so a printed payment today replaces the first weekly payment), plus fees — it must match the keep-paying line.); `Repository.model_year_range(brand: str, model: str, product_class: str | float | None = None) -> tuple[int, int] | None` (2.2.5: first and last year DOE lists the model).
 - **Energy lookup order** (3.3.3), used by every path builder: `repo.model_energy` (ENERGY STAR, then DOE historical), then `label_kwh_per_year` (`user_entered`), then `repo.standard_ceiling` with `adjusted_volume_cuft`, else `not_estimated`. Added: `Repository.model_year(brand: str, model: str) -> int | None` (2.2.2).
 
 ## Phases
@@ -356,8 +356,8 @@ One row = one session's file set. A person with fewer sessions runs several rows
   When `lease.payment_today` is set it is pay today (and month 0's payment) instead of the first weekly payment; when `lease.total_of_payments` is set it is the full-term total, spread evenly over the weeks in the window, and the effective annual cost uses it. Both formulas say the figure is "as printed on your lease".
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including a test with the Aaron's demo card's numbers (52 weeks, $33.48 a week, $0.01 today, $1,739.88 total, $1,196.99 cash): pay today is $0.01, the full-term total is $1,739.88, and the effective annual cost is 45%.
 
-- [ ] **3.2.3 A lease's full-term total (Track A4)** (NEW 2026-09-26, Codex review; after 3.2.2)
-  Add `full_term_total(lease: Lease) -> float` to `api/app/engine/lease.py`: `total_of_payments` if printed, else `weekly_payment * term_weeks`, plus `fees`. Pinned in "Fixed interfaces"; 3.3.4 uses it for cost per year.
+- [x] **3.2.3 A lease's full-term total (Track A4)** (NEW 2026-09-26, Codex review; after 3.2.2)
+  Add `full_term_total(lease: Lease) -> float` to `api/app/engine/lease.py`: ~~`total_of_payments` if printed, else `weekly_payment * term_weeks`, plus `fees`~~ → **Verdict (2026-09-26):** the sum of 3.2.2's payment schedule (so a printed payment today replaces the first weekly payment), plus fees — it must match the keep-paying line. Pinned in "Fixed interfaces"; 3.3.4 uses it for cost per year.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including tests that a 208-week $30 lease totals $6,240, that a printed total wins over the weekly figure, and that fees are added.
 
 - [x] **3.3 All paths in the quote (Track A2)**
