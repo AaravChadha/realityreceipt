@@ -185,6 +185,10 @@ function applyScan(fields: Fields, result: ScanResult): Fields {
     put('nowProductClass', 'product_class')
     put('nowVolume', 'volume_cuft')
     put('nowKwh', 'label_kwh_per_year')
+    // A label for a different fridge replaces the one the repair quote was for (task 3.10.1).
+    const same = (a: string, b: string) => a.trim().toUpperCase() === b.trim().toUpperCase()
+    const replaced = (['nowBrand', 'nowModel'] as const).some((name) => fields[name].trim() !== '' && !same(fields[name], next[name]))
+    if (replaced) next.nowRepair = ''
   }
 
   if (result.kind === 'listing') {
@@ -237,6 +241,20 @@ function applyScan(fields: Fields, result: ScanResult): Fields {
     }
   }
   return next
+}
+
+// A 422 can carry several messages joined by "; ", and FastAPI starts a model check's message
+// with "Value error, ", which is dropped so the user reads only the message (task 3.10.1).
+function apiMessages(text: string): string[] {
+  return text
+    .split('; ')
+    .map((m) => m.trim().replace(/^Value error, /, ''))
+    .filter(Boolean)
+}
+
+function asSentence(message: string): string {
+  const s = message.charAt(0).toUpperCase() + message.slice(1)
+  return /[.!?]$/.test(s) ? s : `${s}.`
 }
 
 function scanMessages(result: ScanResult): string[] {
@@ -567,8 +585,19 @@ export default function Entry() {
       setStatus('done')
       loadSources()
     } catch (err) {
-      setFailure(err instanceof Error ? err.message : String(err))
-      setStatus('error')
+      const text = err instanceof Error ? err.message : String(err)
+      const messages = apiMessages(text)
+      // A printed payment today that does not fit the lease's total is fixed in the form, so it
+      // shows beside "Paid today" (task 3.10.1); anything else stays in the alert below.
+      const notFit = messages.find((m) => m.includes('does not fit'))
+      const rest = messages.filter((m) => m !== notFit)
+      if (notFit !== undefined) setErrors({ leasePaid: asSentence(notFit) })
+      if (notFit === undefined || rest.length > 0) {
+        setFailure(rest.join('; ') || text)
+        setStatus('error')
+      } else {
+        setStatus('idle')
+      }
     }
   }
 
@@ -699,7 +728,7 @@ export default function Entry() {
           <Field id="lease-weekly" label="Weekly payment" prefix="$" {...text('leaseWeekly')} {...decimal} />
           <Field id="lease-term" label="Term in weeks" {...text('leaseTerm')} inputMode="numeric" autoComplete="off" />
           <Field id="lease-cash" label="Cash price" prefix="$" {...text('leaseCash')} {...decimal} />
-          <Field id="lease-fees" label="Fees (optional)" prefix="$" {...text('leaseFees')} {...decimal} />
+          <Field id="lease-fees" label="Fees ($0 if none)" prefix="$" {...text('leaseFees')} {...decimal} />
           <Field id="lease-paid" label="Paid today" prefix="$" {...text('leasePaid')} {...decimal} />
           <Field id="lease-total" label="Total of all payments, as printed" prefix="$" {...text('leaseTotal')} {...decimal} />
           <div>
