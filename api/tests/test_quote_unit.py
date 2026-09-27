@@ -90,11 +90,14 @@ def by_group(paths: list[Path]) -> dict[str, Path]:
     return {p.group: p for p in paths if p.payment_method == "cash"}
 
 
-def test_slice_returns_both_groups_sorted_by_total_high() -> None:
+def test_slice_returns_both_groups_complete_paths_first() -> None:
     paths = quote(slice_request(), FakeRepo())
     cash_paths = [p for p in paths if p.payment_method == "cash"]
     assert [p.group for p in cash_paths] == ["new", "used_as_is"]
-    assert cash_paths[0].total_3yr_high <= cash_paths[1].total_3yr_high
+    # Since task 3.3.2 the used unit, past its typical life, has no replacement priced, so it is
+    # flagged and sorts after new cash even though its total is lower.
+    assert INCOMPLETE in cash_paths[1].flags and INCOMPLETE not in cash_paths[0].flags
+    assert cash_paths[1].total_3yr_high < cash_paths[0].total_3yr_high
     # Since task 3.3.1, paths flagged `costs_not_estimated` sort after the complete ones.
     keys = [(INCOMPLETE in p.flags, p.total_3yr_high, p.pay_today) for p in paths]
     assert keys == sorted(keys)
@@ -103,13 +106,16 @@ def test_slice_returns_both_groups_sorted_by_total_high() -> None:
 def test_used_path_past_typical_life() -> None:
     used = by_group(quote(slice_request(), FakeRepo()))["used_as_is"]
     # 250 today; 600 kWh x $0.15 = $7.50 a month; coils $0 to $20 at months 12 and 24;
-    # 12 years into a 10 to 15 year life, so the $899 replacement falls today at the high end.
+    # 12 years into a 10 to 15 year life: at or past its typical life, so since task 3.3.2 no
+    # replacement is bought and when it will need replacing is not estimated.
     assert used.pay_today == 250.0
-    assert (used.total_3yr_low, used.total_3yr_high) == (520.0, 1459.0)
-    assert used.monthly_high[0] == 250.0 + 7.5 + 899.0
+    assert (used.total_3yr_low, used.total_3yr_high) == (520.0, 560.0)
+    assert used.monthly_high[0] == 250.0 + 7.5
     assert (used.expected_life_low, used.expected_life_high) == (0, 3)
     assert (used.cost_per_year_low, used.cost_per_year_high) == (round(250 / 3 + 90, 2), None)
-    assert used.flags == ["past_typical_life"]
+    assert used.flags == ["past_typical_life", INCOMPLETE]
+    replacement = used.lines[-1]
+    assert (replacement.source_type, replacement.amount_low, replacement.amount_high) == ("not_estimated", None, None)
     assert used.carbon_kg == 720.0
     assert used.carbon_source_ids == ["energystar_refrigerators", "egrid_georgia"]
     assert [line.label for line in used.lines] == [
@@ -176,8 +182,11 @@ def test_unknown_manufacture_year_leaves_life_blank() -> None:
     undated = OLD.model_copy(update={"mfg_year": None})
     used = by_group(quote(slice_request(items=[undated, NEW]), FakeRepo()))["used_as_is"]
     assert (used.expected_life_low, used.cost_per_year_low, used.cost_per_year_high) == (None, None, None)
-    assert used.flags == []
-    assert not any(line.kind == "replacement" for line in used.lines)
+    # Since task 3.3.2 its replacement timing is shown as not estimated, which flags the path.
+    assert used.flags == [INCOMPLETE]
+    [replacement] = [line for line in used.lines if line.kind == "replacement"]
+    assert (replacement.source_type, replacement.amount_high) == ("not_estimated", None)
+    assert "year it was made is unknown" in replacement.formula
 
 
 def test_a_source_missing_from_the_repository_is_refused() -> None:

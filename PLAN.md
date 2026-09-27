@@ -328,7 +328,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   A path whose electricity (for a category that uses energy), financing or replacement timing is `not_estimated` gets the flag `costs_not_estimated`. `quote` sorts complete paths by `total_3yr_high` then `pay_today`, then flagged paths in the same order.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including a test where a rent-to-own path with no electricity figure sorts after a complete new-cash path even though its total is lower.
 
-- [ ] **3.3.2 Replacement and past-typical-life honesty (Track A2)** (NEW 2026-09-26, decision 8)
+- [x] **3.3.2 Replacement and past-typical-life honesty (Track A2)** (NEW 2026-09-26, decision 8)
   At or past the typical life: flag `past_typical_life`, insert no replacement, and add a `not_estimated` replacement line ("When it will need replacing is not estimated"), so the path is also `costs_not_estimated`. When a replacement falls inside the window, the old unit's running cost and carbon stop at that month and the replacement unit's (its rated figure, or `not_estimated`) run after it.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including tests for a 20-year-old unit (no replacement amount; flags `past_typical_life` and `costs_not_estimated`) and a replacement at month 12 (running cost from month 12 uses the new unit's kWh).
 
