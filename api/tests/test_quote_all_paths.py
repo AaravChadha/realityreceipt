@@ -38,6 +38,7 @@ RATES = {
 SOURCE_IDS = [
     "energystar_refrigerators", "ga_power_residential_tariff", "egrid_georgia", "frb_g19", "ncua_pals_ii",
     "lifespan_src", "upkeep_src", "repair_src", "repair_src_2", "retailer_src", "doe_standards", "afterpay_terms",
+    "doe_historical",
 ]
 TERMS = BnplTerms(provider="Afterpay", installments=4, interval_weeks=2, apr=0.0, source_id="afterpay_terms")
 
@@ -75,6 +76,8 @@ class FakeRepo:
     catalog: dict[str, Item] = field(default_factory=lambda: {NEW.id: NEW})
     ceiling_calls: list[tuple[int, str, float]] = field(default_factory=list)
     energy_refs: list[str] = field(default_factory=lambda: ["energystar_refrigerators"])
+    lifespan: tuple[float, float] = (10, 15)
+    historical: set[str] = field(default_factory=set)  # models rated from a second source
 
     def rate(self, key: str) -> RateValue:
         return RATES[key]
@@ -86,13 +89,14 @@ class FakeRepo:
             usage_assumption="Runs all the time",
             upkeep_schedule=[UpkeepItem(label="Clean coils", cost_low=0, cost_high=20, every_months=12, source_id="upkeep_src")],
             repair_ranges=self.repairs,
-            lifespan_range=LifespanRange(low_years=10, high_years=15, source_id="lifespan_src"),
+            lifespan_range=LifespanRange(low_years=self.lifespan[0], high_years=self.lifespan[1], source_id="lifespan_src"),
             carbon_applicable=True,
         )
 
     def model_energy(self, brand: str, model: str) -> ModelEnergy | None:
         kwh = self.energy.get(model)
-        return None if kwh is None else ModelEnergy(kwh_per_year=kwh, source_type="rated", source_id="energystar_refrigerators")
+        source_id = "doe_historical" if model in self.historical else "energystar_refrigerators"
+        return None if kwh is None else ModelEnergy(kwh_per_year=kwh, source_type="rated", source_id=source_id)
 
     def new_offers(self, category: str) -> list[Offer]:
         return list(self.new)
@@ -145,9 +149,11 @@ def test_full_request_returns_nine_paths_complete_ones_first() -> None:
     assert {(p.group, p.payment_method) for p in paths} == ALL_KINDS
     # Complete paths by total (high end), then pay today; then the flagged ones in the same order.
     assert sort_keys(paths) == sorted(sort_keys(paths))
-    # Buy now pay later with no cached terms is the only path with a blank cost here.
-    assert [(p.group, p.payment_method) for p in paths if INCOMPLETE in p.flags] == [("new", "bnpl")]
-    assert paths[-1].payment_method == "bnpl"
+    # Blank costs here: buy now pay later with no cached terms, and (since task 3.3.2) the 2004
+    # unit's replacement timing, since it is past its typical life.
+    flagged = [(p.group, p.payment_method) for p in paths if INCOMPLETE in p.flags]
+    assert sorted(flagged, key=str) == [("new", "bnpl"), ("repair", None)]
+    assert paths[-len(flagged):] == [p for p in paths if INCOMPLETE in p.flags]
 
 
 def test_incomplete_rent_to_own_sorts_after_complete_new_cash() -> None:
@@ -341,3 +347,124 @@ def test_no_test_procedure_flag_without_a_newer_unit() -> None:
 
 def test_nothing_is_invented_from_an_empty_request() -> None:
     assert quote(QuoteRequest(), FakeRepo(new=[])) == []
+
+
+# Task 3.3.2: replacement and past-typical-life honesty.
+
+
+def used_path(item: Item, repo: FakeRepo | None = None) -> Path:
+    """The used-as-is path for `item` (id "used") sold through `USED_OFFER`."""
+    return pick(quote(QuoteRequest(items=[item], offers=[USED_OFFER]), repo or FakeRepo()), "used_as_is", "cash")
+
+
+def replacement_lines(path: Path) -> list:
+    return [line for line in path.lines if line.kind == "replacement"]
+
+
+def test_a_20_year_old_unit_gets_no_replacement_amount() -> None:
+    old = used_path(USED.model_copy(update={"mfg_year": THIS_YEAR - 20}))
+    assert {"past_typical_life", INCOMPLETE} <= set(old.flags)
+    [line] = replacement_lines(old)
+    assert (line.source_type, line.amount_low, line.amount_high) == ("not_estimated", None, None)
+    assert line.formula.startswith("When it will need replacing is not estimated")
+    # $250 today, 600 kWh x $0.15 = $7.50 a month for all 36 months, coils $0 to $20 at months 12
+    # and 24, and no $899 replacement anywhere in either array.
+    assert (old.total_3yr_low, old.total_3yr_high) == (520.0, 560.0)
+    assert (old.cost_per_year_low, old.cost_per_year_high) == (None, None)
+    assert old.carbon_kg == 600 * 0.4 * 3
+
+
+def test_after_a_replacement_at_month_12_electricity_is_the_new_units() -> None:
+    # 9 years into a 10 to 15 year life: replaced at month 12 at the soonest (the high array),
+    # not inside the 36 months at the latest (the low array).
+    used = used_path(USED.model_copy(update={"mfg_year": THIS_YEAR - 9}))
+    [old_line, new_line] = [line for line in used.lines if line.label.startswith("Electricity")]
+    assert (old_line.source_type, old_line.amount_high) == ("rated", 90.0)  # 600 kWh x $0.15
+    assert (new_line.label, new_line.source_type, new_line.amount_high) == ("Electricity, replacement unit", "rated", 57.0)  # 380 kWh
+    assert "month 12" in old_line.formula and "month 12" in new_line.formula
+    # High array: $7.50 a month (600 kWh) to month 11, then $4.75 (380 kWh); month 12 also buys
+    # the $899 replacement and the $20 coil cleaning.
+    assert used.monthly_high[11] == 7.5
+    assert used.monthly_high[12] == 4.75 + 20.0 + 899.0
+    assert used.monthly_high[13] == used.monthly_high[35] == 4.75
+    assert used.total_3yr_high == 250 + 12 * 7.5 + 24 * 4.75 + 40 + 899
+    # Low array: it lasts past the window, so the old unit runs all 36 months.
+    assert used.monthly_low[13] == used.monthly_low[35] == 7.5
+    # Carbon: the higher timeline, here the old unit all 36 months (720 kg against 240 + 304 = 544).
+    assert used.carbon_kg == 720.0
+    # Cost per year of use stays this unit's: $250 / 1 year + $90 + $20.
+    assert used.cost_per_year_high == 360.0
+    assert INCOMPLETE not in used.flags
+
+
+def test_a_replacement_unit_without_a_figure_leaves_its_electricity_blank() -> None:
+    # The cheapest new offer's item is in neither the catalog nor the request.
+    used = used_path(USED.model_copy(update={"mfg_year": THIS_YEAR - 9}), FakeRepo(catalog={}))
+    [new_line] = [line for line in used.lines if line.label == "Electricity, replacement unit"]
+    assert (new_line.source_type, new_line.amount_high) == ("not_estimated", None)
+    assert used.monthly_high[11] == 7.5 and used.monthly_high[13] == 0.0
+    assert used.carbon_kg is None and used.carbon_source_ids == []
+    assert INCOMPLETE in used.flags
+
+
+@pytest.mark.parametrize(("item", "offer", "group"), [(USED, USED_OFFER, "used_as_is"), (REFURB, REFURB_OFFER, "refurbished")])
+def test_a_used_unit_of_unknown_age_has_its_replacement_timing_not_estimated(item: Item, offer: Offer, group: str) -> None:
+    undated = item.model_copy(update={"mfg_year": None})
+    path = pick(quote(QuoteRequest(items=[undated], offers=[offer]), FakeRepo()), group, "cash")
+    [line] = replacement_lines(path)
+    assert (line.source_type, line.amount_high) == ("not_estimated", None)
+    assert "year it was made is unknown" in line.formula
+    assert INCOMPLETE in path.flags
+
+
+def test_new_and_unknown_lease_units_get_no_blank_replacement_line() -> None:
+    paths = quote(full_request(offers=[USED_OFFER, REFURB_OFFER]), FakeRepo())
+    for p in (pick(paths, "new", "cash"), pick(paths, "rent_to_own", "rto_full")):
+        assert replacement_lines(p) == []
+
+
+def test_ranked_past_life_offer_gets_no_replacement_amount() -> None:
+    old = USED.model_copy(update={"mfg_year": THIS_YEAR - 20})
+    [ranked] = rank(ShopFilters(), [USED_OFFER], [old], FakeRepo())
+    [line] = replacement_lines(ranked.path)
+    assert (line.source_type, line.amount_high) == ("not_estimated", None)
+    assert {"past_typical_life", INCOMPLETE} <= set(ranked.path.flags)
+
+
+def test_both_arrays_switch_in_the_same_month_on_a_single_figure_life() -> None:
+    # A 13-year typical life (as in the real profile), 12 years in: replaced at month 12 in both arrays.
+    used = used_path(USED.model_copy(update={"mfg_year": THIS_YEAR - 12}), FakeRepo(lifespan=(13, 13)))
+    for monthly, coils in ((used.monthly_low, 0.0), (used.monthly_high, 20.0)):
+        assert monthly[11] == 7.5
+        assert monthly[12] == 4.75 + coils + 899.0
+        assert monthly[13] == monthly[35] == 4.75
+    old_line = used.lines[1]
+    assert old_line.formula.endswith("Runs until it is replaced: month 12")
+    # 600 kWh x 0.4 kg for 1 year, then 380 kWh x 0.4 kg for 2 years.
+    assert used.carbon_kg == 240.0 + 304.0
+
+
+def test_arrays_switch_in_different_months_and_carbon_takes_the_higher_timeline() -> None:
+    # A 10 to 11 year life, 9 years in: replaced at month 12 (high array) or month 24 (low array).
+    repo = FakeRepo(lifespan=(10, 11), historical={"NEW456"})
+    used = used_path(USED.model_copy(update={"mfg_year": THIS_YEAR - 9}), repo)
+    assert (used.monthly_high[11], used.monthly_high[12], used.monthly_high[13]) == (7.5, 4.75 + 20.0 + 899.0, 4.75)
+    assert (used.monthly_low[23], used.monthly_low[24], used.monthly_low[25]) == (7.5, 4.75 + 899.0, 4.75)
+    assert "month 12 at the soonest, month 24 at the latest" in used.lines[1].formula
+    # Month 24: 480 + 152 = 632 kg; month 12: 240 + 304 = 544 kg. Both units' sources are named.
+    assert used.carbon_kg == 632.0
+    assert used.carbon_source_ids == ["energystar_refrigerators", "doe_historical", "egrid_georgia"]
+
+
+def test_carbon_names_only_the_sources_of_the_timeline_it_uses() -> None:
+    # 10 to 15 year life, 9 years in: the higher timeline is the old unit alone (720 kg).
+    used = used_path(USED.model_copy(update={"mfg_year": THIS_YEAR - 9}), FakeRepo(historical={"NEW456"}))
+    assert used.carbon_kg == 720.0
+    assert used.carbon_source_ids == ["energystar_refrigerators", "egrid_georgia"]
+    assert any(line.source_id == "doe_historical" for line in used.lines)  # the replacement's electricity
+
+
+def test_a_single_figure_life_reads_as_one_number() -> None:
+    old = used_path(USED.model_copy(update={"mfg_year": THIS_YEAR - 20}), FakeRepo(lifespan=(13, 13)))
+    [line] = replacement_lines(old)
+    assert "typical 13 year life" in line.formula

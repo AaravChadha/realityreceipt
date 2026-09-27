@@ -1,4 +1,4 @@
-"""Every way to get the item, as receipt paths (PLAN.md tasks 2.6 and 3.3, row A2).
+"""Every way to get the item, as receipt paths (PLAN.md tasks 2.6, 3.3 to 3.3.2, row A2).
 
 Nine kinds of path: repair the one you have; each used listing, as-is or refurbished;
 the cheapest cached new offer paid four ways (cash, card, buy now pay later, credit
@@ -11,6 +11,11 @@ the price included, so a price line is added to those paths as a line only.
 A path whose electricity, financing or replacement timing is not estimated counts that
 cost as $0 in its totals, so it is flagged `costs_not_estimated` and sorted after the
 complete paths (task 3.3.1): otherwise a blank cost would make it look cheapest.
+
+Replacement (task 3.3.2): a unit at or past the low end of its typical life, or of
+unknown age, gets no replacement purchase, only a `not_estimated` replacement line.
+When a replacement falls inside the 36 months, the old unit's electricity and carbon
+stop at that month and the replacement unit's run after it.
 
 `quote` takes any object with the methods of `QuoteRepository`, so this module does
 not import `app.repository`; the real `Repository` (task 2.1) satisfies it.
@@ -98,13 +103,16 @@ def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
     profile = repo.profile(category)
     items = {item.id: item for item in req.items}
     cheapest_new = min(repo.new_offers(category), key=lambda o: o.price, default=None)
+    new_item = (repo.item(cheapest_new.item_id) or items.get(cheapest_new.item_id)) if cheapest_new is not None else None
+    # The unit that replaces a worn-out one is the cheapest new offer's.
+    replacement_kwh = _kwh(new_item, repo)
     this_year = date.today().year
 
     built: list[tuple[Path, int | None]] = []  # each path with its unit's manufacture year
     if req.current is not None:
         repair = _repair_cost(req, profile)
         if repair is not None:
-            path = _unit_path("Repair the one you have", "repair", None, repair, req.current, _age(req.current), True, profile, cheapest_new, repo, [])
+            path = _unit_path("Repair the one you have", "repair", None, repair, req.current, _age(req.current), True, profile, cheapest_new, repo, [], replacement_kwh=replacement_kwh)
             built.append((path, req.current.mfg_year))
 
     for offer in req.offers:
@@ -113,13 +121,12 @@ def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
             continue
         name, group = LISTING_KINDS[item.condition]
         flags = [f"warranty_{item.warranty_months}_months"] if group == "refurbished" and item.warranty_months else []
-        path = _unit_path(name, group, "cash", cash(offer.price, offer.source_id), item, _age(item), True, profile, cheapest_new, repo, flags)
+        path = _unit_path(name, group, "cash", cash(offer.price, offer.source_id), item, _age(item), True, profile, cheapest_new, repo, flags, replacement_kwh=replacement_kwh)
         built.append((path, item.mfg_year))
 
     if cheapest_new is not None:
-        item = repo.item(cheapest_new.item_id) or items.get(cheapest_new.item_id)
         for name, method, acquire, flags in _new_ways(cheapest_new, repo):
-            path = _unit_path(name, "new", method, acquire, item, 0.0, False, profile, cheapest_new, repo, flags)
+            path = _unit_path(name, "new", method, acquire, new_item, 0.0, False, profile, cheapest_new, repo, flags, replacement_kwh=replacement_kwh)
             built.append((path, this_year))
 
     if req.lease is not None:
@@ -132,7 +139,7 @@ def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
             ("Rent-to-own, keep paying", "rto_full", rto_full(req.lease)),
             ("Rent-to-own, early buyout", "rto_buyout", rto_buyout(req.lease)),
         ):
-            built.append((_unit_path(name, "rent_to_own", method, acquire, unit, age, aged, profile, cheapest_new, repo, []), year))
+            built.append((_unit_path(name, "rent_to_own", method, acquire, unit, age, aged, profile, cheapest_new, repo, [], replacement_kwh=replacement_kwh), year))
 
     paths = _flag_test_procedure(built)
     paths.sort(key=lambda p: (INCOMPLETE in p.flags, p.total_3yr_high, p.pay_today))
@@ -158,10 +165,8 @@ def _cash_path(
     parts.append(upkeep(profile.upkeep_schedule))
 
     life_low, life_high = remaining_life(age_years, profile.lifespan_range)
-    if cheapest_new is not None:
-        parts.append(replacement(cheapest_new, life_low, life_high))
-    elif life_low is not None and replacement_month(life_low) < MONTHS:
-        parts.append(_line_only(_replacement_not_estimated()))
+    # The replacement unit's electricity is not switched in here yet (task 3.3.3).
+    parts += _replacement_parts(group == "used_as_is", life_low, life_high, profile, cheapest_new)
     total = combine(parts)
 
     annual_low, annual_high = _annual_cost(electricity, profile.upkeep_schedule)
@@ -235,7 +240,7 @@ def _line_only(line: CostLine) -> Contribution:
     return Contribution(pay_today=0.0, monthly_low=[0.0] * MONTHS, monthly_high=[0.0] * MONTHS, lines=[line])
 
 
-def _replacement_not_estimated() -> CostLine:
+def _replacement_not_estimated(formula: str) -> CostLine:
     return CostLine(
         kind="replacement",
         label="Replacement when it wears out",
@@ -244,8 +249,100 @@ def _replacement_not_estimated() -> CostLine:
         period="once",
         source_type="not_estimated",
         source_id=None,
-        formula="Typical life may end inside the 36 months, and no cached new offer prices a replacement",
+        formula=formula,
     )
+
+
+def _replacement_parts(
+    aged: bool, life_low: float | None, life_high: float | None, profile: CategoryProfile, cheapest_new: Offer | None
+) -> list[Contribution]:
+    """The replacement purchase, or a blank line saying why its timing or price is not estimated.
+
+    At or past the low end of typical life, or for an aged unit of unknown age, no replacement
+    is bought in the arrays: when it will need replacing is not estimated.
+    """
+    lifespan = profile.lifespan_range
+    if life_low == 0 and lifespan is not None:
+        years = f"{lifespan.low_years:g}" if lifespan.low_years == lifespan.high_years else f"{lifespan.low_years:g} to {lifespan.high_years:g}"
+        return [_line_only(_replacement_not_estimated(
+            "When it will need replacing is not estimated: it is at or past the low end of the typical"
+            f" {years} year life, so no replacement is priced"
+        ))]
+    if life_low is None:
+        if aged and lifespan is not None:
+            return [_line_only(_replacement_not_estimated(
+                "When it will need replacing is not estimated: the year it was made is unknown, so its remaining life is unknown"
+            ))]
+        return []
+    if cheapest_new is not None:
+        return [replacement(cheapest_new, life_low, life_high)]
+    if replacement_month(life_low) < MONTHS:
+        return [_line_only(_replacement_not_estimated(
+            "Typical life may end inside the 36 months, and no cached new offer prices a replacement"
+        ))]
+    return []
+
+
+def _switch_months(life_low: float | None, life_high: float | None, cheapest_new: Offer | None) -> tuple[int, int]:
+    """(low array, high array) month in which the unit is replaced by the cheapest new offer;
+    `MONTHS` when it is not replaced inside the window. Same months as `lifecycle.replacement`."""
+    if cheapest_new is None or life_low is None or life_high is None or life_low == 0:
+        return MONTHS, MONTHS
+    return min(MONTHS, replacement_month(life_high)), min(MONTHS, replacement_month(life_low))
+
+
+def _switch_electricity(old: Contribution, new: Contribution, month_low: int, month_high: int) -> Contribution:
+    """The old unit's electricity up to each array's replacement month, the replacement unit's from it."""
+    if month_low == month_high:
+        when = f"month {month_high}"
+    elif month_low < MONTHS:
+        when = f"month {month_high} at the soonest, month {month_low} at the latest"
+    else:
+        when = f"month {month_high} at the soonest, or not inside the 36 months"
+    [old_line] = old.lines
+    [new_line] = new.lines
+    return Contribution(
+        pay_today=0.0,
+        monthly_low=[old.monthly_low[m] if m < month_low else new.monthly_low[m] for m in range(MONTHS)],
+        monthly_high=[old.monthly_high[m] if m < month_high else new.monthly_high[m] for m in range(MONTHS)],
+        lines=[
+            old_line.model_copy(update={"formula": f"{old_line.formula}. Runs until it is replaced: {when}"}),
+            new_line.model_copy(update={
+                "label": "Electricity, replacement unit",
+                "formula": f"Runs after the replacement: {when}. {new_line.formula}",
+            }),
+        ],
+    )
+
+
+def _carbon(
+    kwh: ModelEnergy | None,
+    replacement_kwh: ModelEnergy | None,
+    month_low: int,
+    month_high: int,
+    profile: CategoryProfile,
+    repo: QuoteRepository,
+) -> tuple[float | None, list[str]]:
+    """Carbon over the 36 months and the sources of the figures it uses. With a replacement inside
+    the window, the old unit's until then and the replacement's after, taking the higher of the two
+    timelines (low and high array) so it is never understated; `None` when a kWh it needs is missing."""
+    if not profile.carbon_applicable or kwh is None:
+        return None, []
+    grid = repo.rate(GRID_EMISSIONS)
+    if month_high >= MONTHS:
+        return carbon_kg(kwh.kwh_per_year, grid), [kwh.source_id, grid.source_id]
+    if replacement_kwh is None:
+        return None, []
+    timelines = [
+        (carbon_kg(kwh.kwh_per_year, grid), [kwh.source_id, grid.source_id])
+        if m >= MONTHS
+        else (
+            round(carbon_kg(kwh.kwh_per_year, grid, m) + carbon_kg(replacement_kwh.kwh_per_year, grid, MONTHS - m), 2),
+            list(dict.fromkeys([kwh.source_id, replacement_kwh.source_id, grid.source_id])),
+        )
+        for m in (month_low, month_high)
+    ]
+    return max(timelines, key=lambda t: t[0])
 
 
 def _check_sources(paths: list[Path], repo: QuoteRepository) -> None:
@@ -276,35 +373,35 @@ def _unit_path(
     cheapest_new: Offer | None,
     repo: QuoteRepository,
     flags: list[str],
+    *,
+    replacement_kwh: ModelEnergy | None,
 ) -> Path:
     """One path: `acquire` (every dollar paid to get the unit), then electricity, the aging
-    line when `aged`, upkeep and the replacement for `item`, with cost per year and carbon."""
+    line when `aged`, upkeep and the replacement for `item`, with cost per year and carbon.
+    `replacement_kwh` is the replacement unit's figure, used from the month it is bought."""
     kwh = _kwh(item, repo)
-    electricity = energy(kwh or _NO_KWH, repo.rate(ELECTRICITY_RATE))
-    parts = [acquire, electricity]
+    rate = repo.rate(ELECTRICITY_RATE)
+    electricity = energy(kwh or _NO_KWH, rate)
+    life_low, life_high = remaining_life(age_years, profile.lifespan_range)
+    month_low, month_high = _switch_months(life_low, life_high, cheapest_new)
+    running = electricity
+    if month_high < MONTHS:
+        running = _switch_electricity(electricity, energy(replacement_kwh or _NO_KWH, rate), month_low, month_high)
+
+    parts = [acquire, running]
     if aged:
         parts.append(_line_only(aging_line()))
     parts.append(upkeep(profile.upkeep_schedule))
-
-    life_low, life_high = remaining_life(age_years, profile.lifespan_range)
-    if cheapest_new is not None:
-        parts.append(replacement(cheapest_new, life_low, life_high))
-    elif life_low is not None and replacement_month(life_low) < MONTHS:
-        parts.append(_line_only(_replacement_not_estimated()))
+    parts += _replacement_parts(aged, life_low, life_high, profile, cheapest_new)
     total = combine(parts)
 
+    # Cost per year of use is this unit's: its own electricity, not the replacement's.
     annual_low, annual_high = _annual_cost(electricity, profile.upkeep_schedule)
     # "Purchase total" includes financing: everything `acquire` pays, not just the price.
     cpy_low, cpy_high = cost_per_year(
         sum(acquire.monthly_low), sum(acquire.monthly_high), annual_low, annual_high, life_low, life_high
     )
-
-    carbon: float | None = None
-    carbon_ids: list[str] = []
-    if profile.carbon_applicable and kwh is not None:
-        grid = repo.rate(GRID_EMISSIONS)
-        carbon = carbon_kg(kwh.kwh_per_year, grid)
-        carbon_ids = [kwh.source_id, grid.source_id]
+    carbon, carbon_ids = _carbon(kwh, replacement_kwh, month_low, month_high, profile, repo)
 
     flags = [*flags]
     if life_low == 0:
