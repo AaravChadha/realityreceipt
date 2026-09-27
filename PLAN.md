@@ -107,7 +107,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 |---|---|---|---|
 | 0 Operator | repo owner | `.gitignore`, `.github/`, `pytest.ini`, `api/requirements.txt`, `api/app/__init__.py`, `api/.env.example`, `web/package.json`, `web/package-lock.json`, `web/vite.config.ts`, `web/tsconfig*.json`, `web/index.html`, `docs/`, `README.md`, `AGENTS.md`, `.claude/acstack.md`, `.cursor/` | — |
 | A1 Contracts and routes | Track A | `api/app/models.py`, `api/app/main.py`, `contracts/`, `web/src/contracts.ts`, `web/src/contracts.test.ts`, `api/tests/test_contracts.py`, `api/tests/test_health.py`, `api/tests/test_routes.py`, `api/tests/test_journey.py` | every module's functions below |
-| A2 Quote and lifecycle | Track A | `api/app/engine/__init__.py`, `api/app/engine/quote.py`, `api/app/engine/lifecycle.py`, `api/app/engine/rank.py`, `api/tests/test_lifecycle.py`, `api/tests/test_slice.py`, `api/tests/test_quote_all_paths.py`, `api/tests/test_rank.py`, `api/tests/test_copy.py`, `api/tests/test_quote_unit.py` | A3 to A5, B1 |
+| A2 Quote and lifecycle | Track A | `api/app/engine/__init__.py`, `api/app/engine/quote.py`, `api/app/engine/lifecycle.py`, `api/app/engine/rank.py`, `api/tests/test_lifecycle.py`, `api/tests/test_slice.py`, `api/tests/test_quote_all_paths.py`, `api/tests/test_rank.py`, `api/tests/test_copy.py`, `api/tests/test_quote_unit.py`, `api/tests/test_demo_script.py` | A3 to A5, B1 |
 | A3 Financing | Track A | `api/app/engine/financing.py`, `api/tests/test_financing.py` | A1 models |
 | A4 Rent-to-own | Track A | `api/app/engine/lease.py`, `api/tests/test_lease.py` | A1 models |
 | A5 Running cost and carbon | Track A | `api/app/engine/running.py`, `api/tests/test_running.py` | A1 models |
@@ -505,6 +505,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [x] **4.8.2 Pitch follows the rewritten demo script (Track 0, operator)** (NEW 2026-09-26, Codex review)
   Align `docs/pitch.md` with "Demo Script for Judges": lead with the lease ($0.01 today, $1,739.88 total, $542.89 over its cash price, 45%); no serial typed from a card, no buyout week, the Maytag as Rated 505 kWh from DOE historical data with no year; paths sorted with complete ones first; the lease page does show its total. Every number must match `analysis/recs/out/burden.csv` or the demo script.
   **Acceptance:** `grep -c -i -E 'buyout week|serial|sorted by total over 3 years' docs/pitch.md` prints `0`.
+
+- [ ] **4.8.3 Stage numbers locked by a test (Track A2)** (NEW 2026-09-26 22:15)
+  `api/tests/test_demo_script.py`: runs "Demo Script for Judges" through `/item` and `/quote` with `TestClient` and the inputs in `demo/cards/cards.json`, and asserts what the presenter says. Scenario 1: pay today $0.01; a "Total of lease payments" line with $1,739.88; "$542.89 more than the cash price of $1,196.99" and 45% on "Rent-to-own, keep paying"; exactly one rent-to-own path, after every complete new path; the cheapest new offer $548. Scenario 2: the Maytag's electricity line is rated 505 kWh from `doe_wap_refrigerators`; its replacement line is not estimated; its `mfg_year` stays empty. Any late merge that moves a stage number then fails CI.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_demo_script.py -q` passes.
 
 - [ ] **4.9 Code freeze at Sun 02:00 (Track 0 — operator)**
   Merge nothing new after 02:00 except demo-breaking fixes. Tag the last green `main` commit: `git tag freeze origin/main` then `git push origin freeze`.
