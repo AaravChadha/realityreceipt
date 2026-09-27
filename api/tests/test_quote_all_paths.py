@@ -332,6 +332,17 @@ def test_rent_to_own_paths_come_from_the_lease() -> None:
     assert not any(p.group == "rent_to_own" for p in quote(full_request(lease=None), FakeRepo()))
 
 
+def test_a_lease_without_buyout_terms_gives_one_rent_to_own_path() -> None:
+    no_terms = LEASE.model_copy(update={"early_purchase_rule": "none", "early_purchase_pct": None})
+    paths = [p for p in quote(full_request(lease=no_terms), FakeRepo()) if p.group == "rent_to_own"]
+    assert [p.method for p in paths] == ["rto_full"]
+
+
+def test_a_lease_with_buyout_terms_gives_two_rent_to_own_paths() -> None:
+    paths = [p for p in quote(full_request(), FakeRepo()) if p.group == "rent_to_own"]
+    assert sorted(p.method for p in paths) == ["rto_buyout", "rto_full"]
+
+
 def test_lease_without_its_unit_leaves_energy_and_life_blank() -> None:
     full = pick(quote(full_request(offers=[USED_OFFER, REFURB_OFFER]), FakeRepo()), "rent_to_own", "rto_full")
     assert full.lines[2].source_type == "not_estimated"  # payments, fees, then electricity
