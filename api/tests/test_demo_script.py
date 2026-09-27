@@ -88,10 +88,13 @@ def test_scenario_1_one_lease_card_after_every_complete_new_path(scenario_1: lis
     assert max(new_complete) < lease[0]
 
 
-def test_scenario_1_cheapest_new_offer_is_548(scenario_1: list[Path]) -> None:
+def test_scenario_1_new_is_the_same_model_at_699_99(scenario_1: list[Path]) -> None:
+    # Tasks 3.3.10 and 2.3.2: the leased FRTE1936AV matches its own model, new at Best Buy for $699.99.
     [new_cash] = [p for p in scenario_1 if (p.group, p.payment_method) == ("new", "cash")]
-    assert new_cash.pay_today == 548.0
-    assert only(new_cash.lines, "Price today").amount_high == 548.0
+    assert new_cash.pay_today == 699.99
+    price = only(new_cash.lines, "Price today")
+    assert price.amount_high == 699.99
+    assert price.formula.startswith("A new Frigidaire FRTE1936AV, from the same model family as yours")
 
 
 # Scenario 2: every line has a source.
@@ -110,17 +113,17 @@ def maytag_repair(client: TestClient, maytag: dict) -> Path:
 
 
 def test_scenario_2_new_fridge_is_the_closest_in_size(client: TestClient, maytag: dict) -> None:
-    # Task 3.3.10, the stage line "about $8 a year": the Maytag (25.1 cu ft) is compared with the closest
-    # size in the cache, a $699 GE at 21.9 cu ft, $70.54 a year against the Maytag's $78.99.
+    # Tasks 3.3.10 and 2.3.2: the Maytag (25.1 cu ft) is compared with the closest size in the cache, a
+    # $1,199.99 Frigidaire side-by-side at 25.6 cu ft, which uses more electricity: $101.20 a year against $78.99.
     paths = quoted(client, {"current": maytag, "repair_quote_low": REPAIR_QUOTE, "repair_quote_high": REPAIR_QUOTE})
     [cash] = [p for p in paths if (p.group, p.payment_method) == ("new", "cash")]
     [price] = [line for line in cash.lines if line.kind == "purchase"]
-    assert cash.pay_today == 699.0
-    assert price.formula.startswith("The closest in size to yours: 21.9 cu ft against your 25.1")
+    assert cash.pay_today == 1199.99
+    assert price.formula.startswith("The closest in size to yours: 25.6 cu ft against your 25.1")
     new_electricity = next(line for line in cash.lines if line.label.startswith("Electricity"))
     [keep] = [p for p in paths if p.group == "keep"]
     old_electricity = next(line for line in keep.lines if line.label.startswith("Electricity"))
-    assert (old_electricity.amount_high, new_electricity.amount_high) == (78.99, 70.54)
+    assert (old_electricity.amount_high, new_electricity.amount_high) == (78.99, 101.2)
 
 
 def test_scenario_2_electricity_is_rated_505_kwh_from_doe(client: TestClient, maytag_repair: Path) -> None:

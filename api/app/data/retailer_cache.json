@@ -1,5 +1,5 @@
 {
-  "retrieved_note": "Hand-recorded from live retailer product pages on 2026-09-26. Prices and availability vary by ZIP; never invent a listing.",
+  "retrieved_note": "Hand-recorded from live retailer product pages on 2026-09-26. Prices and availability vary by ZIP; never invent a listing. Added 2026-09-27 (task 2.3.2): three Best Buy listings of types the cache lacked (side-by-side FRSS2623AS, French door FRFN1801AF, and FRTE1936AV, the model on the Aaron's lease card), prices as shown for Best Buy in Google Shopping.",
   "energystar_notes": {
     "_file": "Checked against energystar_refrigerators.csv (class 3 = no icemaker) and doe_wap_refrigerators.csv.gz on 2026-09-26. Seven models are ENERGY STAR; the other seven are not and are noted missing, with DOE's historical figures.",
     "GTE18DTNRWW": "in energystar_refrigerators.csv (row GTE18DTN****): class 3, 359 kWh",
@@ -185,6 +185,42 @@
         "volume_cuft": 18.2,
         "width_in": 29.8
       }
+    },
+    {
+      "id": "bb-frss2623as",
+      "category": "refrigerator",
+      "brand": "Frigidaire",
+      "model": "FRSS2623AS",
+      "condition": "new",
+      "attributes": {
+        "product_class": "7",
+        "volume_cuft": 25.6,
+        "width_in": 36.0
+      }
+    },
+    {
+      "id": "bb-frfn1801af",
+      "category": "refrigerator",
+      "brand": "Frigidaire",
+      "model": "FRFN1801AF",
+      "condition": "new",
+      "attributes": {
+        "product_class": "5",
+        "volume_cuft": 19.0,
+        "width_in": 30.0
+      }
+    },
+    {
+      "id": "bb-frte1936av",
+      "category": "refrigerator",
+      "brand": "Frigidaire",
+      "model": "FRTE1936AV",
+      "condition": "new",
+      "attributes": {
+        "product_class": "3",
+        "volume_cuft": 19.0,
+        "width_in": 30.0
+      }
     }
   ],
   "offers": [
@@ -326,6 +362,36 @@
       "source_id": "retailer_cache_lowes",
       "url": "https://www.lowes.com/pd/Whirlpool-18-2-cu-ft-Top-Freezer-Refrigerator-White/50285239",
       "retrieved_at": "2026-09-26",
+      "available_within_days": null
+    },
+    {
+      "item_id": "bb-frss2623as",
+      "price": 1199.99,
+      "seller_type": "retailer",
+      "source": "retailer_cache",
+      "source_id": "retailer_cache_bestbuy_shopping",
+      "url": "https://www.bestbuy.com/product/frigidaire-36-in-wide-25-6-cu-ft-side-by-side-refrigerator-stainless-steel/J7CJ3RS6GR",
+      "retrieved_at": "2026-09-27",
+      "available_within_days": null
+    },
+    {
+      "item_id": "bb-frfn1801af",
+      "price": 1299.99,
+      "seller_type": "retailer",
+      "source": "retailer_cache",
+      "source_id": "retailer_cache_bestbuy_shopping",
+      "url": "https://www.bestbuy.com/product/frigidaire-30-in-wide-19-cu-ft-standard-depth-garage-ready-french-door-refrigerator-stainless-steel/J3GWPSK98V",
+      "retrieved_at": "2026-09-27",
+      "available_within_days": null
+    },
+    {
+      "item_id": "bb-frte1936av",
+      "price": 699.99,
+      "seller_type": "retailer",
+      "source": "retailer_cache",
+      "source_id": "retailer_cache_bestbuy_shopping",
+      "url": "https://www.bestbuy.com/product/frigidaire-30-in-wide-19-cu-ft-garage-ready-top-freezer-refrigerator-fingerprint-resistant-stainless-steel-look/J3GWPSK9X6/sku/6672084",
+      "retrieved_at": "2026-09-27",
       "available_within_days": null
     }
   ]

@@ -24,7 +24,7 @@ def test_cache_file_exists() -> None:
 def test_offer_count_in_range() -> None:
     raw = _load_raw()
     n = len(raw["offers"])
-    assert 8 <= n <= 15, n
+    assert 8 <= n <= 20, n  # 14 from task 2.3, three more from 2.3.2
 
 
 def test_every_offer_validates_has_url_and_date() -> None:
@@ -65,7 +65,7 @@ def test_every_offer_has_matching_item_with_required_attrs() -> None:
 def test_repository_loads_new_offers() -> None:
     repo = Repository.load()
     offers = repo.new_offers("refrigerator")
-    assert 8 <= len(offers) <= 15
+    assert 8 <= len(offers) <= 20  # 14 from task 2.3, three more from 2.3.2
     for o in offers:
         item = repo.item(o.item_id)
         assert item is not None

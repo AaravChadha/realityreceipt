@@ -5,7 +5,7 @@
     "publisher": "Georgia Power Company",
     "url": "https://www.georgiapower.com/content/dam/georgia-power/pdfs/tariffs/r.pdf",
     "retrieved_date": "2026-09-26",
-    "notes": "Effective 'With Bills Rendered for the Billing Month of June, 2026', page 2.10. Quoted: 'WINTER - For the Billing Months of October through May ... All kWh ... 8.2116¢ per kWh'; 'SUMMER - For the Billing Months of June through September ... First 650 kWh ... 8.7738¢ per kWh / Next 350 kWh ... 14.5738¢ per kWh / Over 1000 kWh ... 15.0828¢ per kWh'. Linked from https://www.georgiapower.com/residential/rate-plans/residential-service.html."
+    "notes": "Effective 'With Bills Rendered for the Billing Month of June, 2026', page 2.10. Quoted: 'WINTER - For the Billing Months of October through May ... All kWh ... 8.2116\u00a2 per kWh'; 'SUMMER - For the Billing Months of June through September ... First 650 kWh ... 8.7738\u00a2 per kWh / Next 350 kWh ... 14.5738\u00a2 per kWh / Over 1000 kWh ... 15.0828\u00a2 per kWh'. Linked from https://www.georgiapower.com/residential/rate-plans/residential-service.html."
   },
   {
     "id": "ga_power_fcr",
@@ -13,7 +13,7 @@
     "publisher": "Georgia Power Company",
     "url": "https://www.georgiapower.com/content/dam/georgia-power/pdfs/tariffs/fcr.pdf",
     "retrieved_date": "2026-09-26",
-    "notes": "Effective with bills rendered for June 2026, page 10.40. Quoted: 'June through September: Secondary Distribution customers ... 3.8069¢ per kWh'; 'October through May: Secondary Distribution customers ... 3.8561¢ per kWh'. 'SECONDARY DISTRIBUTION CUSTOMERS: Any customer not defined as a Transmission or Primary Distribution Customer.'"
+    "notes": "Effective with bills rendered for June 2026, page 10.40. Quoted: 'June through September: Secondary Distribution customers ... 3.8069\u00a2 per kWh'; 'October through May: Secondary Distribution customers ... 3.8561\u00a2 per kWh'. 'SECONDARY DISTRIBUTION CUSTOMERS: Any customer not defined as a Transmission or Primary Distribution Customer.'"
   },
   {
     "id": "ga_power_eccr",
@@ -158,5 +158,13 @@
     "url": "https://www.electrical-forensics.com/MajorAppliances/ElectroluxDateCodes.html",
     "retrieved_date": "2026-09-26",
     "notes": "Ten-character serial: 1st manufacturing facility, 2nd product (A refrigerator, B freezer), 3rd last digit of the year, 4th and 5th week, 6th to 10th unit number. Quoted: 'The first digit of the year (the decade) is not in the serial number or model number.' Worked example on the page: LA81503430 is a refrigerator made in week 15 of 1998. A third party's reading, not Frigidaire's own."
+  },
+  {
+    "id": "retailer_cache_bestbuy_shopping",
+    "title": "Best Buy refrigerator prices as shown in Google Shopping",
+    "publisher": "Best Buy",
+    "url": "https://www.bestbuy.com/",
+    "retrieved_date": "2026-09-27",
+    "notes": "Prices for three new refrigerators as Google Shopping showed them for Best Buy on 2026-09-27, about 01:20 EDT (the team kept a screenshot): Frigidaire 36 in. 25.6 cu. ft. side-by-side $1,199.99; Frigidaire 30 in. 19 cu. ft. standard-depth French door $1,299.99 (on sale, was $1,620); Frigidaire 30 in. 19 cu. ft. garage-ready top freezer $699.99. Model numbers and product URLs from Best Buy's own product titles (FRSS2623AS, FRFN1801AF, FRTE1936AV). Best Buy's product pages could not be read by script, so the price is Google Shopping's, not re-read from the page. Sizes and widths are the listing titles' figures."
   }
 ]
