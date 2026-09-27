@@ -506,7 +506,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   Align `docs/pitch.md` with "Demo Script for Judges": lead with the lease ($0.01 today, $1,739.88 total, $542.89 over its cash price, 45%); no serial typed from a card, no buyout week, the Maytag as Rated 505 kWh from DOE historical data with no year; paths sorted with complete ones first; the lease page does show its total. Every number must match `analysis/recs/out/burden.csv` or the demo script.
   **Acceptance:** `grep -c -i -E 'buyout week|serial|sorted by total over 3 years' docs/pitch.md` prints `0`.
 
-- [ ] **4.8.3 Stage numbers locked by a test (Track A2)** (NEW 2026-09-26 22:15)
+- [x] **4.8.3 Stage numbers locked by a test (Track A2)** (NEW 2026-09-26 22:15)
   `api/tests/test_demo_script.py`: runs "Demo Script for Judges" through `/item` and `/quote` with `TestClient` and the inputs in `demo/cards/cards.json`, and asserts what the presenter says. Scenario 1: pay today $0.01; a "Total of lease payments" line with $1,739.88; "$542.89 more than the cash price of $1,196.99" and 45% on "Rent-to-own, keep paying"; exactly one rent-to-own path, after every complete new path; the cheapest new offer $548. Scenario 2: the Maytag's electricity line is rated 505 kWh from `doe_wap_refrigerators`; its replacement line is not estimated; its `mfg_year` stays empty. Any late merge that moves a stage number then fails CI.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_demo_script.py -q` passes.
 
