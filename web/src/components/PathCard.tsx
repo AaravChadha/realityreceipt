@@ -1,5 +1,5 @@
 // One way to get the item: its three headline numbers, its carbon, its flags
-// as plain sentences, and the cost lines behind them (PLAN.md tasks 2.9, 2.9.1).
+// as plain sentences, and the cost lines behind them (PLAN.md tasks 2.9, 2.9.1, 3.11).
 
 import { useId, useState } from 'react'
 import type { CostLine, Path } from '../contracts'
@@ -56,7 +56,17 @@ function LineButton({ line, onLineTap }: { line: CostLine; onLineTap?: (line: Co
   )
 }
 
-export function PathCard({ path, onLineTap }: { path: Path; onLineTap?: (line: CostLine) => void }) {
+export const OVER_SPEND = 'More than you can spend today'
+
+export function PathCard({
+  path,
+  onLineTap,
+  overBudget = false,
+}: {
+  path: Path
+  onLineTap?: (line: CostLine) => void
+  overBudget?: boolean
+}) {
   const [open, setOpen] = useState(false)
   const headingId = useId()
   const linesId = useId()
@@ -67,11 +77,12 @@ export function PathCard({ path, onLineTap }: { path: Path; onLineTap?: (line: C
   return (
     <article
       aria-labelledby={headingId}
-      className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-stone-800 dark:bg-stone-900"
+      className={`rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-stone-800 dark:bg-stone-900 ${overBudget ? 'opacity-60' : ''}`}
     >
       <h3 id={headingId} className="text-lg font-semibold leading-snug text-stone-900 dark:text-stone-100">
         {path.name}
       </h3>
+      {overBudget && <p className="mt-1 text-sm font-semibold text-stone-700 dark:text-stone-300">{OVER_SPEND}</p>}
       <dl className="mt-3 space-y-3">
         <Figure
           label="Pay today"

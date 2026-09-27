@@ -127,3 +127,14 @@ def test_lease_card_has_a_term_and_a_cash_price(card: dict) -> None:
     assert lease.weekly_payment == card["printed"]["weekly_payment"]
     assert lease.payment_today == card["printed"]["payment_today"]
     assert lease.total_of_payments == card["printed"]["total_of_payments"]
+
+
+@pytest.mark.parametrize("card", LEASE_CARDS, ids=lambda c: c["file"])
+def test_lease_card_printed_figures_agree_with_each_other(card: dict) -> None:
+    printed, also = card["printed"], card["also_printed"]
+    total = printed["total_of_payments"]
+    months = int(also["ownership_plan"].split()[0])
+    assert round(printed["cash_price"] + also["cost_of_lease_services"], 2) == total
+    assert round(months * also["monthly_total"], 2) == total
+    # Weekly payments are the monthly ones divided and rounded, so 52 of them miss the total by cents.
+    assert abs(printed["term_weeks"] * printed["weekly_payment"] - total) <= 2
