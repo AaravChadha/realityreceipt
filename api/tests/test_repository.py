@@ -226,3 +226,34 @@ def test_bnpl_terms_feed_the_bnpl_path(repo: Repository) -> None:
     assert path.pay_today == 250.0
     assert path.lines[0].source_type == "published" and path.lines[0].source_id == terms.source_id
     assert path.lines[0].amount_low == 0.0  # 0% interest when paid on time; late fees are not modeled
+
+
+STANDARDS_SOURCE_ID = json.loads((DATA_DIR / "doe_standards_refrigerators.json").read_text(encoding="utf-8"))["source_id"]
+
+
+def test_an_adder_picked_figure_says_so_and_names_the_standards_source(bare_dir: pathlib.Path) -> None:
+    repo = _doe_pair_repo(bare_dir, 410, 494)
+    without = repo.model_energy("Acme", "AB1W", "3")
+    assert without is not None and without.kwh_per_year == 410.0
+    assert without.note == (
+        "DOE lists this model at two figures one icemaker apart; the lower is taken for a unit without an automatic icemaker"
+    )
+    assert without.note_source_ids == [STANDARDS_SOURCE_ID]
+    with_icemaker = repo.model_energy("Acme", "AB1W", "3I")
+    assert with_icemaker is not None and with_icemaker.kwh_per_year == 494.0
+    assert with_icemaker.note == (
+        "DOE lists this model at two figures one icemaker apart; the higher is taken for a unit with an automatic icemaker"
+    )
+    assert with_icemaker.note_source_ids == [STANDARDS_SOURCE_ID]
+    assert STANDARDS_SOURCE_ID in {s.id for s in repo.sources()}
+
+
+def test_a_directly_rated_figure_carries_no_note(bare_dir: pathlib.Path) -> None:
+    single = _doe_pair_repo(bare_dir, 410).model_energy("Acme", "AB1W", "3")
+    assert single is not None and single.kwh_per_year == 410.0
+    assert (single.note, single.note_source_ids) == ("", [])
+    (bare_dir / "energystar_refrigerators.csv").write_text(
+        "brand,model_number,model_normalized,annual_kwh\nAcme,AB1*,AB1*,400\n", encoding="utf-8"
+    )
+    rated = Repository.load(bare_dir).model_energy("Acme", "AB1W", "3")
+    assert rated is not None and (rated.source_id, rated.note, rated.note_source_ids) == ("energystar_refrigerators", "", [])

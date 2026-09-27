@@ -276,7 +276,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   Add `Repository.model_year_range(brand, model, product_class=None) -> tuple[int, int] | None`: the first and last year the DOE historical data lists the model, with the same matching rules as `model_energy`. Keep `model_year` for now.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_profile.py -q` passes, including a test that the Maytag family on `label-older-maytag-mb2562.png` returns the DOE file's first and last listing years, and that an unknown model returns `None`.
 
-- [ ] **2.2.7 Say when the icemaker rule picked the figure (Track B2)** (NEW 2026-09-26 22:15, Codex review; needs 1.9)
+- [x] **2.2.7 Say when the icemaker rule picked the figure (Track B2)** (NEW 2026-09-26 22:15, Codex review; needs 1.9)
   When `model_energy` chooses one of two DOE figures by the icemaker adder (2.2.6), return `note` = "DOE lists this model at two figures one icemaker apart; the lower is taken for a unit without an automatic icemaker" (or "the higher … with"), and `note_source_ids` = the DOE standards source the adder comes from.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_repository.py -q` passes, including a test that an adder-picked figure carries that note and the standards source id, and a directly rated one carries no note.
 
