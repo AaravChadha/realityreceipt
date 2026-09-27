@@ -88,7 +88,7 @@ PHOTO = {"image": ("label.jpg", b"\xff\xd8photo", "image/jpeg")}
 
 @pytest.fixture
 def grok(client: TestClient):
-    """Injects a fake Grok client into /scan; the test sets its reply."""
+    """Injects a fake Grok client into /scan and /shop/parse; the test sets its reply."""
     from app.main import get_grok_client
 
     fake = FakeGrok(LABEL_REPLY)
@@ -194,10 +194,46 @@ def test_item_keeps_a_typed_year(client: TestClient) -> None:
     assert Item.model_validate(client.post("/item", json=body).json()).mfg_year == 2003
 
 
-def test_shop_parse_stub(client: TestClient) -> None:
-    response = client.post("/shop/parse", json={"text": "about $300, small space"})
-    assert response.status_code == 200
-    ShopFilters.model_validate(response.json())
+# Recorded from Grok for this request (api/tests/test_parse.py, task 4.1).
+PARSE_REPLY = {"budget_dollars": 300, "max_width_inches": None, "within_days": None,
+               "timeframe": "this_week", "conditions": []}
+
+
+def _parse(client: TestClient, text: str, path: str = "/shop/parse") -> ShopFilters:
+    response = client.post(path, json={"text": text})
+    assert response.status_code == 200, response.text
+    return ShopFilters.model_validate(response.json())
+
+
+def test_shop_parse_reads_the_request_with_grok(client: TestClient, grok: FakeGrok) -> None:
+    grok.reply = PARSE_REPLY
+    filters = _parse(client, "about $300, small space, need it this week")
+    assert (filters.budget_today, filters.need_within_days, filters.max_width_in) == (300, 7, None)
+    assert filters.category == "refrigerator" and grok.calls == 1
+
+
+def test_shop_parse_works_under_api_too(client: TestClient, grok: FakeGrok) -> None:
+    grok.reply = PARSE_REPLY
+    assert _parse(client, "about $300, need it this week", path="/api/shop/parse").budget_today == 300
+
+
+def test_shop_parse_bad_reply_gives_empty_filters(client: TestClient, grok: FakeGrok) -> None:
+    grok.reply = {**PARSE_REPLY, "budget_dollars": "lots"}
+    assert _parse(client, "a lot of money") == ShopFilters()
+
+
+def test_shop_parse_without_a_key_gives_empty_filters(client: TestClient) -> None:
+    from app.main import get_grok_client
+
+    app.dependency_overrides[get_grok_client] = lambda: None
+    try:
+        assert _parse(client, "about $300") == ShopFilters()
+    finally:
+        app.dependency_overrides.pop(get_grok_client, None)
+
+
+def test_shop_parse_rejects_a_missing_text(client: TestClient) -> None:
+    assert client.post("/shop/parse", json={}).status_code == 422
 
 
 def _rank(client: TestClient, body: dict, path: str = "/shop/rank") -> list[RankedOffer]:

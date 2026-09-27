@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from app.engine.quote import quote as build_quote
 from app.engine.rank import rank as rank_offers
 from app.grok.client import GrokClient
+from app.grok.parse import parse_request
 from app.grok.scan import scan as read_image
 from app.models import (
     Item,
@@ -119,12 +120,13 @@ def scan(kind: Annotated[ScanKind, Form()], image: Annotated[UploadFile, File()]
     return result
 
 
-# Still a stub: /shop/parse is wired to `parse_request` once task 4.1 lands (task 4.3).
-
-
 @router.post("/shop/parse", response_model=ShopFilters)
-def shop_parse(req: ShopParseRequest) -> ShopFilters:
-    return ShopFilters()
+def shop_parse(req: ShopParseRequest, grok: Grok) -> ShopFilters:
+    """The shopper's words as filters, read by Grok (tasks 4.1, 4.3). Without a key, or when Grok's
+    reply fails, the filters come back empty and the Shop page asks the user to set them by hand."""
+    if grok is None:
+        return ShopFilters()
+    return parse_request(req.text, grok)
 
 
 @router.post("/shop/rank", response_model=list[RankedOffer])
