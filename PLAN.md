@@ -91,6 +91,8 @@ The option that looks cheapest today often costs the most over time: an old used
 
 > **Decision (2026-09-26 22:20): fourth Codex review** (main at 3c0d932). (1) A user listing marked new is priced as a new unit, not mapped to used (that would misstate a printed fact). Tasks 3.3.7, 3.10.1. (2) A year range that could fall before 2014 gets `test_procedure_changed`: its sentence is a general caution, not a claim about this unit. This reverses the 21:30 call on 3.3.5 ("flag only when certainly before 2014"). Task 3.3.8. (3) `past_typical_life` only when the whole remaining-life range is 0; when only the low end is, the new flag `may_be_past_typical_life`. Tasks 3.3.8, 2.9.3. (4) A label scan that replaces the current fridge clears its repair quote. Task 3.10.1.
 
+> **Decision (2026-09-26 23:20): scope, from the operator.** RealityReceipt is meant for any purchase where the sticker price hides the real cost: appliances generally, and cars next. The build tonight covers refrigerators only (`CATEGORIES = ["refrigerator"]`); the receipt, payment paths, lease math, 3-year window and sourcing do not depend on the item, while each category needs its own sourced data and some lookup work (for fridges: product classes, the icemaker rule, the fridge standards). Cars are pitched as the next category, not built tonight: they need per-mile upkeep and odometer-based remaining life in the engine. See Future Extensions.
+
 ## Index of phases
 
 Phases are milestones, not time slots. A task in a later phase starts as soon as its inputs are on `origin/main`; Track D's scan and RECS work can start right after Phase 1.
@@ -596,7 +598,8 @@ Scenario 1 is the strongest talking point: its numbers come straight off a real 
 
 - A Spanish version of the screen, from written templates, so no model touches a number.
 
-- More categories as data profiles: water heaters (gas and electric lines), room air conditioners (usage hours), washers, vehicles (fuel, scheduled servicing).
+- **Cars, the next category (decision 2026-09-26 23:20).** Used vs new from the user's listing, as now; buy-here-pay-here lots through the existing lease math (printed payment, term and total); auto loans beside the card and PAL paths (Federal Reserve G.19 new-car rate). Fuel like the electricity line: miles a year (default: FHWA's national average) divided by MPG (fueleconomy.gov, by make, model and year) times the Georgia gasoline price (EIA). Upkeep by miles, not months: oil changes, tires and tune-ups (AAA's published per-mile maintenance cost, or the maker's schedule). Georgia's title ad valorem tax on the purchase (rate from the Georgia Department of Revenue). Insurance, major repairs and resale value show as not estimated. Every figure sourced before it is used. Engine work: per-mile upkeep and remaining life from the odometer.
+- More appliances as data profiles: dishwashers and clothes washers (closest to fridges: ENERGY STAR kWh a year and a published lifespan), water heaters (gas and electric lines), room air conditioners (usage hours).
 - Electricity rates projected forward from EIA monthly Georgia prices instead of held flat (TigerData, if that prize is confirmed).
 - Published degradation data for aging appliances, to close the "Extra use from age" gap.
 - Buy now pay later terms from more providers, with sources.
