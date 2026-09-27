@@ -1,6 +1,6 @@
 # RealityReceipt
 
-**A cheap fridge can be expensive to own.** RealityReceipt helps low-income households compare purchase, financing, energy, and repair costs to see what they can afford today and over time.
+RealityReceipt helps households on tight budgets compare the upfront and ongoing costs of appliances, including financing, rent-to-own, energy, and repairs, in one transparent receipt.
 
 [![ci](https://github.com/AaravChadha/realityreceipt/actions/workflows/ci.yml/badge.svg)](https://github.com/AaravChadha/realityreceipt/actions/workflows/ci.yml)
 
