@@ -6,7 +6,7 @@ RealityReceipt helps households on tight budgets compare the upfront and ongoing
 
 Built at HackGT 13 (Georgia Tech, September 25 to 27, 2026) for the Oracle of the Deep (ML/AI) track and the Aramco (A Marina's Mission) and SpaceXAI challenges.
 
-[See it work](#see-it-work) · [What it does](#what-it-does) · [How it works](#how-it-works) · [Quick start](#quick-start) · [Sources and limits](#sources-and-limits) · [Team](#team)
+**[Demo video (2:40)](https://youtu.be/006JRNgH6ug)** · [See it work](#see-it-work) · [What it does](#what-it-does) · [How it works](#how-it-works) · [Quick start](#quick-start) · [Sources and limits](#sources-and-limits) · [Team](#team)
 
 ## Who it is for
 
