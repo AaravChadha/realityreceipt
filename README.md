@@ -21,7 +21,7 @@ It is not a loan finder. The app asks nothing about income and never says whethe
 <p align="center">
   <img src="docs/images/app-overview.png" alt="Three phone screens: entering a fridge by scan or by typing; the receipt, comparing each way to get the fridge by what it costs today, over 3 years and per year; and the shopping page ranking store listings by cost per year" width="900">
 </p>
-<p align="center"><sub>Enter or scan a fridge · The receipt: every way to get it, compared over time · Shop by cost per year, not by price</sub></p>
+<p align="center"><sub>Example app screens, from a different fridge than the lease below: enter or scan a fridge · the receipt, every way to get it compared over time · shop by cost per year, not by price</sub></p>
 
 One of the demo cards is a real rent-to-own page from Aaron's. It offers a Frigidaire FRTE1936AV for $0.01 today. Given the lease's printed numbers, the app returned this on 2026-09-27:
 
