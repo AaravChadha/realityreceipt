@@ -1,21 +1,21 @@
 {
   "retrieved_note": "Hand-recorded from live retailer product pages on 2026-09-26. Prices and availability vary by ZIP; never invent a listing.",
   "energystar_notes": {
-    "_file": "energystar_refrigerators.csv is not on main yet (task 2.2). Every model below is noted missing until that CSV lands.",
-    "GTE18DTNRWW": "missing",
-    "GTS18HGNRWW": "missing",
-    "FFHT1822UV": "missing",
-    "FFTR1814WB": "missing",
-    "WRT311FZDW": "missing",
-    "WRT318FZDM": "missing",
-    "GTE18GTNRWW": "missing",
-    "GTE18DTNRBB": "missing",
-    "FFHT1822UW": "missing",
-    "FFHT1814WW": "missing",
-    "FFTR1814WW": "missing",
-    "GTS22KGNRWW": "missing",
-    "LTCS20020W": "missing",
-    "WRT318FZDW": "missing"
+    "_file": "Checked against energystar_refrigerators.csv (class 3 = no icemaker) and doe_wap_refrigerators.csv.gz on 2026-09-26. Seven models are ENERGY STAR; the other seven are not and are noted missing, with DOE's historical figures.",
+    "GTE18DTNRWW": "in energystar_refrigerators.csv (row GTE18DTN****): class 3, 359 kWh",
+    "GTS18HGNRWW": "missing: not ENERGY STAR; DOE lists 399 and 483 kWh (without/with icemaker)",
+    "FFHT1822UV": "in energystar_refrigerators.csv: class 3, 360 kWh",
+    "FFTR1814WB": "missing: not ENERGY STAR; DOE lists 410 and 494 kWh (without/with icemaker)",
+    "WRT311FZDW": "missing: not ENERGY STAR; DOE lists 436 and 520 kWh (without/with icemaker)",
+    "WRT318FZDM": "missing: not ENERGY STAR; DOE lists 411 and 495 kWh (without/with icemaker)",
+    "GTE18GTNRWW": "in energystar_refrigerators.csv (row GTE18GTN****): class 3, 359 kWh",
+    "GTE18DTNRBB": "in energystar_refrigerators.csv (row GTE18DTN****): class 3, 359 kWh",
+    "FFHT1822UW": "in energystar_refrigerators.csv: class 3, 360 kWh",
+    "FFHT1814WW": "in energystar_refrigerators.csv (row FFHT1814W*): class 3, 369 kWh",
+    "FFTR1814WW": "missing: not ENERGY STAR; DOE lists 410 and 494 kWh (without/with icemaker)",
+    "GTS22KGNRWW": "missing: not ENERGY STAR; DOE lists 451 and 535 kWh (without/with icemaker)",
+    "LTCS20020W": "in energystar_refrigerators.csv (row LTCS20020*): class 3, 387 kWh",
+    "WRT318FZDW": "missing: not ENERGY STAR; DOE lists 411 and 495 kWh (without/with icemaker)"
   },
   "items": [
     {
