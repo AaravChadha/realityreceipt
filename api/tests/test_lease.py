@@ -142,7 +142,9 @@ def test_a_printed_total_alone_is_spread_evenly_over_every_week() -> None:
     c = rto_full(lease(total_of_payments=1600.0))
     assert sum(c.monthly_low) == pytest.approx(1600.0)
     assert c.pay_today == 30.76  # 1600 / 52 = 30.769..., whole cents, the last week takes the rest
-    assert c.lines[0].formula.startswith("$1,600.00 in all over 52 weeks, as printed on your lease, spread evenly.")
+    assert c.lines[0].formula.startswith(
+        "$1,600.00 in all over 52 weeks, as printed on your lease, spread evenly over 52 weekly payments of about $30.76."
+    )
     assert c.lines[0].formula.endswith("(52 / 52) = 100%.")
 
 
@@ -267,3 +269,24 @@ def test_keep_paying_mentions_missing_early_terms_only_when_none_are_entered() -
     with_terms = rto_full(lease(early_purchase_rule="pct_of_remaining", early_purchase_pct=0.5)).lines[0].formula
     assert "No early purchase terms entered" not in with_terms
     assert "That is $760.00 more than the cash price of $800.00." in with_terms
+
+
+def test_the_aarons_demo_lease_names_the_even_spread_and_its_weekly_figure() -> None:
+    card = next(c for c in json.loads(CARDS.read_text())["cards"] if c["kind"] == "lease")
+    formula = rto_full(Lease(**card["typed"]["lease"])).lines[0].formula
+    # 52 x $33.48 would be $1,740.96; the printed $1,739.88 less today's $0.01 is what the weeks share.
+    assert "the remaining $1,739.87 is spread evenly over 51 weekly payments of about $34.11" in formula
+
+
+def test_an_exact_spread_says_its_weekly_figure_without_about() -> None:
+    formula = rto_full(lease(term_weeks=208, total_of_payments=6448.0)).lines[0].formula
+    assert "spread evenly over 208 weekly payments of $31.00." in formula
+
+
+def test_the_effective_annual_cost_uses_the_same_fee_inclusive_total_as_the_cash_comparison() -> None:
+    formula = rto_full(lease(fees=40.0)).lines[0].formula
+    # 52 x $30 = $1,560 plus $40 in fees = $1,600 = full_term_total, used by both figures.
+    assert full_term_total(lease(fees=40.0)) == 1600.0
+    assert "Plus $40.00 in fees, $1,600.00 in all." in formula
+    assert "That is $800.00 more than the cash price of $800.00." in formula
+    assert formula.endswith("Effective annual cost = ((1600.00 - 800.00) / 800.00) / (52 / 52) = 100%.")
