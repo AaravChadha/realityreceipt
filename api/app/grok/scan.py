@@ -140,25 +140,45 @@ def scan(kind: ScanKind, image_jpeg: bytes, client: GrokClient) -> ScanResult:
         return ScanResult(kind=kind, valid=False, errors=[_failure(exc)])
     if not isinstance(raw, dict):
         return ScanResult(kind=kind, valid=False, errors=["Grok's reply could not be read. Enter the details by hand."])
-    printed = {
-        k: v
-        for k, v in raw.items()
-        if k in _SCHEMAS[kind]["properties"] and v is not None and v != "" and _json_safe(v)
-    }
+    printed = _printed(kind, raw)
     screened, errors = _screen(kind, raw)
     built_errors, parts = _BUILDERS[kind](screened)
-    flagged = {e.split(":", 1)[0] for e in errors}
-    errors += [e for e in built_errors if not (e.endswith(": missing") and e.split(":", 1)[0] in flagged)]
-    errors = list(dict.fromkeys(errors))
+    errors = list(dict.fromkeys(errors + built_errors))
+    failed = {e.split(":", 1)[0] for e in errors if not _absent(e)}
+    errors = [e for e in errors if not (_absent(e) and e.split(":", 1)[0] in failed)]
     if errors:
         return ScanResult(kind=kind, valid=False, errors=errors, fields=printed)
     return ScanResult(kind=kind, valid=True, fields=printed, **{k: v for k, v in parts.items() if v is not None})
 
 
-def _json_safe(value: Any) -> bool:
-    if isinstance(value, float):
-        return math.isfinite(value)
-    return isinstance(value, (str, int, bool))
+_FEES_NOT_PRINTED = "fees: not printed. Enter 0 if the lease has none."
+
+
+def _absent(error: str) -> bool:
+    """A field reported as not there; dropped when the same field already failed for another reason."""
+    return error.endswith(": missing") or error == _FEES_NOT_PRINTED
+
+
+def _blank(value: Any) -> bool:
+    return value is None or (isinstance(value, str) and not value.strip())
+
+
+def _printed(kind: ScanKind, raw: dict[str, Any]) -> dict[str, Any]:
+    """What Grok read, for the correction form: text stripped, and nothing blank, non-finite, or a
+    true/false where a number belongs."""
+    out: dict[str, Any] = {}
+    for key, prop in _SCHEMAS[kind]["properties"].items():
+        value = raw.get(key)
+        if _blank(value):
+            continue
+        if isinstance(value, str):
+            out[key] = value.strip()
+        elif isinstance(value, bool):
+            if not _types(prop) & {"number", "integer"}:
+                out[key] = value
+        elif isinstance(value, int) or (isinstance(value, float) and math.isfinite(value)):
+            out[key] = value
+    return out
 
 
 def _types(prop: dict) -> set[str]:
@@ -170,13 +190,16 @@ def _types(prop: dict) -> set[str]:
 
 def _screen(kind: ScanKind, raw: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     """Keep each value only if it has its schema's JSON type: a number must be a finite number, not
-    true, NaN or Infinity, and text must be text. Strict mode on the API side is not trusted alone."""
+    true, NaN or Infinity, and text must be text. Blank text counts as not printed. Strict mode on the
+    API side is not trusted alone."""
     kept: dict[str, Any] = {}
     errors: list[str] = []
     for key, prop in _SCHEMAS[kind]["properties"].items():
         value = raw.get(key)
-        if value is None or value == "":
+        if _blank(value):
             continue
+        if isinstance(value, str):
+            value = value.strip()
         types = _types(prop)
         if types & {"number", "integer"}:
             number = isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
@@ -297,6 +320,9 @@ def _from_lease(raw: dict[str, Any]) -> Built:
             kept["early_purchase_pct"] = pct["early_purchase_percent"] / 100
     kept["source_id"] = "user_lease"
     errors += _missing(kept, ("weekly_payment", "term_weeks", "cash_price"))
+    if "fees" not in kept:
+        # An unread fee is not a zero fee; a fee printed as None or Free is read as 0 by the prompt.
+        errors.append(_FEES_NOT_PRINTED)
     lease: Lease | None = None
     try:
         lease = Lease.model_validate(kept)

@@ -235,6 +235,57 @@ def test_each_kind_gets_its_own_item_id_and_the_offer_points_at_it() -> None:
             assert result.offer.item_id == result.item.id
 
 
+def test_an_unread_lease_fee_is_invalid_not_zero() -> None:
+    result = scan("lease", JPEG, FakeGrokClient({**_load("lease_valid.json"), "fees": None}))
+    assert result.valid is False
+    assert result.errors == ["fees: not printed. Enter 0 if the lease has none."]
+    assert result.lease is None
+
+
+def test_a_lease_fee_read_as_zero_is_valid() -> None:
+    result = scan("lease", JPEG, FakeGrokClient({**_load("lease_valid.json"), "fees": 0}))
+    assert result.valid is True
+    assert result.lease is not None and result.lease.fees == 0
+
+
+def test_a_bad_fee_is_reported_once() -> None:
+    result = scan("lease", JPEG, FakeGrokClient({**_load("lease_valid.json"), "fees": True}))
+    assert result.errors == ["fees: not a number"]
+
+
+@pytest.mark.parametrize("kind", ["label", "listing", "price_tag", "lease"])
+def test_blank_brand_and_model_are_not_printed(kind: str) -> None:
+    payload = {**_load(KIND_FIXTURES[kind]), "brand": " ", "model": "\t "}
+    result = scan(kind, JPEG, FakeGrokClient(payload))
+    assert result.valid is False
+    assert "brand: missing" in result.errors
+    assert "model: missing" in result.errors
+    assert result.item is None
+    assert "brand" not in result.fields and "model" not in result.fields
+
+
+def test_printed_text_is_stripped() -> None:
+    payload = {**_load("listing_valid.json"), "brand": "  Frigidaire ", "model": " FFTR1835VS\n"}
+    result = scan("listing", JPEG, FakeGrokClient(payload))
+    assert result.valid is True
+    assert result.item is not None
+    assert (result.item.brand, result.item.model) == ("Frigidaire", "FFTR1835VS")
+    assert (result.fields["brand"], result.fields["model"]) == ("Frigidaire", "FFTR1835VS")
+
+
+def test_true_in_a_number_field_stays_out_of_fields() -> None:
+    result = scan("listing", JPEG, FakeGrokClient({**_load("listing_valid.json"), "price": True}))
+    assert result.valid is False
+    assert "price" not in result.fields
+
+
+def test_a_failed_condition_is_not_also_reported_missing() -> None:
+    result = scan("listing", JPEG, FakeGrokClient({**_load("listing_valid.json"), "condition": "excellent"}))
+    assert result.valid is False
+    assert any(e.startswith("condition:") for e in result.errors)
+    assert "condition: missing" not in result.errors
+
+
 def test_a_refurbished_listing_is_sold_by_a_refurbisher() -> None:
     result = scan("listing", JPEG, FakeGrokClient({**_load("listing_valid.json"), "condition": "refurbished"}))
     assert result.valid is True
