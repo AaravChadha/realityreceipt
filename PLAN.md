@@ -423,7 +423,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   In Notability: the pitch storyboard and demo run sheet (spec §6), screenshot saved as `docs/notability/02-run-sheet.png`. Rehearse the demo once end to end with a timer.
   **Acceptance:** `ls docs/notability/*.png | wc -l` prints at least `2`.
 
-- [ ] **4.8.1 Stage wording fixes (Track 0 — operator)** (NEW 2026-09-26, review)
+- [x] **4.8.1 Stage wording fixes (Track 0 — operator)** (NEW 2026-09-26, review)
   In `docs/pitch.md`: "ACEEE's 2016 report" instead of "2016 data" (or ACEEE's 2024 update, after confirming its Atlanta low-income column); no "2004 unit" (say what the card shows); "tap any line" instead of "tap any number"; "energy costs equal to X% of income (EIA-estimated)" instead of "spent"; no claim that a refurbished warranty narrows a range or that other categories work today; crop the under-$5,000 bracket from the chart; about 20 seconds of visible AI (scan, filter chips, read-aloud); open with the lease story.
   **Acceptance:** `grep -c -E '2004 unit|2016 data|[Tt]ap any number' docs/pitch.md` prints `0`.
 
