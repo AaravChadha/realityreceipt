@@ -209,6 +209,7 @@ test('scan and upload controls and every lease field are on the form', () => {
   expect(screen.getByRole('button', { name: 'Scan' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Upload saved image' })).toBeInTheDocument()
   expect(screen.getByLabelText('What are you scanning?')).toHaveValue('label')
+  expect(screen.queryByRole('option', { name: 'Price tag' })).not.toBeInTheDocument()
   const scanInput = document.querySelector('input[type="file"][capture="environment"]')
   expect(scanInput).toHaveAttribute('accept', 'image/*')
   expect(scanInput).toHaveAttribute('tabindex', '-1')
@@ -220,6 +221,8 @@ test('scan and upload controls and every lease field are on the form', () => {
   expect(uploads[0]).toHaveAttribute('aria-hidden', 'true')
 
   const lease = section('A rent-to-own lease')
+  expect(lease.getByLabelText('Brand')).toBeInTheDocument()
+  expect(lease.getByLabelText('Model number')).toBeInTheDocument()
   expect(lease.getByLabelText('Weekly payment')).toBeInTheDocument()
   expect(lease.getByLabelText('Term in weeks')).toBeInTheDocument()
   expect(lease.getByLabelText('Cash price')).toBeInTheDocument()
@@ -286,6 +289,8 @@ test('a lease is quoted only after the user confirms the form', async () => {
   const fetchMock = fakeApi([])
   render(<Entry />)
   const lease = section('A rent-to-own lease')
+  type(lease.getByLabelText('Brand'), 'Frigidaire')
+  type(lease.getByLabelText('Model number'), 'FRTE1936AV')
   type(lease.getByLabelText('Weekly payment'), '30')
   type(lease.getByLabelText('Term in weeks'), '52')
   type(lease.getByLabelText('Cash price'), '800')
@@ -316,6 +321,24 @@ test('a lease is quoted only after the user confirms the form', async () => {
       payment_today: 0.01,
       total_of_payments: 1739.88,
     },
+    items: [
+      {
+        id: 'lease',
+        category: 'refrigerator',
+        brand: 'Frigidaire',
+        model: 'FRTE1936AV',
+        condition: 'new',
+      },
+    ],
+    offers: [
+      {
+        item_id: 'lease',
+        price: 800,
+        seller_type: 'rent_to_own',
+        source: 'user_listing',
+        source_id: 'user_listing',
+      },
+    ],
   })
 })
 
@@ -330,6 +353,8 @@ test('a lease scan pre-fills printed fields and stores the early purchase percen
         valid: false,
         errors: ['weekly payment was hard to read'],
         fields: {
+          brand: 'Frigidaire',
+          model: 'FRTE1936AV',
           weekly_payment: 33.48,
           early_purchase_rule: 'pct_of_remaining',
           early_purchase_percent: 50,
@@ -348,7 +373,9 @@ test('a lease scan pre-fills printed fields and stores the early purchase percen
   fireEvent.change(input, { target: { files: [new File(['lease'], 'lease.jpg', { type: 'image/jpeg' })] } })
 
   const lease = section('A rent-to-own lease')
-  expect(await lease.findByLabelText('Weekly payment')).toHaveValue('33.48')
+  expect(await lease.findByLabelText('Brand')).toHaveValue('Frigidaire')
+  expect(lease.getByLabelText('Model number')).toHaveValue('FRTE1936AV')
+  expect(lease.getByLabelText('Weekly payment')).toHaveValue('33.48')
   expect(lease.getByLabelText('Early purchase rule')).toHaveValue('pct_of_remaining')
   expect(lease.getByLabelText('Early purchase fraction')).toHaveValue('0.5')
   expect(lease.getByLabelText('Paid today')).toHaveValue('0.01')
@@ -464,6 +491,42 @@ test('a year that is not four digits from 1940 to this year, or a label kWh of 0
   )
   expect(section('A used one you found').getByLabelText('Year made (optional)')).toHaveAccessibleDescription(yearError)
   expect(screen.getByRole('alert')).toHaveTextContent('3 fields need a fix.')
+})
+
+test('a budget below pay today dims that path on the receipt', async () => {
+  fakeApi()
+  render(<Entry />)
+  type(screen.getByLabelText('I can spend up to this much today (optional)'), '100')
+  submit()
+  expect(await screen.findAllByText('More than you can spend today')).not.toHaveLength(0)
+})
+
+test('a scan waits 60 seconds before it stops, and says it is reading', async () => {
+  vi.useFakeTimers()
+  const fetchMock = vi.fn(
+    (_url: string, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError')))
+      }),
+  )
+  vi.stubGlobal('fetch', fetchMock)
+  const { container } = render(<Entry />)
+  const input = container.querySelector('input[type="file"][capture="environment"]') as HTMLInputElement
+  fireEvent.change(input, { target: { files: [new File(['label'], 'label.jpg', { type: 'image/jpeg' })] } })
+  await act(async () => {})
+  expect(screen.getByRole('status')).toHaveTextContent('Reading the image...')
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15_000)
+  })
+  expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(false)
+  expect(screen.queryByRole('alert')).toBeNull()
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(45_000)
+  })
+  expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(true)
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'Could not read the image: No answer after 60 seconds. Check your connection and try again.',
+  )
 })
 
 test('a request with no answer after 15 seconds is stopped with a plain message', async () => {

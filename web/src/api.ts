@@ -17,6 +17,9 @@ export const API_BASE = '/api'
 // A request with no full answer after this long is stopped (PLAN.md task 2.8.1).
 export const TIMEOUT_MS = 15_000
 export const TIMEOUT_MESSAGE = 'No answer after 15 seconds. Check your connection and try again.'
+// A scan waits on a Grok read, which can outlast the ordinary 15 second limit (task 3.10).
+export const SCAN_TIMEOUT_MS = 60_000
+export const SCAN_TIMEOUT_MESSAGE = 'No answer after 60 seconds. Check your connection and try again.'
 
 export class ApiError extends Error {
   readonly status: number
@@ -43,9 +46,9 @@ function detailText(body: unknown): string | null {
 }
 
 // The timer covers reading the body too, so a response that stalls halfway also stops.
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, timeoutMs = TIMEOUT_MS): Promise<T> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const res = await fetch(`${API_BASE}${path}`, { ...init, signal: controller.signal })
     if (!res.ok) {
@@ -54,7 +57,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     return (await res.json()) as T
   } catch (err) {
-    if (controller.signal.aborted) throw new Error(TIMEOUT_MESSAGE)
+    if (controller.signal.aborted) throw new Error(timeoutMs === SCAN_TIMEOUT_MS ? SCAN_TIMEOUT_MESSAGE : TIMEOUT_MESSAGE)
     throw err
   } finally {
     clearTimeout(timer)
@@ -94,7 +97,7 @@ export function scan(kind: ScanKind, image: Blob): Promise<ScanResult> {
   form.append('kind', kind)
   form.append('image', image)
   // No Content-Type header: the browser sets the multipart boundary.
-  return request('/scan', { method: 'POST', body: form })
+  return request('/scan', { method: 'POST', body: form }, SCAN_TIMEOUT_MS)
 }
 
 export function parseShopRequest(text: string): Promise<ShopFilters> {

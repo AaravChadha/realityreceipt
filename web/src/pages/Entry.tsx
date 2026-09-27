@@ -27,9 +27,9 @@ const FIRST_YEAR = 1940
 
 type ListingCondition = 'used_as_is' | 'refurbished'
 
+// Price tag is out of the picker tonight: a scanned tag is not what the quote prices (PLAN.md 3.10).
 const SCAN_KIND_OPTIONS: { value: ScanKind; label: string }[] = [
   { value: 'label', label: 'Label' },
-  { value: 'price_tag', label: 'Price tag' },
   { value: 'lease', label: 'Lease' },
   { value: 'listing', label: 'Listing' },
 ]
@@ -55,6 +55,8 @@ interface Fields {
   usedPrice: string
   usedCondition: ListingCondition
   usedWarranty: string
+  leaseBrand: string
+  leaseModel: string
   leaseWeekly: string
   leaseTerm: string
   leaseCash: string
@@ -86,6 +88,8 @@ const EMPTY: Fields = {
   usedPrice: '',
   usedCondition: 'used_as_is',
   usedWarranty: '',
+  leaseBrand: '',
+  leaseModel: '',
   leaseWeekly: '',
   leaseTerm: '',
   leaseCash: '',
@@ -111,6 +115,8 @@ const NOW_FIELDS: FieldName[] = [
 ]
 const USED_FIELDS: FieldName[] = ['usedBrand', 'usedModel', 'usedYear', 'usedPrice', 'usedWarranty']
 const LEASE_TOUCHED: FieldName[] = [
+  'leaseBrand',
+  'leaseModel',
   'leaseWeekly',
   'leaseTerm',
   'leaseCash',
@@ -136,6 +142,7 @@ interface Draft {
   repairQuote: number | null
   budget: number | null
   lease: Lease | null
+  leased: Item | null
 }
 
 // A value is present when the scan returned that key and it is not null. Null means it was not printed.
@@ -167,7 +174,7 @@ function applyScan(fields: Fields, result: ScanResult): Fields {
     put('nowKwh', 'label_kwh_per_year')
   }
 
-  if (result.kind === 'price_tag' || result.kind === 'listing') {
+  if (result.kind === 'listing') {
     put('usedBrand', 'brand')
     put('usedModel', 'model')
     put('usedYear', 'mfg_year')
@@ -177,6 +184,8 @@ function applyScan(fields: Fields, result: ScanResult): Fields {
   }
 
   if (result.kind === 'lease') {
+    put('leaseBrand', 'brand')
+    put('leaseModel', 'model')
     put('leaseWeekly', 'weekly_payment')
     put('leaseTerm', 'term_weeks')
     put('leaseCash', 'cash_price')
@@ -279,7 +288,14 @@ function readForm(f: Fields): { draft: Draft; errors: Errors } {
   }
 
   let lease: Lease | null = null
+  let leased: Item | null = null
   if (leaseStarted(f)) {
+    const leaseBrand = f.leaseBrand.trim()
+    const leaseModel = f.leaseModel.trim()
+    if (leaseBrand || leaseModel) {
+      need('leaseBrand', 'Enter the brand of the leased fridge.')
+      need('leaseModel', 'Enter the model number of the leased fridge.')
+    }
     need('leaseWeekly', 'Enter the weekly payment.')
     need('leaseTerm', 'Enter the term in weeks.')
     need('leaseCash', 'Enter the cash price.')
@@ -318,35 +334,54 @@ function readForm(f: Fields): { draft: Draft; errors: Errors } {
       }
       if (paid !== null && !Number.isNaN(paid)) lease.payment_today = paid
       if (total !== null && !Number.isNaN(total)) lease.total_of_payments = total
+      if (leaseBrand && leaseModel) {
+        leased = {
+          id: 'lease',
+          category: CATEGORY,
+          brand: leaseBrand,
+          model: leaseModel,
+          condition: 'new',
+        }
+      }
     }
   }
 
   const budget = amount('budget', 'Enter the amount as a dollar figure.')
-  return { draft: { current, listing, repairQuote, budget, lease }, errors }
+  return { draft: { current, listing, repairQuote, budget, lease, leased }, errors }
 }
 
 // Each unit goes through /item first, so a typed unit is checked the same way as a
 // scanned one, then everything goes to /quote.
 async function quoteDraft(draft: Draft): Promise<Path[]> {
-  const [current, listingItem] = await Promise.all([
+  const [current, listingItem, leasedItem] = await Promise.all([
     draft.current ? checkItem(draft.current) : null,
     draft.listing ? checkItem(draft.listing.item) : null,
+    draft.leased ? checkItem(draft.leased) : null,
   ])
-  const offers: Offer[] =
-    listingItem && draft.listing
-      ? [
-          {
-            item_id: listingItem.id,
-            price: draft.listing.price,
-            seller_type: listingItem.condition === 'refurbished' ? 'refurbisher' : 'private',
-            source: 'user_listing',
-            source_id: 'user_listing',
-          },
-        ]
-      : []
+  const offers: Offer[] = []
+  if (listingItem && draft.listing) {
+    offers.push({
+      item_id: listingItem.id,
+      price: draft.listing.price,
+      seller_type: listingItem.condition === 'refurbished' ? 'refurbisher' : 'private',
+      source: 'user_listing',
+      source_id: 'user_listing',
+    })
+  }
+  // The leased fridge rides with the lease so the quote can attach its electricity.
+  if (leasedItem && draft.lease) {
+    offers.push({
+      item_id: leasedItem.id,
+      price: draft.lease.cash_price,
+      seller_type: 'rent_to_own',
+      source: 'user_listing',
+      source_id: 'user_listing',
+    })
+  }
+  const items = [listingItem, leasedItem].filter((item): item is Item => item !== null)
   const req: QuoteRequest = {
     current,
-    items: listingItem ? [listingItem] : [],
+    items,
     offers,
     repair_quote_low: current ? draft.repairQuote : null,
     repair_quote_high: current ? draft.repairQuote : null,
@@ -414,6 +449,7 @@ export default function Entry() {
   const [errors, setErrors] = useState<Errors>({})
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [paths, setPaths] = useState<Path[]>([])
+  const [budgetToday, setBudgetToday] = useState<number | null>(null)
   const [failure, setFailure] = useState('')
   const [kind, setKind] = useState<ScanKind>('label')
   const [scanStatus, setScanStatus] = useState<'idle' | 'loading' | 'error'>('idle')
@@ -495,6 +531,7 @@ export default function Entry() {
     setStatus('loading')
     try {
       setPaths(await quoteDraft(draft))
+      setBudgetToday(draft.budget)
       setStatus('done')
       loadSources()
     } catch (err) {
@@ -510,7 +547,7 @@ export default function Entry() {
       <form noValidate onSubmit={onSubmit} className="space-y-5">
         <fieldset className={fieldsetClass}>
           <legend className={legendClass}>Scan or upload</legend>
-          <p className={sectionHintClass}>A photo of a label, price tag, lease or listing. Correct anything it reads before the quote.</p>
+          <p className={sectionHintClass}>A photo of a label, lease or listing. Correct anything it reads before the quote.</p>
           <div>
             <label htmlFor="scan-kind" className="block text-sm font-medium">
               What are you scanning?
@@ -623,7 +660,9 @@ export default function Entry() {
 
         <fieldset className={fieldsetClass}>
           <legend className={legendClass}>A rent-to-own lease</legend>
-          <p className={sectionHintClass}>Optional. Every term from the lease. You confirm these details before any quote.</p>
+          <p className={sectionHintClass}>Optional. The fridge on the lease, and every term. You confirm these details before any quote.</p>
+          <Field id="lease-brand" label="Brand" {...text('leaseBrand')} autoComplete="off" />
+          <Field id="lease-model" label="Model number" {...text('leaseModel')} {...typed} />
           <Field id="lease-weekly" label="Weekly payment" prefix="$" {...text('leaseWeekly')} {...decimal} />
           <Field id="lease-term" label="Term in weeks" {...text('leaseTerm')} inputMode="numeric" autoComplete="off" />
           <Field id="lease-cash" label="Cash price" prefix="$" {...text('leaseCash')} {...decimal} />
@@ -681,7 +720,7 @@ export default function Entry() {
           {paths.length === 0 ? (
             <p className={sectionHintClass}>No paths came back for these details.</p>
           ) : (
-            <Receipt paths={paths} onLineTap={setOpenLine} />
+            <Receipt paths={paths} onLineTap={setOpenLine} budgetToday={budgetToday} />
           )}
         </div>
       )}
