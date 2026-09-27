@@ -75,7 +75,9 @@ def parse_request_with_errors(text: str, client: GrokClient) -> tuple[ShopFilter
             data[field] = int(value) if key == "within_days" else value
 
     timeframe = raw.get("timeframe")
-    if timeframe is not None and timeframe not in TIMEFRAME_DAYS:
+    if timeframe is not None and not isinstance(timeframe, str):
+        errors.append("timeframe: not text")
+    elif timeframe is not None and timeframe not in TIMEFRAME_DAYS:
         errors.append(f"timeframe: {timeframe!r} is not today, this_week or this_month")
     elif timeframe is not None and "need_within_days" not in data:
         data["need_within_days"] = TIMEFRAME_DAYS[timeframe]
@@ -83,6 +85,8 @@ def parse_request_with_errors(text: str, client: GrokClient) -> tuple[ShopFilter
     conditions = raw.get("conditions") or []
     if not isinstance(conditions, list):
         errors.append("conditions: not a list")
+    elif not all(isinstance(c, str) for c in conditions):
+        errors.append("conditions: not a list of text")
     else:
         data["conditions"] = list(dict.fromkeys(conditions))
 

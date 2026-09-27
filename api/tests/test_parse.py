@@ -127,6 +127,20 @@ def test_a_bad_reply_gives_empty_filters_and_the_errors(patch: dict, field: str)
     assert any(e.startswith(field) for e in errors), errors
 
 
+@pytest.mark.parametrize("timeframe", [["this_week"], {"days": 7}, 7])
+def test_a_timeframe_that_is_not_text_gives_empty_filters(timeframe: object) -> None:
+    filters, errors = parse_request_with_errors("x", FakeGrokClient({**EMPTY_REPLY, "timeframe": timeframe}))
+    assert filters == ShopFilters()
+    assert errors == ["timeframe: not text"]
+
+
+@pytest.mark.parametrize("conditions", [[{}], [["new"]], ["new", 1]])
+def test_conditions_that_are_not_text_give_empty_filters(conditions: list) -> None:
+    filters, errors = parse_request_with_errors("x", FakeGrokClient({**EMPTY_REPLY, "conditions": conditions}))
+    assert filters == ShopFilters()
+    assert errors == ["conditions: not a list of text"]
+
+
 def test_a_reply_that_is_not_an_object_gives_empty_filters() -> None:
     filters, errors = parse_request_with_errors("x", FakeGrokClient(["not", "an", "object"]))
     assert filters == ShopFilters()
