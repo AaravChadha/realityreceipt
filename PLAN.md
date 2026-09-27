@@ -406,7 +406,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `api/app/engine/rank.py` per "Fixed interfaces": each offer is quoted with its own `Item` as the `new`/`cash` path (retailer cache) or `used_as_is` (user listing), filtered by `ShopFilters`, sorted by `cost_per_year_high` with `None` last. `api/tests/test_rank.py`: a cheap used offer with 1 year of life left ranks below a new offer with a lower cost per year.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_rank.py -q` passes.
 
-- [ ] **4.2.1 Shop keeps unknowns, flagged (Track A2)** (NEW 2026-09-26, decisions 3 and 5)
+- [x] **4.2.1 Shop keeps unknowns, flagged (Track A2)** (NEW 2026-09-26, decisions 3 and 5)
   An offer with no `available_within_days` stays in when `need_within_days` is set, flagged `delivery_unknown`; an offer with no width stays in when `max_width_in` is set, flagged `width_unknown`. Offers flagged `costs_not_estimated` rank after complete ones, then each group by `cost_per_year_high`, `None` last.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_rank.py -q` passes, including tests that a used listing survives "need it within 7 days" with `delivery_unknown`, and that an incomplete offer ranks after a complete one.
 
