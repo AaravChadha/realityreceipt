@@ -120,6 +120,16 @@ def test_product_class_resolves_the_icemaker_pair(repo: Repository) -> None:
     assert repo.model_energy("Frigidaire", "FFHT1814WW", "3I").kwh_per_year == 453.0
 
 
+def test_class_resolves_the_doe_icemaker_pair_of_a_retailer_model(repo: Repository) -> None:
+    # Not in ENERGY STAR; DOE lists each twice, 84 kWh apart (without and with an icemaker).
+    assert repo.model_energy("Frigidaire", "FFTR1814WW", "3").kwh_per_year == 410.0
+    assert repo.model_energy("Frigidaire", "FFTR1814WW", "3I").kwh_per_year == 494.0
+    assert repo.model_energy("Whirlpool", "WRT318FZDM", "3").kwh_per_year == 411.0
+    assert repo.model_energy("Whirlpool", "WRT318FZDM", "3").source_id == "doe_wap_refrigerators"
+    assert repo.model_energy("Frigidaire", "FFTR1814WW") is None
+    assert repo.model_energy("Whirlpool", "WRT318FZDM") is None
+
+
 def _repo_with(tmp_path: pathlib.Path, rows: list[tuple[str, str, float]]) -> Repository:
     for name in ("sources.json", "rates.json"):
         shutil.copy(DATA_DIR / name, tmp_path / name)
