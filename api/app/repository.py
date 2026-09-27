@@ -17,7 +17,7 @@ import re
 import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import IO
+from typing import IO, NamedTuple
 
 from pydantic import TypeAdapter
 
@@ -36,6 +36,9 @@ RATE_KEYS = (
 
 MAX_CANDIDATES = 5
 MIN_PREFIX = 3
+
+# ModelEnergy.note when the icemaker rule, not a single rating, chose a DOE figure (task 2.2.7).
+ICEMAKER_NOTE = "DOE lists this model at two figures one icemaker apart; the {} is taken for a unit {} an automatic icemaker"
 WILDCARDS = "*#"
 
 # Brand names that mean the same maker, after `_brand_key`. Kept small on purpose:
@@ -191,6 +194,15 @@ class _Standard:
     source_id: str
 
 
+class _IcemakerPick(NamedTuple):
+    """The DOE figure the icemaker rule chose, which side of the pair it is, and the standards
+    source the adder was read from."""
+
+    kwh: float
+    with_icemaker: bool
+    source_id: str
+
+
 @dataclass
 class Repository:
     _sources: dict[str, Source]
@@ -289,14 +301,23 @@ class Repository:
             hits = _of_class(_matching_rows(rows, brand, model), product_class)
             if hits:
                 kwh = {r.annual_kwh for r in hits}
+                note, note_source_ids = "", []
                 if len(kwh) > 1 and source_id == "doe_wap_refrigerators":
-                    kwh = {self._icemaker_pick(kwh, product_class)} - {None}
+                    pick = self._icemaker_pick(kwh, product_class)
+                    if pick is None:
+                        return None
+                    kwh = {pick.kwh}
+                    note = ICEMAKER_NOTE.format(*(("higher", "with") if pick.with_icemaker else ("lower", "without")))
+                    note_source_ids = [pick.source_id]
                 if len(kwh) != 1:
                     return None
-                return ModelEnergy(kwh_per_year=kwh.pop(), source_type="rated", source_id=source_id)
+                return ModelEnergy(
+                    kwh_per_year=kwh.pop(), source_type="rated", source_id=source_id,
+                    note=note, note_source_ids=note_source_ids,
+                )
         return None
 
-    def _icemaker_pick(self, kwh: set[float], product_class: str | float | None) -> float | None:
+    def _icemaker_pick(self, kwh: set[float], product_class: str | float | None) -> "_IcemakerPick | None":
         """Of two DOE ratings exactly one icemaker adder apart, the one for `product_class`, or None.
 
         DOE's historical file has no class column, and lists many models twice: without and with
@@ -305,20 +326,25 @@ class Repository:
         amount. So when the item's class is given and the two figures differ by that adder (to
         within rounding), the lower is the base class's and the higher the icemaker class's. The
         adder is read from the standards file; with no class, another gap, or three or more
-        figures, the answer stays None. This is an inference, not a rating in the item's class.
+        figures, the answer stays None. This is an inference, not a rating in the item's class, so
+        the pick carries the standards source the adder comes from (task 2.2.7).
         """
         pair = _icemaker_pair_of(product_class)
         if pair is None or len(kwh) != 2:
             return None
         base, with_icemaker, is_icemaker = pair
-        adder = self._icemaker_adder(base, with_icemaker)
-        low, high = sorted(kwh)
-        if adder is None or abs(high - low - adder) > 0.5:
+        found = self._icemaker_adder(base, with_icemaker)
+        if found is None:
             return None
-        return high if is_icemaker else low
+        adder, standards_source_id = found
+        low, high = sorted(kwh)
+        if abs(high - low - adder) > 0.5:
+            return None
+        return _IcemakerPick(kwh=high if is_icemaker else low, with_icemaker=is_icemaker, source_id=standards_source_id)
 
-    def _icemaker_adder(self, base: str, with_icemaker: str) -> float | None:
-        """The icemaker class's current intercept minus its base class's, when their slopes match."""
+    def _icemaker_adder(self, base: str, with_icemaker: str) -> tuple[float, str] | None:
+        """The icemaker class's current intercept minus its base class's, when their slopes match,
+        with the source id of the standards it is read from."""
         latest: dict[str, _Standard] = {}
         for s in self._standards:
             if s.product_class in (base, with_icemaker) and (
@@ -327,7 +353,7 @@ class Repository:
                 latest[s.product_class] = s
         if len(latest) != 2 or latest[base].kwh_per_cuft != latest[with_icemaker].kwh_per_cuft:
             return None
-        return latest[with_icemaker].kwh_base - latest[base].kwh_base
+        return latest[with_icemaker].kwh_base - latest[base].kwh_base, latest[with_icemaker].source_id
 
     def model_year(self, brand: str, model: str) -> int | None:
         """The latest year DOE's historical database lists `brand` and `model`, or None.
@@ -356,7 +382,7 @@ class Repository:
         if len(kwh) > 1:
             picked = self._icemaker_pick(kwh, product_class)
             if picked is not None:
-                hits = [r for r in hits if r.annual_kwh == picked]
+                hits = [r for r in hits if r.annual_kwh == picked.kwh]
         years = [r.year for r in hits if r.year is not None]
         return (min(years), max(years)) if years else None
 
