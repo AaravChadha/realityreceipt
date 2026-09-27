@@ -1,4 +1,4 @@
-"""`quote` with every kind of path (PLAN.md tasks 3.3 to 3.3.3), against a fake repository."""
+"""`quote` with every kind of path (PLAN.md tasks 3.3 to 3.3.3 and 3.3.5), against a fake repository."""
 
 import random
 from dataclasses import dataclass, field
@@ -6,7 +6,7 @@ from datetime import date
 
 import pytest
 
-from app.engine.quote import INCOMPLETE, quote
+from app.engine.quote import INCOMPLETE, YEAR_FROM_RATING_DATA, quote
 from app.engine.rank import rank
 from app.models import (
     MONTHS,
@@ -79,7 +79,11 @@ class FakeRepo:
     energy_refs: list[str] = field(default_factory=lambda: ["energystar_refrigerators"])
     lifespan: tuple[float, float] = (10, 15)
     historical: set[str] = field(default_factory=set)  # models rated from a second source
-    years: dict[str, int] = field(default_factory=dict)  # model -> year from the rating data
+    years: dict[str, int] = field(default_factory=dict)  # model -> last year listed (`model_year`)
+    year_ranges: dict[str, tuple[int, int]] = field(default_factory=dict)  # model -> first and last year listed
+    ceiling_extra: dict[int, float] = field(default_factory=dict)  # year -> kWh added to its ceiling
+    first_standard: int = 0  # no ceiling for a year before this
+    year_range_calls: list[tuple[str, str | float | None]] = field(default_factory=list)
 
     def rate(self, key: str) -> RateValue:
         return RATES[key]
@@ -115,11 +119,16 @@ class FakeRepo:
     def model_year(self, brand: str, model: str) -> int | None:
         return self.years.get(model)
 
+    def model_year_range(self, brand: str, model: str, product_class: str | float | None = None) -> tuple[int, int] | None:
+        self.year_range_calls.append((model, product_class))
+        return self.year_ranges.get(model)
+
     def standard_ceiling(self, mfg_year: int, product_class: str, volume_cuft: float) -> ModelEnergy | None:
         self.ceiling_calls.append((mfg_year, product_class, volume_cuft))
-        if product_class != "3":
+        if product_class != "3" or mfg_year < self.first_standard:
             return None
-        return ModelEnergy(kwh_per_year=8.0 * volume_cuft + 300.0, source_type="published", source_id="doe_standards")
+        kwh = 8.0 * volume_cuft + 300.0 + self.ceiling_extra.get(mfg_year, 0.0)
+        return ModelEnergy(kwh_per_year=kwh, source_type="published", source_id="doe_standards")
 
 
 def full_request(**overrides) -> QuoteRequest:
@@ -497,7 +506,7 @@ PARITY_UNITS = {
 @pytest.mark.parametrize("name", PARITY_UNITS)
 def test_quote_and_rank_give_a_used_unit_the_same_electricity(name: str) -> None:
     item = PARITY_UNITS[name]
-    repo = FakeRepo(years={"OLD123": THIS_YEAR - 9})
+    repo = FakeRepo(year_ranges={"OLD123": (THIS_YEAR - 9, THIS_YEAR - 6)})
     quoted = used_path(item, repo)
     [ranked] = rank(ShopFilters(), [USED_OFFER], [item], repo)
     running = [line for line in quoted.lines if line.kind == "running"]
@@ -555,35 +564,121 @@ def test_a_new_unit_uses_its_label_kwh_too() -> None:
     assert (line.source_type, line.source_id, line.amount_high) == ("user_entered", "user", 75.0)
 
 
-def test_a_missing_year_comes_from_the_rating_data() -> None:
-    repo = FakeRepo(years={"OLD123": THIS_YEAR - 9})
-    used = used_path(unit("OLD123", year=None), repo)
-    assert (used.expected_life_low, used.expected_life_high) == (1, 6)
+def test_an_undated_unit_gets_a_life_range_from_both_listed_years() -> None:
+    # DOE lists the model from 8 to 5 years ago: 5 to 8 years old in a 10 to 15 year life, so
+    # 10 - 8 = 2 to 15 - 5 = 10 years left. A single year would give 2 to 7 or 5 to 10.
+    item = unit("OLD123", year=None)
+    repo = FakeRepo(year_ranges={"OLD123": (THIS_YEAR - 8, THIS_YEAR - 5)})
+    used = used_path(item, repo)
+    assert (used.expected_life_low, used.expected_life_high) == (2, 10)
+    # $250 over 2 to 10 years, plus $90 of electricity and $0 to $20 of coils a year.
+    assert (used.cost_per_year_low, used.cost_per_year_high) == (250 / 10 + 90, 250 / 2 + 90 + 20)
+    assert YEAR_FROM_RATING_DATA in used.flags
     assert [line.source_type for line in replacement_lines(used)] == ["published"]  # priced, not "year unknown"
-    repair = pick(quote(QuoteRequest(current=unit("OLD123", year=None)), repo), "repair", None)
-    assert (repair.expected_life_low, repair.expected_life_high) == (1, 6)
+    repair = pick(quote(QuoteRequest(current=item), repo), "repair", None)
+    assert (repair.expected_life_low, repair.expected_life_high) == (2, 10)
+    assert YEAR_FROM_RATING_DATA in repair.flags
+    [ranked] = rank(ShopFilters(), [USED_OFFER], [item], repo)
+    assert YEAR_FROM_RATING_DATA in ranked.path.flags
+    # Never written into the unit's year.
+    assert item.mfg_year is None
 
 
-def test_an_entered_year_is_kept() -> None:
-    used = used_path(unit("OLD123", year=THIS_YEAR - 8), FakeRepo(years={"OLD123": THIS_YEAR - 20}))
+def test_an_entered_year_is_kept_and_not_flagged() -> None:
+    repo = FakeRepo(year_ranges={"OLD123": (THIS_YEAR - 20, THIS_YEAR - 15)})
+    used = used_path(unit("OLD123", year=THIS_YEAR - 8), repo)
     assert (used.expected_life_low, used.expected_life_high) == (2, 7)
+    assert YEAR_FROM_RATING_DATA not in used.flags
 
 
-def test_the_ceiling_uses_the_year_from_the_rating_data() -> None:
-    repo = FakeRepo(years={"UNRATED": 2004})
+def test_the_ceiling_is_the_higher_of_the_listed_years() -> None:
+    # An upper bound: the older standard allows more.
+    repo = FakeRepo(year_ranges={"UNRATED": (2004, 2006)}, ceiling_extra={2004: 50.0})
     used = used_path(unit(year=None, **CLASS_3), repo)
-    assert repo.ceiling_calls == [(2004, "3", 20.5)]
-    assert used.lines[1].source_id == "doe_standards"
+    assert repo.ceiling_calls == [(2004, "3", 20.5), (2006, "3", 20.5)]
+    line = used.lines[1]
+    assert (line.source_id, line.amount_high) == ("doe_standards", round((464 + 50) * 0.15, 2))
+
+
+def test_no_ceiling_when_a_listed_year_has_none() -> None:
+    # Listed 1990 to 1995, and the first standard is from 1993: the later ceiling alone could be too low.
+    repo = FakeRepo(year_ranges={"UNRATED": (1990, 1995)}, first_standard=1993)
+    used = used_path(unit(year=None, **CLASS_3), repo)
+    assert used.lines[1].source_type == "not_estimated"
+
+
+def test_the_class_reaches_the_listing_years_lookup() -> None:
+    repo = FakeRepo(year_ranges={"UNRATED": (2004, 2006)})
+    used_path(unit(year=None, product_class="3I"), repo)
+    assert repo.year_range_calls == [("UNRATED", "3I")]
+
+
+def test_past_life_from_an_inferred_year_says_may_be() -> None:
+    # Listed 14 to 5 years ago: the oldest end is past the low end of a 10 to 15 year life.
+    used = used_path(unit("OLD123", year=None), FakeRepo(year_ranges={"OLD123": (THIS_YEAR - 14, THIS_YEAR - 5)}))
+    assert (used.expected_life_low, used.expected_life_high) == (0, 10)
+    [line] = replacement_lines(used)
+    assert "going by the years DOE lists its model, it may be at or past the low end" in line.formula
+    dated = used_path(unit("OLD123", year=THIS_YEAR - 14))
+    assert "it is at or past the low end" in replacement_lines(dated)[0].formula
+
+
+def test_an_undated_leased_used_unit_uses_the_last_listed_year_for_2014() -> None:
+    used_lease = LEASED.model_copy(update={"condition": "used_as_is", "model": "OLD123"})
+    repo = FakeRepo(year_ranges={"OLD123": (2005, 2009)})
+    paths = quote(full_request(current=None, items=[used_lease], offers=[LEASE_OFFER]), repo)
+    full = pick(paths, "rent_to_own", "rto_full")
+    assert {YEAR_FROM_RATING_DATA, "test_procedure_changed"} <= set(full.flags)
 
 
 def test_a_new_unit_is_not_dated_from_the_rating_data() -> None:
     # A new unit was made recently, not when its model was rated, so no 2004 ceiling for it.
-    repo = FakeRepo(years={"UNRATED": 2004})
+    repo = FakeRepo(year_ranges={"UNRATED": (2004, 2004)})
     leased = LEASED.model_copy(update={"model": "UNRATED", "attributes": CLASS_3})
     # No current unit: the request's 2004 repair unit would ask for its own ceiling.
     full = pick(quote(full_request(current=None, items=[USED, REFURB, leased]), repo), "rent_to_own", "rto_full")
     assert [line.source_type for line in full.lines if line.label.startswith("Electricity")] == ["not_estimated"]
     assert repo.ceiling_calls == []
+    assert YEAR_FROM_RATING_DATA not in full.flags
+
+
+@pytest.mark.parametrize(("listed", "flagged"), [((2005, 2009), True), ((2010, 2016), False)])
+def test_the_2014_comparison_uses_the_last_listed_year(listed: tuple[int, int], flagged: bool) -> None:
+    # Flagged only when the unit was certainly made before the ~2014 test procedure change.
+    paths = quote(QuoteRequest(items=[unit("OLD123", year=None)], offers=[USED_OFFER]), FakeRepo(year_ranges={"OLD123": listed}))
+    assert ("test_procedure_changed" in pick(paths, "used_as_is", "cash").flags) is flagged
+
+
+class Without:
+    """`repo` with some methods hidden, like a repository from before task 2.2.5."""
+
+    def __init__(self, repo: FakeRepo, *hidden: str) -> None:
+        self._repo, self._hidden = repo, hidden
+
+    def __getattr__(self, name: str):
+        if name in self._hidden:
+            raise AttributeError(name)
+        return getattr(self._repo, name)
+
+
+def test_without_model_year_range_the_last_listed_year_stands_in() -> None:
+    # Until task 2.2.5: `model_year` as a one-year range, flagged the same way.
+    item = unit("OLD123", year=None)
+    repo = Without(FakeRepo(years={"OLD123": THIS_YEAR - 9}, year_ranges={"OLD123": (THIS_YEAR - 12, THIS_YEAR - 9)}), "model_year_range")
+    used = used_path(item, repo)  # type: ignore[arg-type]
+    assert (used.expected_life_low, used.expected_life_high) == (1, 6)
+    assert YEAR_FROM_RATING_DATA in used.flags
+    [ranked] = rank(ShopFilters(), [USED_OFFER], [item], repo)  # type: ignore[arg-type]
+    assert (ranked.path.expected_life_low, ranked.path.expected_life_high) == (1, 6)
+    assert item.mfg_year is None
+
+
+def test_without_either_lookup_the_year_stays_unknown() -> None:
+    repo = Without(FakeRepo(years={"OLD123": THIS_YEAR - 9}), "model_year_range", "model_year")
+    used = used_path(unit("OLD123", year=None), repo)  # type: ignore[arg-type]
+    assert (used.expected_life_low, used.expected_life_high) == (None, None)
+    assert YEAR_FROM_RATING_DATA not in used.flags
+    assert "year it was made is unknown" in replacement_lines(used)[0].formula
 
 
 def test_quote_and_rank_price_the_new_offer_the_same() -> None:
