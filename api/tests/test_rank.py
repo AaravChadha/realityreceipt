@@ -106,7 +106,9 @@ def test_no_cost_per_year_ranks_last() -> None:
     ranked = rank(ShopFilters(), [WORN_OFFER, USED_OFFER, NEW_OFFER], ITEMS, FakeRepo())
     assert ids(ranked) == ["new", "used", "worn"]
     assert ranked[-1].path.cost_per_year_high is None
-    assert "past_typical_life" in ranked[-1].path.flags
+    # 0 to 1 years left: it may be past its typical life, not certainly (task 3.3.8).
+    assert "may_be_past_typical_life" in ranked[-1].path.flags
+    assert "past_typical_life" not in ranked[-1].path.flags
 
 
 def test_over_budget_offers_stay_in_the_ranking_with_a_flag() -> None:

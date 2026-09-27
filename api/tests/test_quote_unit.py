@@ -103,17 +103,18 @@ def test_slice_returns_both_groups_complete_paths_first() -> None:
     assert keys == sorted(keys)
 
 
-def test_used_path_past_typical_life() -> None:
+def test_used_path_may_be_past_typical_life() -> None:
     used = by_group(quote(slice_request(), FakeRepo()))["used_as_is"]
     # 250 today; 600 kWh x $0.15 = $7.50 a month; coils $0 to $20 at months 12 and 24;
-    # 12 years into a 10 to 15 year life: at or past its typical life, so since task 3.3.2 no
-    # replacement is bought and when it will need replacing is not estimated.
+    # 12 years into a 10 to 15 year life: at or past the low end, so since task 3.3.2 no
+    # replacement is bought and when it will need replacing is not estimated. With 0 to 3 years
+    # left it only may be past its typical life (task 3.3.8).
     assert used.pay_today == 250.0
     assert (used.total_3yr_low, used.total_3yr_high) == (520.0, 560.0)
     assert used.monthly_high[0] == 250.0 + 7.5
     assert (used.expected_life_low, used.expected_life_high) == (0, 3)
     assert (used.cost_per_year_low, used.cost_per_year_high) == (round(250 / 3 + 90, 2), None)
-    assert used.flags == ["past_typical_life", INCOMPLETE]
+    assert used.flags == ["may_be_past_typical_life", INCOMPLETE]
     replacement = used.lines[-1]
     assert (replacement.source_type, replacement.amount_low, replacement.amount_high) == ("not_estimated", None, None)
     assert used.carbon_kg == 720.0
