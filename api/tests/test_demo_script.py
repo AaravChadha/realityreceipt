@@ -1,7 +1,8 @@
-"""The stage numbers in PLAN.md's "Demo Script for Judges", through the real routes (task 4.8.3).
+"""The stage numbers in PLAN.md's "Demo Script for Judges", through the real routes (tasks 4.8.3, 4.8.5).
 
 Each scenario enters its demo card from `demo/cards/cards.json` as the presenter does, through
-`/item` and `/quote` on the committed data, and checks what is said aloud. Formulas are checked
+`/item` and `/quote` on the committed data, and checks what is said aloud. Scenario 3 posts the
+filters the live request parses to straight to `/shop/rank`, so no Grok call is needed. Formulas are checked
 by substring, so a formula can gain a sentence without failing here; a merge that moves a stage
 number fails CI.
 """
@@ -14,7 +15,7 @@ from fastapi.testclient import TestClient
 from pydantic import TypeAdapter
 
 from app.main import app
-from app.models import CostLine, Path
+from app.models import CostLine, Path, RankedOffer
 
 CARDS = {
     card["file"]: card["typed"]
@@ -128,3 +129,39 @@ def test_scenario_2_states_no_year(maytag: dict, maytag_repair: Path) -> None:
     assert maytag["mfg_year"] is None
     # The two flag sentences the script says are shown, both true.
     assert {"year_from_rating_data", "test_procedure_changed"} <= set(maytag_repair.flags)
+
+
+# Scenario 3: new offers ranked by cost per year, asked in plain words.
+
+# "About $300, small space, need it this week." as Grok parsed it live (PLAN.md, 23:25 measurement).
+SCENARIO_3_FILTERS = {"budget_today": 300, "need_within_days": 7}
+
+
+@pytest.fixture(scope="module")
+def scenario_3(client: TestClient) -> list[RankedOffer]:
+    response = client.post("/shop/rank", json={"filters": SCENARIO_3_FILTERS})
+    assert response.status_code == 200, response.text
+    ranked = TypeAdapter(list[RankedOffer]).validate_python(response.json())
+    assert ranked, "the shop ranked no offers"
+    return ranked
+
+
+def offer_at(ranked: list[RankedOffer], price: float, per_year: float) -> int:
+    """Index of the offer at `price` costing `per_year` a year (two offers cost $649.99)."""
+    [index] = [i for i, r in enumerate(ranked) if r.offer.price == price and r.path.cost_per_year_high == per_year]
+    return index
+
+
+def test_scenario_3_every_offer_is_flagged_over_budget(scenario_3: list[RankedOffer]) -> None:
+    assert all("over_budget_today" in r.path.flags for r in scenario_3)
+
+
+def test_scenario_3_first_is_548_at_98_46_a_year(scenario_3: list[RankedOffer]) -> None:
+    first = scenario_3[0]
+    assert first.offer.price == 548.0
+    assert (first.path.cost_per_year_low, first.path.cost_per_year_high) == (98.46, 98.46)
+
+
+def test_scenario_3_ranks_by_cost_per_year_not_price(scenario_3: list[RankedOffer]) -> None:
+    # The $649.99 fridge at $106.31 a year ranks above the $599 one at $110.21.
+    assert offer_at(scenario_3, 649.99, 106.31) < offer_at(scenario_3, 599.0, 110.21)

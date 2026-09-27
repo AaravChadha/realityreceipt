@@ -566,7 +566,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `docs/pitch.md` Scenario 3: every new fridge is over $300 today, flagged rather than hidden, then open the Entry receipt with the $175 used GE; and the $650 fridge ranks above the $599 one ($106.31 against $110.21 a year). Figures from the Demo Script's 23:25 measurement.
   **Acceptance:** `grep -c -E '\$106\.31|\$110\.21' docs/pitch.md` prints at least `1`, and 4.8.2's grep still prints `0`.
 
-- [ ] **4.8.5 Lock Scenario 3's ranking with a test (Track A2)** (NEW 2026-09-26 23:30)
+- [x] **4.8.5 Lock Scenario 3's ranking with a test (Track A2)** (NEW 2026-09-26 23:30)
   `api/tests/test_demo_script.py` gains Scenario 3 through `/shop/rank` with filters `budget_today=300, need_within_days=7` (the live parse, fixed so the test needs no Grok): every offer flagged `over_budget_today`; the first is $548 at $98.46 a year; the $649.99 offer ranks above the $599 one, at $106.31 and $110.21 a year.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_demo_script.py -q` passes.
 
