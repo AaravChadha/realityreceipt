@@ -477,7 +477,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   In `docs/pitch.md`: "ACEEE's 2016 report" instead of "2016 data" (or ACEEE's 2024 update, after confirming its Atlanta low-income column); no "2004 unit" (say what the card shows); "tap any line" instead of "tap any number"; "energy costs equal to X% of income (EIA-estimated)" instead of "spent"; no claim that a refurbished warranty narrows a range or that other categories work today; crop the under-$5,000 bracket from the chart; about 20 seconds of visible AI (the scan and the shopping request's filter chips); open with the lease story.
   **Acceptance:** `grep -c -E '2004 unit|2016 data|[Tt]ap any number' docs/pitch.md` prints `0`.
 
-- [ ] **4.8.2 Pitch follows the rewritten demo script (Track 0, operator)** (NEW 2026-09-26, Codex review)
+- [x] **4.8.2 Pitch follows the rewritten demo script (Track 0, operator)** (NEW 2026-09-26, Codex review)
   Align `docs/pitch.md` with "Demo Script for Judges": lead with the lease ($0.01 today, $1,739.88 total, $542.89 over its cash price, 45%); no serial typed from a card, no buyout week, the Maytag as Rated 505 kWh from DOE historical data with no year; paths sorted with complete ones first; the lease page does show its total. Every number must match `analysis/recs/out/burden.csv` or the demo script.
   **Acceptance:** `grep -c -i -E 'buyout week|serial|sorted by total over 3 years' docs/pitch.md` prints `0`.
 
