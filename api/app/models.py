@@ -91,6 +91,18 @@ class Lease(Contract):
             raise ValueError("early_purchase_pct is required exactly when early_purchase_rule is not 'none'")
         return self
 
+    @model_validator(mode="after")
+    def _today_fits_total(self) -> "Lease":
+        """The engine's week-by-week schedule (task 3.2.2) needs the printed payment today to fit the
+        printed total; a lease that breaks this goes back to the user for correction (task 1.8)."""
+        today, total = self.payment_today, self.total_of_payments
+        if today is None or total is None:
+            return self
+        if today > total or (self.term_weeks == 1 and today != total):
+            # The engine's own wording (lease.py `_schedule`), so either layer reads the same.
+            raise ValueError("the payment today printed on the lease does not fit its total of payments")
+        return self
+
 
 class CostLine(Contract):
     """`source_type` and `source_id` describe the line's main input (for electricity, the kWh

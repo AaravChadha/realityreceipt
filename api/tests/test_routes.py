@@ -44,6 +44,31 @@ def test_quote_rejects_unknown_fields(client: TestClient) -> None:
     assert client.post("/quote", json={"income": 30000}).status_code == 422
 
 
+RTO_ITEM = {"id": "rto", "category": "refrigerator", "brand": "Frigidaire", "model": "FRTE1936AV", "condition": "new"}
+RTO_OFFER = {"item_id": "rto", "price": 1196.99, "seller_type": "rent_to_own", "source": "user_listing",
+             "source_id": "user_listing"}
+
+
+def test_quote_refuses_a_lease_whose_payment_today_exceeds_its_total(client: TestClient) -> None:
+    # Task 1.8: this answered HTTP 500 from the engine's schedule before the contract refused it.
+    lease = {"weekly_payment": 33.48, "term_weeks": 52, "cash_price": 1196.99, "payment_today": 100, "total_of_payments": 50}
+    response = client.post("/quote", json={"items": [RTO_ITEM], "offers": [RTO_OFFER], "lease": lease})
+    assert response.status_code == 422
+    assert "does not fit" in str(response.json()["detail"])
+
+
+def test_quote_turns_an_engine_value_error_into_a_422(monkeypatch: pytest.MonkeyPatch) -> None:
+    import app.main as main
+
+    def refuse(req, repo):
+        raise ValueError("this lease has no early purchase option")
+
+    monkeypatch.setattr(main, "build_quote", refuse)
+    response = TestClient(app, raise_server_exceptions=False).post("/quote", json={"items": [LISTED], "offers": [LISTING_OFFER]})
+    assert response.status_code == 422
+    assert response.json()["detail"] == "this lease has no early purchase option"
+
+
 class FakeGrok:
     """Stands in for GrokClient: returns one canned reply and records each call."""
 
