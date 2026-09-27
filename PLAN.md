@@ -452,6 +452,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [ ] **4.3 Wire shop routes (Track A1)**
   `POST /shop/parse` calls `parse_request`; `POST /shop/rank` calls `rank` with the retailer cache plus any listings in the request. Tests in `api/tests/test_routes.py` with the fake client.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_routes.py -q` passes.
+  **Status (2026-09-26 21:31):** `/shop/rank` is wired: the retailer cache's new offers plus the request's own listings, through `rank`, with tests in `test_routes.py`. The request may carry only `user_listing` offers, and a listing may not reuse a cached item's id (both 422). `/shop/parse` stays a stub until 4.1 lands; this box stays open until then.
 
 - [x] **4.4 Shop page (Track C4)**
   `web/src/pages/Shop.tsx`: a text box for the request, the parsed filters shown as editable chips (the visible AI step), ranked offers with cost per year and a "View at retailer" link that opens the offer's `url`. No in-app checkout. `Shop.test.tsx` renders ranked offers from a stub and finds each link.

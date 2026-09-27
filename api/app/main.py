@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, FastAPI, File, Form, HTTPException, Uplo
 from fastapi.responses import FileResponse
 
 from app.engine.quote import quote as build_quote
+from app.engine.rank import rank as rank_offers
 from app.grok.client import GrokClient
 from app.grok.scan import scan as read_image
 from app.models import (
@@ -25,6 +26,7 @@ from app.serial.decode import decode
 
 WEB_DIST = FilePath(__file__).resolve().parents[2] / "web" / "dist"
 MAX_SCAN_BYTES = 15 * 1024 * 1024  # a full-size phone photo is 3 to 8 MB
+CATEGORIES = ["refrigerator"]
 
 router = APIRouter()
 
@@ -59,6 +61,15 @@ def _with_serial_year(item: Item) -> Item:
     return item
 
 
+def _require_profiles(repo: Repository, categories: set[str]) -> None:
+    """A clear 422 for a category with no data profile, instead of an error deep in the engine."""
+    for category in sorted(categories):
+        try:
+            repo.profile(category)
+        except KeyError:
+            raise HTTPException(status_code=422, detail=f"No data for the category {category!r} yet") from None
+
+
 @router.get("/health")
 def health() -> dict[str, bool]:
     return {"ok": True}
@@ -68,11 +79,7 @@ def health() -> dict[str, bool]:
 def quote(req: QuoteRequest, repo: Repo) -> list[Path]:
     """Every path for the request, from the real engine and the committed data (task 2.7)."""
     units = [req.current, *req.items] if req.current else req.items
-    for category in {u.category for u in units}:
-        try:
-            repo.profile(category)
-        except KeyError:
-            raise HTTPException(status_code=422, detail=f"No data for the category {category!r} yet") from None
+    _require_profiles(repo, {u.category for u in units})
     return build_quote(req, repo)
 
 
@@ -83,7 +90,7 @@ def item(item: Item) -> Item:
 
 @router.get("/categories")
 def categories() -> list[str]:
-    return ["refrigerator"]
+    return CATEGORIES
 
 
 @router.get("/sources", response_model=list[Source])
@@ -108,7 +115,7 @@ def scan(kind: Annotated[ScanKind, Form()], image: Annotated[UploadFile, File()]
     return result
 
 
-# Still stubs, replaced by their wiring task: /shop/* in 4.3.
+# Still a stub: /shop/parse is wired to `parse_request` once task 4.1 lands (task 4.3).
 
 
 @router.post("/shop/parse", response_model=ShopFilters)
@@ -117,8 +124,26 @@ def shop_parse(req: ShopParseRequest) -> ShopFilters:
 
 
 @router.post("/shop/rank", response_model=list[RankedOffer])
-def shop_rank(req: ShopRankRequest) -> list[RankedOffer]:
-    return []
+def shop_rank(req: ShopRankRequest, repo: Repo) -> list[RankedOffer]:
+    """The retailer cache's new offers plus the request's own listings, ranked by cost per year of
+    use (task 4.3). The request may carry only the user's listings: a new offer's price and source
+    come from the cache, never from the client."""
+    for offer in req.offers:
+        if (offer.source, offer.source_id) != ("user_listing", "user_listing"):
+            raise HTTPException(
+                status_code=422,
+                detail="Only your own listings can be sent (source and source_id 'user_listing'); new offers come from the retailer cache",
+            )
+    wanted = [req.filters.category] if req.filters.category else CATEGORIES
+    _require_profiles(repo, {*wanted, *(i.category for i in req.items)})
+
+    cached = [offer for category in wanted for offer in repo.new_offers(category)]
+    cached_items = [item for offer in cached if (item := repo.item(offer.item_id)) is not None]
+    # `rank` finds each offer's item by id, so a listing may not reuse a cached item's id.
+    taken = sorted({i.id for i in cached_items} & {i.id for i in req.items})
+    if taken:
+        raise HTTPException(status_code=422, detail=f"The item id {taken[0]!r} is used by a cached offer; give the listing another id")
+    return rank_offers(req.filters, [*cached, *req.offers], [*cached_items, *req.items], repo)
 
 
 def _serve_web(app: FastAPI, dist: FilePath) -> None:
