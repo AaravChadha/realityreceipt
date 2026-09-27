@@ -107,6 +107,22 @@ def test_energy_lookup_is_exact_with_candidates_on_a_miss(bare_dir: pathlib.Path
     assert repo.model_candidates("AB123Y") == ["AB-123/X"]
 
 
+def test_same_maker_is_asked_only_when_the_brand_has_no_row(bare_dir: pathlib.Path) -> None:
+    (bare_dir / "energystar_refrigerators.csv").write_text(
+        "brand,model_number,model_normalized,annual_kwh\n"
+        "Frigidaire,AB1,AB1,300\n"
+        "Electrolux,AB1,AB1,350\n"
+        "Frigidaire,CD2,CD2,400\n",
+        encoding="utf-8",
+    )
+    repo = Repository.load(bare_dir)
+    assert repo.model_energy("Electrolux", "AB1").kwh_per_year == 350.0
+    assert repo.model_energy("Frigidaire", "AB1").kwh_per_year == 300.0
+    assert repo.model_energy("Electrolux", "CD2").kwh_per_year == 400.0
+    assert repo.model_energy("Electrolux Home Products Inc.", "CD2").kwh_per_year == 400.0
+    assert repo.model_energy("Whirlpool", "CD2") is None
+
+
 def test_item_lookup_by_id(bare_dir: pathlib.Path) -> None:
     assert Repository.load(bare_dir).item("fridge-1") is None
     (bare_dir / "retailer_cache.json").write_text(

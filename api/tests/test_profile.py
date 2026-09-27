@@ -92,6 +92,17 @@ def test_brand_names_match_without_regard_to_case_punctuation_or_the_ge_alias(re
     assert repo.model_energy("GE Profile", "GBE17HYR") is None, "a sub-brand is not an alias"
 
 
+def test_electrolux_and_frigidaire_fall_back_to_each_other(repo: Repository) -> None:
+    # The Frigidaire demo card's EnergyGuide prints the maker, not the brand.
+    card = repo.model_energy("Electrolux Home Products Inc.", "FFHT1822U*")
+    assert card is not None and card.kwh_per_year == 360.0
+    assert repo.model_energy("Electrolux", "FFHT1822UW") == repo.model_energy("Frigidaire", "FFHT1822UW")
+    # Listed under both names at different kWh: each brand keeps its own figure.
+    assert repo.model_energy("Frigidaire", "ERQR32E3HSS").kwh_per_year == 409.0
+    assert repo.model_energy("Electrolux", "ERQR32E3HSS").kwh_per_year == 438.0
+    assert repo.model_energy("Kenmore", "FFHT1822UW") is None, "a house brand is not the maker"
+
+
 def test_a_model_listed_at_two_kwh_is_not_guessed(repo: Repository) -> None:
     # GTE18DCN**** appears at 359 and 443 kWh.
     assert repo.model_energy("GE", "GTE18DCN****") is None
