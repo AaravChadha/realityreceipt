@@ -228,9 +228,15 @@ class RateValue(Contract):
 
 
 class ModelEnergy(Contract):
+    """A unit's kWh figure. `note` says how the figure was chosen when a rule picked it (for example,
+    one of two DOE figures by the icemaker adder, task 2.2.7), and `note_source_ids` names the sources
+    of that rule; the electricity line shows both (task 1.9)."""
+
     kwh_per_year: float = Field(ge=0)
     source_type: SourceType
     source_id: str
+    note: str = ""
+    note_source_ids: list[str] = Field(default_factory=list)
 
 
 class BnplTerms(Contract):

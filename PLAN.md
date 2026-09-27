@@ -233,7 +233,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `Lease` in `api/app/models.py`: `payment_today` must not exceed `total_of_payments` when both are printed, so a scan with them comes back invalid for correction. `POST /quote` returns a 422 with the engine's message for any `ValueError`, never a 500.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py api/tests/test_routes.py -q` passes, including tests that `payment_today=100, total_of_payments=50` is refused by the contract and that `/quote` answers 422, not 500, when the engine raises `ValueError`.
 
-- [ ] **1.9 A kWh figure can carry how it was chosen (Track A1, with A5's `running.py`)** (NEW 2026-09-26 22:15, Codex review)
+- [x] **1.9 A kWh figure can carry how it was chosen (Track A1, with A5's `running.py`)** (NEW 2026-09-26 22:15, Codex review)
   `ModelEnergy` gains `note: str = ""` and `note_source_ids: list[str] = []` (mirror both in `web/src/contracts.ts`). `running.py` appends a non-empty note to the electricity line's formula and adds `note_source_ids` to its `other_source_ids`. 2.2.7 fills the note.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_contracts.py api/tests/test_running.py -q` passes, including a test that a `ModelEnergy` with a note puts that note in the electricity formula and its source ids in `other_source_ids`, and `npm --prefix web test -- contracts` passes.
 

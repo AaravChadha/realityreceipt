@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import sample from '../../contracts/receipt_fridge.json'
-import { MONTHS, PATH_GROUPS, PATH_KEYS, SOURCE_TYPES, type Path } from './contracts'
+import { MODEL_ENERGY_KEYS, MONTHS, PATH_GROUPS, PATH_KEYS, SOURCE_TYPES, type Path } from './contracts'
 
 const fixture = sample as Path[]
 
@@ -26,4 +26,9 @@ test('monthly arrays are 36 long', () => {
     expect(path.monthly_low).toHaveLength(MONTHS)
     expect(path.monthly_high).toHaveLength(MONTHS)
   }
+})
+
+test('a kWh figure can carry how it was chosen', () => {
+  // Checked against api/app/models.py's ModelEnergy fields by api/tests/test_contracts.py.
+  expect(MODEL_ENERGY_KEYS).toEqual(['kwh_per_year', 'source_type', 'source_id', 'note', 'note_source_ids'])
 })
