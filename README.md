@@ -18,6 +18,13 @@ It is not a loan finder. The app asks nothing about income and never says whethe
 
 ## See it work
 
+<p align="center">
+  <img src="docs/images/entry.jpg" alt="Entering a fridge on a phone: scan or upload a photo of a label, lease or listing, or type its brand and model" width="300">
+  &nbsp;
+  <img src="docs/images/shop-ranking.jpg" alt="The shopping page on a phone, ranking store listings by cost per year, each with a View at retailer link" width="300">
+</p>
+<p align="center"><sub>Left: enter a fridge by scanning a photo or typing. Right: the shopping page ranks store listings by cost per year, not by price.</sub></p>
+
 One of the demo cards is a real rent-to-own page from Aaron's. It offers a Frigidaire FRTE1936AV for $0.01 today. Given the lease's printed numbers, the app returned this on 2026-09-27:
 
 | Option | Pay today | Total over 3 years |
