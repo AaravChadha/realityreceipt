@@ -560,7 +560,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   Restyle only: `components.json`, `web/src/lib/utils.ts`, `web/src/components/ui/*`, the `@/` alias in `web/vite.config.ts` and `web/tsconfig.app.json`, and class names and wrappers in the existing pages and components. New packages (operator-approved): `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`, `tw-animate-css`, and only the `@radix-ui/*` packages the used components need; commit `package.json` with `package-lock.json`. Keep every label, button text and accessible name the tests query, and every path name, line label and flag sentence the Demo Script and pitch quote; change no logic in `api.ts`, `format.ts` or `contracts.ts`. Mobile first: no horizontal scroll at 375 px. Merge `origin/main` in before the PR (the flaky-test fix and 3.10.1 land in `Entry.tsx` first). One PR, auto-merge off, reviewed by Aarav.
   **Acceptance:** `npm --prefix web ci && npm --prefix web test && npm --prefix web run build` passes with no test file weakened or deleted, and `api/.venv/bin/python -m pytest api/tests analysis -q` still passes.
 
-- [ ] **4.8.4 Scenario 3's live figures in the pitch (Track 0, operator)** (NEW 2026-09-26 23:30)
+- [x] **4.8.4 Scenario 3's live figures in the pitch (Track 0, operator)** (NEW 2026-09-26 23:30)
   `docs/pitch.md` Scenario 3: every new fridge is over $300 today, flagged rather than hidden, then open the Entry receipt with the $175 used GE; and the $650 fridge ranks above the $599 one ($106.31 against $110.21 a year). Figures from the Demo Script's 23:25 measurement.
   **Acceptance:** `grep -c -E '\$106\.31|\$110\.21' docs/pitch.md` prints at least `1`, and 4.8.2's grep still prints `0`.
 

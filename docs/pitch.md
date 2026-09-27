@@ -113,8 +113,11 @@ Only if the shop (tasks 4.1, 4.3 and 4.4) is on `main` by 23:30.
 | | |
 |---|---|
 | **Say** | "About $300, small space, need it this week." |
-| **Do** | Type the request. Grok's parsed filters appear as editable chips; fix one by hand if it misread. Include the used GE listing ($175): ask its age and enter it, since the listing states none. |
-| **Point at** | The offers, ranked by cost per year, with unknown delivery or width flagged, not hidden. Describe the ranking the screen shows. Then tap "View at retailer". |
+| **Do** | Type the request. Grok's parsed filters appear as editable chips; fix one by hand if it misread. |
+| **Point at** | Every new fridge is over $300 today, and each card says so: "This costs more today than the amount you said you can spend." Then the ranking: the $650 fridge ranks above the $599 one, $106.31 against $110.21 a year. Then tap "View at retailer". |
+| **Say, at the flags** | "Every new fridge here is over $300 today. The flags show it rather than hide it." |
+| **Say, at the ranking** | "Sorted by what it costs over time." |
+| **Then** | Open the Entry receipt with the $175 used GE listing: ask its age and enter it, since the listing states none. |
 | **If it fails** | Set the filter chips by hand; the ranking does not need Grok. |
 
 Before going on stage, check these numbers: at some prices and years a used and a new option land on the same cost per year, which looks like a bug.
