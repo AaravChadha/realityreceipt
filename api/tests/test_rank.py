@@ -5,7 +5,7 @@ from datetime import date
 
 import pytest
 
-from app.engine.rank import OVER_BUDGET, rank
+from app.engine.rank import DELIVERY_UNKNOWN, INCOMPLETE, OVER_BUDGET, WIDTH_UNKNOWN, rank
 from app.models import (
     CategoryProfile,
     Item,
@@ -127,20 +127,49 @@ def test_condition_and_category_filters() -> None:
     assert rank(ShopFilters(category="washer"), offers, ITEMS, FakeRepo()) == []
 
 
-def test_need_within_days_excludes_late_and_unknown_delivery() -> None:
+def test_need_within_days_excludes_late_delivery_and_flags_unknown() -> None:
     unknown = USED_OFFER.model_copy(update={"item_id": "used2", "available_within_days": None})
     items = [*ITEMS, USED.model_copy(update={"id": "used2"})]
     ranked = rank(ShopFilters(need_within_days=2), [USED_OFFER, NEW_OFFER, unknown], items, FakeRepo())
-    assert ids(ranked) == ["used"]  # new takes 3 days; used2 does not say
+    assert ids(ranked) == ["used", "used2"]  # new takes 3 days; used2 does not say, so it stays, flagged
+    assert [DELIVERY_UNKNOWN in r.path.flags for r in ranked] == [False, True]
 
 
-def test_max_width_excludes_wider_and_unknown_width() -> None:
+def test_max_width_excludes_wider_and_flags_unknown_width() -> None:
     no_width = NEW.model_copy(update={"id": "no-width", "attributes": {}})
     wide = NEW.model_copy(update={"id": "wide", "attributes": {"width_in": "35.5"}})
     garbled = NEW.model_copy(update={"id": "garbled", "attributes": {"width_in": "about thirty"}})
     offers = [USED_OFFER, NEW_OFFER] + [NEW_OFFER.model_copy(update={"item_id": i.id}) for i in (no_width, wide, garbled)]
     ranked = rank(ShopFilters(max_width_in=30), offers, [*ITEMS, no_width, wide, garbled], FakeRepo())
-    assert ids(ranked) == ["new", "used"]  # 29.75 and 30.0 fit; the rest are wider or unknown
+    # 29.75 and 30.0 fit; 35.5 is too wide; no width and an unreadable width stay, flagged.
+    assert ids(ranked) == ["new", "no-width", "garbled", "used"]
+    assert {r.offer.item_id for r in ranked if WIDTH_UNKNOWN in r.path.flags} == {"no-width", "garbled"}
+
+
+def test_a_used_listing_with_no_delivery_days_survives_need_it_within_7_days() -> None:
+    listing = USED_OFFER.model_copy(update={"available_within_days": None})
+    ranked = rank(ShopFilters(need_within_days=7), [listing, NEW_OFFER], ITEMS, FakeRepo())
+    assert ids(ranked) == ["new", "used"]
+    flags = {r.offer.item_id: r.path.flags for r in ranked}
+    assert DELIVERY_UNKNOWN in flags["used"]
+    assert DELIVERY_UNKNOWN not in flags["new"]  # 3 days is known and within 7
+    # Without the filter there is nothing to be unknown about.
+    assert DELIVERY_UNKNOWN not in rank(ShopFilters(), [listing], ITEMS, FakeRepo())[0].path.flags
+
+
+def test_an_incomplete_offer_ranks_after_a_complete_one() -> None:
+    # No kWh figure for this model: its electricity is blank and counts as $0, so its cost per
+    # year high (899 / 10 + 20 = 109.90) is below every complete offer's. It still ranks after them.
+    unrated = NEW.model_copy(update={"id": "unrated", "model": "NOKWH"})
+    unrated_offer = NEW_OFFER.model_copy(update={"item_id": "unrated"})
+    offers = [WORN_OFFER, unrated_offer, USED_OFFER, NEW_OFFER]
+    ranked = rank(ShopFilters(), offers, [*ITEMS, unrated], FakeRepo())
+    # Complete offers first, then the incomplete ones; each group by cost per year high, None last.
+    assert ids(ranked) == ["new", "used", "unrated", "worn"]
+    assert [INCOMPLETE in r.path.flags for r in ranked] == [False, False, True, True]
+    assert ranked[2].path.cost_per_year_high == 109.9
+    assert ranked[2].path.cost_per_year_high < ranked[0].path.cost_per_year_high
+    assert ranked[3].path.cost_per_year_high is None
 
 
 def test_offers_that_cannot_be_priced_are_left_out() -> None:
