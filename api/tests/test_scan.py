@@ -55,8 +55,9 @@ def test_label_valid_reads_year_and_label_kwh() -> None:
     assert result.item is not None
     assert (result.item.brand, result.item.model, result.item.serial) == ("GE", "GTS18GSNRSS", "FG123456A")
     assert result.item.mfg_year == 2016
-    assert result.item.year_confidence == "high"
-    assert result.item.attributes == {"product_class": "top_freezer", "volume_cuft": 18.1, "label_kwh_per_year": 369.0}
+    assert result.item.year_confidence == "none"  # only a serial decode sets it; a printed year is taken as is
+    assert result.item.id == "scan-label"
+    assert result.item.attributes == {"product_class": "3", "volume_cuft": 18.1, "label_kwh_per_year": 369.0}
     assert result.offer is None and result.lease is None
     assert client.calls[0]["image"] == JPEG
     assert client.calls[0]["schema"] == _SCHEMAS["label"]
@@ -186,6 +187,59 @@ def test_prompts_keep_lease_services_out_of_fees_and_descriptions_out_of_product
     label = FakeGrokClient(_load("label_valid.json"))
     scan("label", JPEG, label)
     assert "is not a code, so use null" in label.calls[0]["system"]
+
+
+def test_a_stated_listing_year_does_not_claim_serial_confidence() -> None:
+    result = scan("listing", JPEG, FakeGrokClient({**_load("listing_valid.json"), "mfg_year": 2015}))
+    assert result.valid is True
+    assert result.item is not None
+    assert (result.item.mfg_year, result.item.year_confidence) == (2015, "none")
+
+
+@pytest.mark.parametrize(
+    ("kind", "name", "key", "value"),
+    [
+        ("label", "label_valid.json", "volume_cuft", float("nan")),
+        ("label", "label_valid.json", "label_kwh_per_year", float("inf")),
+        ("listing", "listing_valid.json", "price", float("nan")),
+        ("listing", "listing_valid.json", "price", float("-inf")),
+        ("lease", "lease_valid.json", "weekly_payment", float("nan")),
+        ("lease", "lease_valid.json", "cash_price", float("inf")),
+        ("label", "label_valid.json", "label_kwh_per_year", True),
+        ("listing", "listing_valid.json", "price", True),
+        ("lease", "lease_valid.json", "term_weeks", 52.5),
+        ("price_tag", "price_tag_valid.json", "brand", 7),
+    ],
+)
+def test_a_value_of_the_wrong_json_type_is_an_error_not_a_crash(kind: str, name: str, key: str, value: object) -> None:
+    result = scan(kind, JPEG, FakeGrokClient({**_load(name), key: value}))
+    assert result.valid is False
+    assert result.item is None and result.offer is None and result.lease is None
+    assert any(e.startswith(f"{key}:") for e in result.errors)
+    json.loads(result.model_dump_json())  # what the API sends stays valid JSON
+
+
+@pytest.mark.parametrize(("key", "value"), [("label_kwh_per_year", 0), ("volume_cuft", -3), ("volume_cuft", 0)])
+def test_label_kwh_and_volume_must_be_positive(key: str, value: float) -> None:
+    result = scan("label", JPEG, FakeGrokClient({**_load("label_valid.json"), key: value}))
+    assert result.valid is False
+    assert any(e.startswith(f"{key}:") for e in result.errors)
+
+
+def test_each_kind_gets_its_own_item_id_and_the_offer_points_at_it() -> None:
+    for kind, name in KIND_FIXTURES.items():
+        result = scan(kind, JPEG, FakeGrokClient(_load(name)))
+        assert result.item is not None
+        assert result.item.id == f"scan-{kind}"
+        if result.offer is not None:
+            assert result.offer.item_id == result.item.id
+
+
+def test_a_refurbished_listing_is_sold_by_a_refurbisher() -> None:
+    result = scan("listing", JPEG, FakeGrokClient({**_load("listing_valid.json"), "condition": "refurbished"}))
+    assert result.valid is True
+    assert result.item is not None and result.item.condition == "refurbished"
+    assert result.offer is not None and result.offer.seller_type == "refurbisher"
 
 
 class RaisingClient:

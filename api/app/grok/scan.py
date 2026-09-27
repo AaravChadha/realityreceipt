@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+import math
+from typing import Annotated, Any
 
 import httpx
 from PIL import UnidentifiedImageError
-from pydantic import TypeAdapter, ValidationError
+from pydantic import Field, TypeAdapter, ValidationError
 
 from app.grok.client import GrokClient
 from app.models import Item, Lease, Offer, ScanKind, ScanResult
@@ -113,7 +114,6 @@ _SCHEMAS: dict[ScanKind, dict] = {
 }
 
 _ITEM_SCAFFOLD: dict[str, Any] = {
-    "id": "scan",
     "category": "refrigerator",
     "brand": "",
     "model": "",
@@ -141,13 +141,56 @@ def scan(kind: ScanKind, image_jpeg: bytes, client: GrokClient) -> ScanResult:
     if not isinstance(raw, dict):
         return ScanResult(kind=kind, valid=False, errors=["Grok's reply could not be read. Enter the details by hand."])
     printed = {
-        k: v for k, v in raw.items() if v is not None and v != "" and isinstance(v, (str, int, float, bool))
+        k: v
+        for k, v in raw.items()
+        if k in _SCHEMAS[kind]["properties"] and v is not None and v != "" and _json_safe(v)
     }
-    errors, parts = _BUILDERS[kind](printed)
+    screened, errors = _screen(kind, raw)
+    built_errors, parts = _BUILDERS[kind](screened)
+    flagged = {e.split(":", 1)[0] for e in errors}
+    errors += [e for e in built_errors if not (e.endswith(": missing") and e.split(":", 1)[0] in flagged)]
     errors = list(dict.fromkeys(errors))
     if errors:
         return ScanResult(kind=kind, valid=False, errors=errors, fields=printed)
-    return ScanResult(kind=kind, valid=True, fields=printed, **parts)
+    return ScanResult(kind=kind, valid=True, fields=printed, **{k: v for k, v in parts.items() if v is not None})
+
+
+def _json_safe(value: Any) -> bool:
+    if isinstance(value, float):
+        return math.isfinite(value)
+    return isinstance(value, (str, int, bool))
+
+
+def _types(prop: dict) -> set[str]:
+    if "type" not in prop:
+        return {"string"}  # the enum fields
+    declared = prop["type"]
+    return set(declared if isinstance(declared, list) else [declared]) - {"null"}
+
+
+def _screen(kind: ScanKind, raw: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """Keep each value only if it has its schema's JSON type: a number must be a finite number, not
+    true, NaN or Infinity, and text must be text. Strict mode on the API side is not trusted alone."""
+    kept: dict[str, Any] = {}
+    errors: list[str] = []
+    for key, prop in _SCHEMAS[kind]["properties"].items():
+        value = raw.get(key)
+        if value is None or value == "":
+            continue
+        types = _types(prop)
+        if types & {"number", "integer"}:
+            number = isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+            if number and "number" not in types and isinstance(value, float):
+                number = value.is_integer()
+                value = int(value) if number else value
+            if not number:
+                errors.append(f"{key}: not a number")
+                continue
+        elif not isinstance(value, str):
+            errors.append(f"{key}: not text")
+            continue
+        kept[key] = value
+    return kept, errors
 
 
 def _fmt(exc: ValidationError, prefix: str = "") -> list[str]:
@@ -181,52 +224,53 @@ def _missing(kept: dict[str, Any], keys: tuple[str, ...]) -> list[str]:
 Built = tuple[list[str], dict[str, Any]]
 
 
-def _item(kept: dict[str, Any], **extra: Any) -> tuple[Item | None, list[str]]:
+def _item_id(kind: ScanKind) -> str:
+    return f"scan-{kind}"
+
+
+# year_confidence stays "none": it describes a year decoded from a serial, and a year read off the
+# image is taken as printed, like a typed year.
+def _item(kind: ScanKind, kept: dict[str, Any], **extra: Any) -> tuple[Item | None, list[str]]:
     try:
-        return Item.model_validate({**_ITEM_SCAFFOLD, **extra, **kept}), []
+        return Item.model_validate({**_ITEM_SCAFFOLD, "id": _item_id(kind), **extra, **kept}), []
     except ValidationError as exc:
         return None, _fmt(exc, prefix="item")
 
 
-def _offer(raw: dict[str, Any], **fixed: Any) -> tuple[Offer | None, list[str]]:
+def _offer(kind: ScanKind, raw: dict[str, Any], **fixed: Any) -> tuple[Offer | None, list[str]]:
     kept, errors = _check(Offer, raw, ("price",))
     if "price" not in kept:
         return None, errors + _missing(kept, ("price",))
     try:
-        return Offer.model_validate({"item_id": "scan", **fixed, **kept}), errors
+        return Offer.model_validate({"item_id": _item_id(kind), **fixed, **kept}), errors
     except ValidationError as exc:
         return None, errors + _fmt(exc, prefix="offer")
 
 
-_LABEL_ATTRS = {"product_class": str, "volume_cuft": float, "label_kwh_per_year": float}
+_POSITIVE = Annotated[float, Field(gt=0)]
+_LABEL_ATTRS = {"product_class": str, "volume_cuft": _POSITIVE, "label_kwh_per_year": _POSITIVE}
 
 
 def _from_label(raw: dict[str, Any]) -> Built:
     kept, errors = _check(Item, raw, ("brand", "model", "serial", "mfg_year"))
     attrs, attr_errors = _check(_LABEL_ATTRS, raw, _LABEL_ATTRS)
-    extra: dict[str, Any] = {"attributes": attrs}
-    if "mfg_year" in kept:
-        extra["year_confidence"] = "high"
-    item, item_errors = _item(kept, **extra)
+    item, item_errors = _item("label", kept, attributes=attrs)
     return errors + attr_errors + item_errors + _missing(kept, ("brand", "model")), {"item": item}
 
 
 def _from_price_tag(raw: dict[str, Any]) -> Built:
     kept, errors = _check(Item, raw, ("brand", "model"))
-    item, item_errors = _item(kept, condition="new")
-    offer, offer_errors = _offer(raw, seller_type="retailer", source="price_tag", source_id="user")
+    item, item_errors = _item("price_tag", kept, condition="new")
+    offer, offer_errors = _offer("price_tag", raw, seller_type="retailer", source="price_tag", source_id="user")
     errors = errors + item_errors + offer_errors + _missing(kept, ("brand", "model"))
     return errors, {"item": item, "offer": offer}
 
 
 def _from_listing(raw: dict[str, Any]) -> Built:
     kept, errors = _check(Item, raw, ("brand", "model", "condition", "mfg_year"))
-    extra: dict[str, Any] = {}
-    if "mfg_year" in kept:
-        # A seller's stated year is not a printed rating, so it is not trusted as high.
-        extra["year_confidence"] = "low"
-    item, item_errors = _item(kept, **extra)
-    offer, offer_errors = _offer(raw, seller_type="private", source="user_listing", source_id="user_listing")
+    item, item_errors = _item("listing", kept)
+    seller = "refurbisher" if kept.get("condition") == "refurbished" else "private"
+    offer, offer_errors = _offer("listing", raw, seller_type=seller, source="user_listing", source_id="user_listing")
     errors = errors + item_errors + offer_errors + _missing(kept, ("brand", "model", "condition"))
     return errors, {"item": item, "offer": offer}
 
@@ -260,9 +304,11 @@ def _from_lease(raw: dict[str, Any]) -> Built:
         errors += _fmt(exc, prefix="lease")
     # The leased unit is the rent-to-own offer the quote pairs with the lease; its price is the cash price.
     item_kept, item_errors = _check(Item, raw, ("brand", "model"))
-    item, build_errors = _item(item_kept, condition="new")
+    item, build_errors = _item("lease", item_kept, condition="new")
     offer_raw = {"price": kept["cash_price"]} if "cash_price" in kept else {}
-    offer, offer_errors = _offer(offer_raw, seller_type="rent_to_own", source="user_listing", source_id="user_listing")
+    offer, offer_errors = _offer(
+        "lease", offer_raw, seller_type="rent_to_own", source="user_listing", source_id="user_listing"
+    )
     offer_errors = [e for e in offer_errors if e != "price: missing"]
     errors += item_errors + build_errors + offer_errors + _missing(item_kept, ("brand", "model"))
     return errors, {"item": item, "offer": offer, "lease": lease}
