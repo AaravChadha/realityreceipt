@@ -46,12 +46,13 @@ def test_csv_shape() -> None:
     with path.open(newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     assert len(rows) >= 4000, "the full ENERGY STAR dataset, not a brand subset"
-    assert list(rows[0]) == ["brand", "model_number", "model_normalized", "annual_kwh"]
-    keys = [(r["brand"], r["model_normalized"], r["annual_kwh"]) for r in rows]
-    assert len(keys) == len(set(keys)), "one row per brand, model and kWh"
+    assert list(rows[0]) == ["brand", "model_number", "model_normalized", "annual_kwh", "product_class"]
+    keys = [(r["brand"], r["model_normalized"], r["annual_kwh"], r["product_class"]) for r in rows]
+    assert len(keys) == len(set(keys)), "one row per brand, model, kWh and class"
     for r in rows:
         assert r["model_normalized"] == normalize_model(r["model_number"])
         assert float(r["annual_kwh"]) > 0
+        assert r["product_class"], "every ENERGY STAR row carries its CFR class"
     assert not any("Ã" in r["brand"] for r in rows), "brand names are decoded as UTF-8"
 
 
@@ -92,11 +93,31 @@ def test_brand_names_match_without_regard_to_case_punctuation_or_the_ge_alias(re
     assert repo.model_energy("GE Profile", "GBE17HYR") is None, "a sub-brand is not an alias"
 
 
+def test_electrolux_and_frigidaire_fall_back_to_each_other(repo: Repository) -> None:
+    # The Frigidaire demo card's EnergyGuide prints the maker, not the brand.
+    card = repo.model_energy("Electrolux Home Products Inc.", "FFHT1822U*")
+    assert card is not None and card.kwh_per_year == 360.0
+    assert repo.model_energy("Electrolux", "FFHT1822UW") == repo.model_energy("Frigidaire", "FFHT1822UW")
+    # Listed under both names at different kWh: each brand keeps its own figure.
+    assert repo.model_energy("Frigidaire", "ERQR32E3HSS").kwh_per_year == 409.0
+    assert repo.model_energy("Electrolux", "ERQR32E3HSS").kwh_per_year == 438.0
+    assert repo.model_energy("Kenmore", "FFHT1822UW") is None, "a house brand is not the maker"
+
+
 def test_a_model_listed_at_two_kwh_is_not_guessed(repo: Repository) -> None:
     # GTE18DCN**** appears at 359 and 443 kWh.
     assert repo.model_energy("GE", "GTE18DCN****") is None
     assert repo.model_energy("GE", "GTE18DCNRWW") is None
     assert "GTE18DCN****" in repo.model_candidates("GTE18DCNRWW")
+
+
+def test_product_class_resolves_the_icemaker_pair(repo: Repository) -> None:
+    # ENERGY STAR rates these twice: class 3 without an icemaker, 3I with one.
+    assert repo.model_energy("GE", "GTE18DTNRWW", "3").kwh_per_year == 359.0
+    assert repo.model_energy("GE", "GTE18DTNRWW", "3I").kwh_per_year == 443.0
+    assert repo.model_energy("GE", "GTE18DTNRWW") is None
+    assert repo.model_energy("Frigidaire", "FFHT1814WW", "3").kwh_per_year == 369.0
+    assert repo.model_energy("Frigidaire", "FFHT1814WW", "3I").kwh_per_year == 453.0
 
 
 def _repo_with(tmp_path: pathlib.Path, rows: list[tuple[str, str, float]]) -> Repository:

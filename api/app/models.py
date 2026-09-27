@@ -79,6 +79,11 @@ class Lease(Contract):
     early_purchase_text: str = ""
     missed_payment_rule: str = ""
     source_id: str = "user_lease"
+    # As printed on the lease (task 1.7). A promotion can make today's payment smaller than one
+    # weekly payment, and a lease's own total can differ from weekly_payment * term_weeks by rounding;
+    # when set, the engine uses these instead of deriving them (spec 3: prefer the lease's own numbers).
+    payment_today: float | None = Field(default=None, ge=0)
+    total_of_payments: float | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def _pct_matches_rule(self) -> "Lease":
@@ -245,12 +250,25 @@ class QuoteRequest(Contract):
 
 
 class ScanResult(Contract):
+    """What a scan read (task 1.7). `fields` holds every value read from the image, valid or not,
+    to pre-fill the correction form. `item`, `offer` and `lease` are set only when `valid`, so every
+    object in a scan result is a complete, validated contract object."""
+
     kind: ScanKind
     valid: bool
     errors: list[str] = Field(default_factory=list)
+    fields: dict[str, str | float | int | bool | None] = Field(default_factory=dict)
     item: Item | None = None
     offer: Offer | None = None
     lease: Lease | None = None
+
+    @model_validator(mode="after")
+    def _objects_only_when_valid(self) -> "ScanResult":
+        if not self.valid and (self.item or self.offer or self.lease):
+            raise ValueError("an invalid scan carries its values in fields, never as item, offer or lease")
+        if self.valid and self.errors:
+            raise ValueError("a valid scan has no errors")
+        return self
 
 
 class ShopFilters(Contract):

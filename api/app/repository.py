@@ -40,7 +40,14 @@ WILDCARDS = "*#"
 
 # Brand names that mean the same maker, after `_brand_key`. Kept small on purpose:
 # a sub-brand is not an alias, because a rated figure must come from the same brand.
-_BRAND_ALIASES = {"geappliances": "ge"}
+# An EnergyGuide can print the maker instead of the brand ("Electrolux Home Products Inc."
+# on a Frigidaire label).
+_BRAND_ALIASES = {"geappliances": "ge", "electroluxhomeproductsinc": "electrolux"}
+
+# Two brands of one maker, asked only when the brand as given has no matching row: the
+# datasets list some Electrolux-made models under both names at different kWh, so they are
+# never merged. A retailer's house brand (Kenmore) is not a maker and is never here.
+_SAME_MAKER = {"electrolux": "frigidaire", "frigidaire": "electrolux"}
 
 
 def normalize_model(s: str) -> str:
@@ -73,6 +80,7 @@ class _EnergyRow:
     model_normalized: str
     annual_kwh: float
     year: int | None = None
+    product_class: str = ""  # the CFR class code (`3`, `3I`, `5I-BI`); ENERGY STAR only
     brand_key: str = field(init=False, compare=False)
     wildcards: int = field(init=False, compare=False)
     prefix: str = field(init=False, compare=False)  # the fixed characters before the first wildcard
@@ -107,7 +115,8 @@ def _select(rows: list[_EnergyRow], key: str) -> list[_EnergyRow]:
 
 
 def _read_energy_rows(f: IO[str]) -> list[_EnergyRow]:
-    """Rows of `brand,model_number,model_normalized,annual_kwh` and, for DOE, `year`."""
+    """Rows of `brand,model_number,model_normalized,annual_kwh` and, for ENERGY STAR, `product_class`,
+    for DOE, `year`."""
     return [
         _EnergyRow(
             brand=row["brand"],
@@ -115,19 +124,46 @@ def _read_energy_rows(f: IO[str]) -> list[_EnergyRow]:
             model_normalized=row["model_normalized"] or normalize_model(row["model_number"]),
             annual_kwh=float(row["annual_kwh"]),
             year=int(row["year"]) if row.get("year") else None,
+            product_class=_class_key(row.get("product_class")) or "",
         )
         for row in csv.DictReader(f)
     ]
 
 
+def _class_key(value: str | float | None) -> str | None:
+    """A product class as its CFR code: `3i` is `3I`, the number 3.0 is `3`; None when blank."""
+    if value is None:
+        return None
+    if isinstance(value, float):
+        value = f"{value:g}"
+    key = re.sub(r"\s", "", str(value)).upper()
+    if re.fullmatch(r"\d+\.0", key):
+        key = key[:-2]
+    return key or None
+
+
+def _of_class(hits: list[_EnergyRow], product_class: str | float | None) -> list[_EnergyRow]:
+    """The hits rated in `product_class`; all hits when no class is given or none is rated in it.
+
+    ENERGY STAR certifies many models twice, without and with an automatic icemaker (`3` and
+    `3I`), at different kWh. The item's class picks one; without it the two still disagree.
+    """
+    key = _class_key(product_class)
+    same = [r for r in hits if key is not None and r.product_class == key]
+    return same or hits
+
+
 def _matching_rows(rows: list[_EnergyRow], brand: str, model: str) -> list[_EnergyRow]:
-    """Rows of the same brand that stand for `model`, fewest wildcards only."""
+    """Rows of the same brand that stand for `model`, fewest wildcards only; when the brand has
+    none, the rows of the other brand of the same maker (`_SAME_MAKER`)."""
     brand_key = _brand_key(brand)
-    hits = _select([r for r in rows if r.brand_key == brand_key], normalize_model(model))
-    if not hits:
-        return []
-    fewest = min(r.wildcards for r in hits)
-    return [r for r in hits if r.wildcards == fewest]
+    key = normalize_model(model)
+    for candidate in (brand_key, _SAME_MAKER.get(brand_key)):
+        hits = _select([r for r in rows if r.brand_key == candidate], key) if candidate else []
+        if hits:
+            fewest = min(r.wildcards for r in hits)
+            return [r for r in hits if r.wildcards == fewest]
+    return []
 
 
 @dataclass(frozen=True)
@@ -222,21 +258,25 @@ class Repository:
     def profile(self, category: str) -> CategoryProfile:
         return self._profiles[category]
 
-    def model_energy(self, brand: str, model: str) -> ModelEnergy | None:
+    def model_energy(
+        self, brand: str, model: str, product_class: str | float | None = None
+    ) -> ModelEnergy | None:
         """The rated kWh for `brand` and `model`, or None.
 
         `*` and `#` in a dataset model number each match one optional letter or digit. The brand
         must match (`GE Appliances` counts as `GE`); another brand's row is never returned. The
-        row with the fewest wildcards wins; if the rows left disagree on kWh the answer is None,
-        and `model_candidates` lists them. ENERGY STAR is asked first; DOE's historical ratings
-        are used only when ENERGY STAR has no matching row, so an ambiguous ENERGY STAR model
-        stays `None` rather than falling back to an older figure.
+        row with the fewest wildcards wins. When `product_class` is given and ENERGY STAR rates the
+        model in that class (`3` without an icemaker, `3I` with one), only those rows count. If the
+        rows left disagree on kWh the answer is None, and `model_candidates` lists them. ENERGY
+        STAR is asked first; DOE's historical ratings are used only when ENERGY STAR has no
+        matching row, so an ambiguous ENERGY STAR model stays `None` rather than falling back to
+        an older figure.
         """
         for rows, source_id in (
             (self._energy, "energystar_refrigerators"),
             (self._doe, "doe_wap_refrigerators"),
         ):
-            hits = _matching_rows(rows, brand, model)
+            hits = _of_class(_matching_rows(rows, brand, model), product_class)
             if hits:
                 if len({r.annual_kwh for r in hits}) > 1:
                     return None

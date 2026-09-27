@@ -1,0 +1,21 @@
+# Render Blueprint: the whole app as one web service (PLAN.md task 2.11.1).
+# The API serves the built web app at / and every route under /api (task 2.7.1).
+# How to create it, point the .tech domain at it and keep it awake: docs/runbook.md "Deploy".
+services:
+  - type: web
+    name: realityreceipt
+    runtime: python
+    plan: free
+    region: virginia
+    branch: main
+    autoDeployTrigger: checksPass
+    buildCommand: node --version && pip install -r api/requirements.txt && npm --prefix web ci && npm --prefix web run build
+    startCommand: uvicorn app.main:app --app-dir api --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.14" # the version CI runs; Render's default for new services is 3.14
+      - key: XAI_API_KEY
+        sync: false # entered in the Render Dashboard, never committed
+      - key: XAI_MODEL
+        sync: false
