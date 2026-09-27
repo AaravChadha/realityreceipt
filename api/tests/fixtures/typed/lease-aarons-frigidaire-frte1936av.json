@@ -1,0 +1,25 @@
+{
+  "item": {
+    "id": "card-aarons-frte1936av",
+    "category": "refrigerator",
+    "brand": "FRIGIDAIRE",
+    "model": "FRTE1936AV",
+    "condition": "new"
+  },
+  "offer": {
+    "item_id": "card-aarons-frte1936av",
+    "price": 1196.99,
+    "seller_type": "rent_to_own",
+    "source": "user_listing",
+    "source_id": "user_listing"
+  },
+  "lease": {
+    "weekly_payment": 33.48,
+    "term_weeks": 52,
+    "cash_price": 1196.99,
+    "fees": 0,
+    "payment_today": 0.01,
+    "total_of_payments": 1739.88,
+    "source_id": "user_lease"
+  }
+}

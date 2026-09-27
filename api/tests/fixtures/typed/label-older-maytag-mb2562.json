@@ -1,0 +1,10 @@
+{
+  "item": {
+    "id": "card-maytag-mb2562",
+    "category": "refrigerator",
+    "brand": "Maytag",
+    "model": "MB*2562***",
+    "condition": "used_as_is",
+    "attributes": {"volume_cuft": 25.1, "label_kwh_per_year": 505}
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "brand": "FRIGIDAIRE",
+  "model": "FRTE1936AV",
+  "weekly_payment": 33.48,
+  "term_weeks": 52,
+  "cash_price": 1196.99,
+  "fees": 0,
+  "early_purchase_rule": null,
+  "early_purchase_percent": null,
+  "early_purchase_text": null,
+  "missed_payment_rule": null,
+  "payment_today": 0.01,
+  "total_of_payments": 1739.88
+}
