@@ -63,6 +63,10 @@ Scroll to a path's cost line and carbon line together.
 
 > "What it costs you each year and what it puts in the air, on one receipt. Stores sort by sticker price. We sort by what it costs over time."
 
+If there is time, one more line (every part of it is true of the code today):
+
+> "We started with refrigerators. The receipt, the payment paths and the lease math don't depend on the item. Cars are next: fuel by mileage, oil changes, the title tax, and buy-here-pay-here lots, which are the car version of rent-to-own. Each line will be sourced like these."
+
 ## Demo run sheet
 
 ### Before judges arrive
@@ -136,6 +140,7 @@ Only if a real scan works by 22:00.
 - **Renters or owners?** In this data, owners show the higher share in every bracket. Don't go beyond that.
 - **Is ACEEE's figure current?** It comes from ACEEE's 2016 report. We name the report and its year every time we use it.
 - **Where does the lease total come from?** The lease page prints its own total, and the receipt uses the lease's printed numbers.
+- **Is it only for fridges?** Today, yes: refrigerators are the one category with sourced data. The receipt, the payment paths and the lease math don't depend on the item; each new category needs its own sourced data. Cars are next: fuel from fueleconomy.gov and the Georgia gas price, upkeep by miles, Georgia's title tax, and buy-here-pay-here lots through the same lease math. Insurance, major repairs and resale value would show as not estimated. Never say it quotes cars or other appliances today.
 
 | Household income | Tenure | Share of income | 95% interval | Households surveyed |
 |---|---|---|---|---|

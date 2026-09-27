@@ -1,6 +1,6 @@
 # RealityReceipt
 
-RealityReceipt compares the ways to get a refrigerator by what each one costs over time, not by its sticker price. Built at HackGT 13 (Georgia Tech, September 25 to 27, 2026).
+RealityReceipt compares the ways to get something you need by what each one costs over time, not by its sticker price. It is built for appliances in general, with cars next; today it covers **refrigerators only**, the one category with sourced data so far. Built at HackGT 13 (Georgia Tech, September 25 to 27, 2026).
 
 The option that looks cheapest today can cost more over time: an old used unit that is expensive to run, a rent-to-own lease whose payments add up to far more than the cash price, a purchase on high-interest credit. A price tag leaves out the running cost, the interest, the lease terms and how long the unit lasts.
 
@@ -8,12 +8,18 @@ The option that looks cheapest today can cost more over time: an old used unit t
 
 1. You type the fridge you have, a used one you found, or both. There is no sign-up and no question about income or anything personal.
 2. The receipt lays out the ways to get the item side by side: repair the one you have (when you enter a repair quote), used, refurbished, new (pay cash, credit card, buy now pay later, credit union PAL) and rent-to-own (when a lease is entered).
-3. Each way shows three numbers: what you pay today, the total over 3 years, and the cost per year of use. Totals are ranges, low to high, and the list is sorted by the high end of the 3-year total.
+3. Each way shows three numbers: what you pay today, the total over 3 years, and the cost per year of use. Totals are ranges, low to high. Complete paths come first, cheapest 3-year total (high end) first; a path with a cost not estimated comes after them and says so.
 4. Tap any cost line to see its source, the formula, and whether the figure is **Rated**, **Published**, **You entered** or **Not estimated**. A carbon line (kg CO2e over 3 years) sits beside the cost.
 
 **How the numbers are made.** AI only reads input: Grok turns a photo of a label, price tag, lease or listing into typed fields, and turns a plain-words shopping request ("about $300, small space, need it this week") into filters. It does not produce or change any number on the receipt. The numbers come from a deterministic engine in `api/app/engine/` and the committed data in `api/app/data/`, both covered by the tests in `api/tests/`. The check for this is "not a wrapper": typing a unit's brand, model and serial by hand gives the same receipt as scanning its label.
 
 **Status (2026-09-26):** typed entry and the receipt with its source sheet are on `main`. The scan (PLAN.md tasks 3.7 to 3.10, which also add the lease form) and the plain-words shopping page (4.1 to 4.4) are still being built; until they land, `/scan` and `/shop/*` return placeholders.
+
+## Scope: refrigerators today, cars next
+
+The receipt, the payment paths (cash, credit card, buy now pay later, credit union PAL, rent-to-own), the lease math, the 3-year window and tap-to-source do not depend on the item. What is specific to a category is its data: for refrigerators, the ENERGY STAR and DOE ratings, the fridge standards, the icemaker rule, a published lifespan and real store listings. `/quote` refuses any other category with "No data for the category … yet".
+
+Cars are the next category: fuel from fueleconomy.gov MPG and the Georgia gasoline price, upkeep by miles (oil changes, tires), Georgia's title tax, auto loans, and buy-here-pay-here lots through the same lease math. Insurance, major repairs and resale value would show as not estimated. This is planned, not built; see PLAN.md, Future Extensions.
 
 ## Run it
 
