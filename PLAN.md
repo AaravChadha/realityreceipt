@@ -400,7 +400,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   When `mfg_year` is missing and `repo.model_year_range` returns years, use both ends for the age, so expected life and cost per year become ranges; add the flag `year_from_rating_data`; never write an inferred year into `mfg_year`. Call `model_year_range` only if the repository has it until 2.2.5 lands.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including a test that an undated unit whose model DOE lists over several years gets an expected-life range from both ends and the `year_from_rating_data` flag, with `mfg_year` left `None`.
 
-- [ ] **3.3.6 No buyout path without buyout terms (Track A2)** (NEW 2026-09-26 21:45, demo check; after 3.3.4)
+- [x] **3.3.6 No buyout path without buyout terms (Track A2)** (NEW 2026-09-26 21:45, demo check; after 3.3.4)
   In `quote`, build "Rent-to-own, early buyout" only when `req.lease.early_purchase_rule` is not "none". Without terms it repeated the keep-paying numbers on a second card; 3.2.4 puts "No early purchase terms entered" on the keep-paying path instead.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including tests that a lease with `early_purchase_rule="none"` gives exactly one rent-to-own path and a lease with terms gives two.
 
