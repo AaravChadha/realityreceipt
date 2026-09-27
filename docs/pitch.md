@@ -106,7 +106,7 @@ Scenario 1 is the strongest point: its numbers come straight off a real lease pa
 
 Don't state a year: the label prints none. Don't claim big energy savings: against a new fridge the gap is about $20 a year. The receipt also shows two flag sentences, both true: the year made is estimated from the years DOE lists this model, and the energy test changed around 2014. Read them if asked; still state no year.
 
-### Scenario 3: used vs new, asked in plain words (Visa)
+### Scenario 3: used vs new, asked in plain words (the shop)
 
 Only if the shop (tasks 4.1, 4.3 and 4.4) is on `main` by 23:30.
 
