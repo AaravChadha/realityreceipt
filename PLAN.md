@@ -241,8 +241,9 @@ One row = one session's file set. A person with fewer sessions runs several rows
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_repository.py -q` passes.
   **Status (2026-09-26):** landed in #7, then reverted in #8 at its owner's request; the work is kept on `feature/2.1-sources-rates-repository`. Relands once its data is checked.
 
-- [ ] **2.2 Refrigerator profile and model energy (Track B2)**
+- [x] **2.2 Refrigerator profile and model energy (Track B2)**
   `api/app/data/refrigerator.json`: a `CategoryProfile` with a published lifespan range, a published-only upkeep schedule (empty list if none is published), repair ranges with sources, `carbon_applicable: true`. `api/app/data/energystar_refrigerators.csv`: columns `brand,model_number,model_normalized,annual_kwh` from the ENERGY STAR certified refrigerators dataset, filtered to the brands in the demo and the retailer cache (keep the file under 1 MB). `Repository.model_energy` returns `ModelEnergy(source_type="rated", source_id="energystar_refrigerators")` on an exact normalized match; `model_candidates` returns up to 5 prefix matches. `api/tests/test_profile.py`: the profile validates, every `source_id` resolves, a known demo model returns its CSV kWh, and a one-character typo returns `None` with at least one candidate.
+  **Status (2026-09-26 22:10):** ~~repair ranges with sources~~ → **Verdict:** closed without published repair ranges. None could be read from a primary page (Angi and HomeGuide returned 403, #28), and inventing ranges would break the sourced-numbers rule, so `repair_ranges` stays empty and the repair path is priced only from the user's own quote (the Demo Script already says so). Every subtask, 2.2.1 to 2.2.6, is done; the acceptance passes (39 tests on main at 97e144a).
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_profile.py -q` passes.
 
 - [x] **2.2.1 Wildcard, brand-matched model lookup (Track B1/B2)** (NEW 2026-09-26, decision 9)
