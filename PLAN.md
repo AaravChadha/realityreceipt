@@ -81,6 +81,8 @@ The option that looks cheapest today often costs the most over time: an old used
 
 > **Decision (2026-09-26 18:45):** ~~Grok Voice read-aloud in English and Spanish (spec §5 item 8; tasks 4.5, 4.6)~~ → **Verdict (2026-09-26):** dropped. Reading a table of numbers aloud adds little a user would actually use, and judges would see it was there for the prize. The SpaceXAI entry rests on the Grok scan and the shopping request. Future extension: a Spanish version of the screen from written templates, not voice.
 
+> **Decision (2026-09-26 21:10): fixes from the second Codex review** (main at f435b79). (1) Cost per year uses the full acquisition cost: a lease or BNPL total beyond 36 months still counts, even though the 3-year total leaves those payments out. Tasks 3.2.3, 3.3.4. (2) Every range is built from the min and max of its scenarios, so low never exceeds high; an earlier, more efficient replacement can be the cheaper case. Task 3.3.4. (3) A manufacture year inferred from DOE listing years is a range with a visible flag, never written in as if typed. Tasks 2.2.4, 3.3.5, 2.9.2. (4) The scan picker drops "Price tag" tonight, because the quote prices new paths from the cached offers, not from a scanned tag. Task 3.10's status. (5) docs/pitch.md follows the rewritten demo script. Task 4.8.2.
+
 ## Index of phases
 
 Phases are milestones, not time slots. A task in a later phase starts as soon as its inputs are on `origin/main`; Track D's scan and RECS work can start right after Phase 1.
@@ -131,8 +133,9 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - `api/app/grok/client.py`: `class GrokClient` with `chat_json(system: str, user: str, image_jpeg: bytes | None = None) -> dict`; reads `XAI_API_KEY` and `XAI_MODEL` from `api/.env`. `api/app/grok/scan.py`: `scan(kind: ScanKind, image_jpeg: bytes, client: GrokClient) -> ScanResult`. `api/app/grok/parse.py`: `parse_request(text: str, client: GrokClient) -> ShopFilters`.
 - ~~`api/app/voice/script.py`: `script(paths: list[Path], lang: Literal["en", "es"]) -> str`.~~ Dropped 2026-09-26 with 4.5 and 4.6.
 - Reserved source ids: `user` (typed by the user), `user_listing` (from the user's listing), `user_lease` (from the user's lease). Every other id comes from `api/app/data/sources.json`.
-- **Flags** (pinned 2026-09-26; the web shows each as a plain sentence): `costs_not_estimated`, `past_typical_life`, `test_procedure_changed`, `year_from_serial_low_confidence`, `pal_caps_not_an_offer`, `bnpl_terms_not_an_offer`, `over_budget_today`, `delivery_unknown`, `width_unknown`, `fixture`.
+- **Flags** (pinned 2026-09-26; the web shows each as a plain sentence): `year_from_rating_data` (added 21:10, task 3.3.5), `costs_not_estimated`, `past_typical_life`, `test_procedure_changed`, `year_from_serial_low_confidence`, `pal_caps_not_an_offer`, `bnpl_terms_not_an_offer`, `over_budget_today`, `delivery_unknown`, `width_unknown`, `fixture`.
 - **`Item.attributes` keys:** `product_class` (CFR class code, e.g. `"3"`), `volume_cuft` (total volume printed on the label), `adjusted_volume_cuft` (DOE adjusted volume; only this feeds the standard ceiling), `width_in`, `label_kwh_per_year` (kWh printed on the unit's own EnergyGuide label).
+- **Added 2026-09-26 21:10:** `lease.full_term_total(lease: Lease) -> float` (3.2.3: `total_of_payments` if printed, else `weekly_payment * term_weeks`, plus fees); `Repository.model_year_range(brand: str, model: str, product_class: str | float | None = None) -> tuple[int, int] | None` (2.2.4: first and last year DOE lists the model).
 - **Energy lookup order** (3.3.3), used by every path builder: `repo.model_energy` (ENERGY STAR, then DOE historical), then `label_kwh_per_year` (`user_entered`), then `repo.standard_ceiling` with `adjusted_volume_cuft`, else `not_estimated`. Added: `Repository.model_year(brand: str, model: str) -> int | None` (2.2.2).
 
 ## Phases
@@ -244,6 +247,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `api/app/data/energystar_refrigerators.csv` gains a last column `product_class`: the CFR code (`3`, `3I`, `5I-BI`, ...) from the dataset's `product_class` field, re-pulled 2026-09-26 (the same 4,830 rows). `Repository.model_energy(brand, model, product_class=None)` keeps only the matching rows of that class when the model is rated in it, else all of them; `quote`'s energy lookup passes the item's `product_class`. Without the class, GE `GTE18DTNRWW` (359 and 443 kWh) and Frigidaire `FFHT1814WW` (369 and 453) gave no figure, which blanked the retailer cache's new offers.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_repository.py api/tests/test_profile.py api/tests/test_quote_unit.py -q` passes, including tests that `GTE18DTNRWW` gives 359 with class `3`, 443 with `3I` and `None` with no class.
 
+- [ ] **2.2.4 DOE listing years as a range (Track B1/B2)** (NEW 2026-09-26, Codex review)
+  Add `Repository.model_year_range(brand, model, product_class=None) -> tuple[int, int] | None`: the first and last year the DOE historical data lists the model, with the same matching rules as `model_energy`. Keep `model_year` for now.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_profile.py -q` passes, including a test that the Maytag family on `label-older-maytag-mb2562.png` returns the DOE file's first and last listing years, and that an unknown model returns `None`.
+
 - [x] **2.3 Retailer cache (Track B3)**
   `api/app/data/retailer_cache.json`: 8 to 15 real new refrigerator listings recorded by hand, each an `Offer` with `source: "retailer_cache"`, `url`, `retrieved_at`, a `source_id` present in `sources.json`, and an `item_id` whose `Item` (brand, model, `product_class`, `volume_cuft`, `width_in`) is stored alongside. Every model appears in `energystar_refrigerators.csv` or is noted as missing. `api/tests/test_retailer_cache.py`: every offer validates, has a URL and date, and resolves its source.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_retailer_cache.py -q` passes.
@@ -296,6 +303,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   Remove `Receipt`'s own width, padding and light background so it sits inside the app shell and follows dark mode; give the "What's in this number" toggle a 44px minimum height; show each pinned flag as a plain sentence, with `costs_not_estimated` as a visible note under the headline numbers ("Some costs are not estimated, so the real total may be higher"); label carbon "kg CO2e"; show "up to" beside the PAL path's pay today.
   **Acceptance:** `npm --prefix web test -- Receipt` passes, including tests for the `costs_not_estimated` note, one flag sentence, "CO2e", and "up to" on the PAL path.
 
+- [ ] **2.9.2 Sentence for the inferred-year flag (Track C2)** (NEW 2026-09-26, Codex review; with 3.3.5)
+  Add the plain sentence for the new pinned flag `year_from_rating_data`: "The year made is estimated from the years DOE lists this model, so its remaining life is a range."
+  **Acceptance:** `npm --prefix web test -- Receipt` passes, including a test that the flag renders that sentence.
+
 - [x] **2.10 Tap-to-source sheet (Track C3)**
   `web/src/components/SourceSheet.tsx`: tapping any cost line opens a sheet with its label, amount range, formula, source label (`Rated`, `Published`, `You entered`, `Not estimated`) and, from `/sources`, the title, publisher, URL and retrieved date. `SourceSheet.test.tsx` renders one line of each `source_type` and finds the four label texts.
   **Acceptance:** `npm --prefix web test -- SourceSheet` passes.
@@ -334,6 +345,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   When `lease.payment_today` is set it is pay today (and month 0's payment) instead of the first weekly payment; when `lease.total_of_payments` is set it is the full-term total, spread evenly over the weeks in the window, and the effective annual cost uses it. Both formulas say the figure is "as printed on your lease".
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including a test with the Aaron's demo card's numbers (52 weeks, $33.48 a week, $0.01 today, $1,739.88 total, $1,196.99 cash): pay today is $0.01, the full-term total is $1,739.88, and the effective annual cost is 45%.
 
+- [ ] **3.2.3 A lease's full-term total (Track A4)** (NEW 2026-09-26, Codex review; after 3.2.2)
+  Add `full_term_total(lease: Lease) -> float` to `api/app/engine/lease.py`: `total_of_payments` if printed, else `weekly_payment * term_weeks`, plus `fees`. Pinned in "Fixed interfaces"; 3.3.4 uses it for cost per year.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including tests that a 208-week $30 lease totals $6,240, that a printed total wins over the weekly figure, and that fees are added.
+
 - [x] **3.3 All paths in the quote (Track A2)**
   Extend `quote` to all 9 path kinds: `repair` (when `current` is given; repair cost from `repair_quote_*` as `user_entered`, else the profile's repair ranges as `published`; running cost from the current unit), `refurbished` (from a refurbished listing; warranty months shown in a flag), `new` x4 via A3, `rent_to_own` x2 via A4 (when `lease` is given). A path whose inputs are absent is omitted, never invented. Apply flags: `past_typical_life`, `test_procedure_changed` (when comparing a pre-2014 unit with a newer one), `year_from_serial_low_confidence`. `api/tests/test_quote_all_paths.py`: a full request returns 9 paths sorted by `total_3yr_high`; each path's totals equal the sums of its arrays. `api/tests/test_copy.py`: no label, formula or flag in that output contains an em dash, `APR` or `qualif`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py api/tests/test_copy.py -q` passes.
@@ -349,6 +364,14 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [x] **3.3.3 One energy lookup for every path, including the shop (Track A2)** (NEW 2026-09-26, decisions 1 and 2)
   One function in `quote.py` resolves a unit's kWh in the pinned "Energy lookup order", and every path builder uses it, including `_cash_path`, so `rank` agrees with `quote`. When `mfg_year` is missing, use `repo.model_year` if it returns one. Add `model_year` to the `QuoteRepository` protocol.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py api/tests/test_rank.py -q` passes, including a test that the same used unit gets the same electricity line from `quote` and from `rank`, and a test for each step of the lookup order.
+
+- [ ] **3.3.4 Cost per year from the full cost; ranges that never flip (Track A2)** (NEW 2026-09-26, Codex review; needs 3.2.3)
+  Cost per year's purchase total is the full acquisition cost: the cash price, or the full financed total (card and PAL schedules, BNPL's full cost, `lease.full_term_total` for rent-to-own), never the part inside the 36-month window. Build every low/high pair (3-year total, cost per year, expected life) as the min and max of its scenarios, since an earlier, more efficient replacement can be the cheaper case.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including a test that a 208-week $30 lease's cost per year uses the $6,240 total (about $536 a year, not $416), and a property test over at least 500 generated requests that low never exceeds high for any path's 3-year total, cost per year or expected life.
+
+- [ ] **3.3.5 An inferred year is a range, flagged (Track A2)** (NEW 2026-09-26, Codex review; needs 2.2.4)
+  When `mfg_year` is missing and `repo.model_year_range` returns years, use both ends for the age, so expected life and cost per year become ranges; add the flag `year_from_rating_data`; never write an inferred year into `mfg_year`. Call `model_year_range` only if the repository has it until 2.2.4 lands.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including a test that an undated unit whose model DOE lists over several years gets an expected-life range from both ends and the `year_from_rating_data` flag, with `mfg_year` left `None`.
 
 - [x] **3.4 Serial decode (Track B4)**
   `api/app/serial/decode.py`: decoders keyed by brand, only for the brands on the demo cards and in the retailer cache, each rule's `source_id` in `sources.json`. A year code that repeats on a cycle resolves from model era when possible, otherwise returns `year_confidence="low"`. An unknown brand returns `SerialDecode(None, "none", None, "no decoder for brand")`. `api/tests/test_serial.py`: one known serial per supported brand decodes to its year; an unknown brand returns confidence `none`.
@@ -379,6 +402,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   In `Entry.tsx`: a "Scan" button using `<input type="file" accept="image/*" capture="environment">`, an "Upload saved image" button, and a kind picker (label, price tag, lease, listing). A scan result, valid or not, pre-fills the same manual form for correction; the user confirms before quoting. A lease form with every `Lease` field. `Entry.test.tsx`: an invalid `ScanResult` with a parsed brand pre-fills the brand field and shows the errors.
   **Acceptance:** `npm --prefix web test -- Entry` passes.
   **Status (2026-09-26, task 1.7):** pre-fill the correction form from `ScanResult.fields`; `item`, `offer` and `lease` arrive only when the scan is valid.
+  **Status (2026-09-26 21:10, reviews of #48 and #52):** also: the lease form gets `payment_today`, `total_of_payments` and the leased fridge's brand and model, and no "Lease source" field; pass `budgetToday` into `Receipt` so 3.11's dimming works; drop "Price tag" from the scan picker tonight; give the `/scan` request a 60-second timeout with a visible reading state.
 
 - [ ] **3.11 Budget, flags and motion (Track C2)**
   In `Receipt.tsx`: paths whose `pay_today` exceeds the "spend up to" amount are dimmed with "More than you can spend today" (never hidden); flags render as plain sentences; a Framer Motion print-in animation on first render, off under `prefers-reduced-motion`. `Receipt.test.tsx` covers the dimming.
@@ -441,6 +465,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [x] **4.8.1 Stage wording fixes (Track 0 — operator)** (NEW 2026-09-26, review)
   In `docs/pitch.md`: "ACEEE's 2016 report" instead of "2016 data" (or ACEEE's 2024 update, after confirming its Atlanta low-income column); no "2004 unit" (say what the card shows); "tap any line" instead of "tap any number"; "energy costs equal to X% of income (EIA-estimated)" instead of "spent"; no claim that a refurbished warranty narrows a range or that other categories work today; crop the under-$5,000 bracket from the chart; about 20 seconds of visible AI (the scan and the shopping request's filter chips); open with the lease story.
   **Acceptance:** `grep -c -E '2004 unit|2016 data|[Tt]ap any number' docs/pitch.md` prints `0`.
+
+- [ ] **4.8.2 Pitch follows the rewritten demo script (Track 0, operator)** (NEW 2026-09-26, Codex review)
+  Align `docs/pitch.md` with "Demo Script for Judges": lead with the lease ($0.01 today, $1,739.88 total, $542.89 over its cash price, 45%); no serial typed from a card, no buyout week, the Maytag as Rated 505 kWh from DOE historical data with no year; paths sorted with complete ones first; the lease page does show its total. Every number must match `analysis/recs/out/burden.csv` or the demo script.
+  **Acceptance:** `grep -c -i -E 'buyout week|serial|sorted by total over 3 years' docs/pitch.md` prints `0`.
 
 - [ ] **4.9 Code freeze at Sun 02:00 (Track 0 — operator)**
   Merge nothing new after 02:00 except demo-breaking fixes. Tag the last green `main` commit: `git tag freeze origin/main` then `git push origin freeze`.
