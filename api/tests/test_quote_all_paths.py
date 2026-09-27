@@ -1,4 +1,4 @@
-"""`quote` with every kind of path (PLAN.md tasks 3.3 and 3.3.1), against a fake repository."""
+"""`quote` with every kind of path (PLAN.md tasks 3.3 to 3.3.3), against a fake repository."""
 
 from dataclasses import dataclass, field
 from datetime import date
@@ -78,6 +78,7 @@ class FakeRepo:
     energy_refs: list[str] = field(default_factory=lambda: ["energystar_refrigerators"])
     lifespan: tuple[float, float] = (10, 15)
     historical: set[str] = field(default_factory=set)  # models rated from a second source
+    years: dict[str, int] = field(default_factory=dict)  # model -> year from the rating data
 
     def rate(self, key: str) -> RateValue:
         return RATES[key]
@@ -109,6 +110,9 @@ class FakeRepo:
 
     def bnpl_terms(self) -> BnplTerms | None:
         return self.bnpl
+
+    def model_year(self, brand: str, model: str) -> int | None:
+        return self.years.get(model)
 
     def standard_ceiling(self, mfg_year: int, product_class: str, volume_cuft: float) -> ModelEnergy | None:
         self.ceiling_calls.append((mfg_year, product_class, volume_cuft))
@@ -468,3 +472,122 @@ def test_a_single_figure_life_reads_as_one_number() -> None:
     old = used_path(USED.model_copy(update={"mfg_year": THIS_YEAR - 20}), FakeRepo(lifespan=(13, 13)))
     [line] = replacement_lines(old)
     assert "typical 13 year life" in line.formula
+
+
+# Task 3.3.3: one energy lookup for every path, including the shop.
+
+CLASS_3 = {"product_class": "3", "adjusted_volume_cuft": 20.5}  # ceiling: 8 x 20.5 + 300 = 464 kWh
+
+
+def unit(model: str = "UNRATED", year: int | None = THIS_YEAR - 9, **attributes: str | float) -> Item:
+    """A used unit (id "used", sold through `USED_OFFER`); the fake rates only OLD123 and the new models."""
+    return USED.model_copy(update={"model": model, "mfg_year": year, "attributes": attributes})
+
+
+PARITY_UNITS = {
+    "rated": unit("OLD123"),
+    "label kWh": unit(label_kwh_per_year=700.0),
+    "standard ceiling": unit(year=2004, **CLASS_3),
+    "no figure": unit(),
+    "year from the rating data": unit("OLD123", year=None),
+}
+
+
+@pytest.mark.parametrize("name", PARITY_UNITS)
+def test_quote_and_rank_give_a_used_unit_the_same_electricity(name: str) -> None:
+    item = PARITY_UNITS[name]
+    repo = FakeRepo(years={"OLD123": THIS_YEAR - 9})
+    quoted = used_path(item, repo)
+    [ranked] = rank(ShopFilters(), [USED_OFFER], [item], repo)
+    running = [line for line in quoted.lines if line.kind == "running"]
+    assert running == [line for line in ranked.path.lines if line.kind == "running"]
+    # The whole path matches too, apart from the flag that compares units across one quote.
+    same = [f for f in quoted.flags if f != "test_procedure_changed"]
+    assert quoted.model_copy(update={"flags": same}) == ranked.path
+
+
+def test_lookup_takes_the_rated_figure_first() -> None:
+    repo = FakeRepo()
+    line = used_path(unit("OLD123", year=2004, label_kwh_per_year=700.0, **CLASS_3), repo).lines[1]
+    assert (line.source_type, line.source_id, line.amount_high) == ("rated", "energystar_refrigerators", 90.0)
+    assert repo.ceiling_calls == []
+
+
+def test_lookup_rated_figure_can_come_from_the_historical_ratings() -> None:
+    line = used_path(unit("OLD123"), FakeRepo(historical={"OLD123"})).lines[1]
+    assert (line.source_type, line.source_id, line.amount_high) == ("rated", "doe_historical", 90.0)
+
+
+def test_lookup_then_the_label_kwh_before_the_ceiling() -> None:
+    repo = FakeRepo()
+    used = used_path(unit(year=2004, label_kwh_per_year=700.0, **CLASS_3), repo)
+    line = used.lines[1]
+    assert (line.label, line.source_type, line.source_id, line.amount_high) == ("Electricity", "user_entered", "user", 105.0)
+    assert used.carbon_source_ids == ["user", "egrid_georgia"]
+    assert repo.ceiling_calls == []
+
+
+def test_lookup_then_the_standard_ceiling() -> None:
+    repo = FakeRepo()
+    line = used_path(unit(year=2004, **CLASS_3), repo).lines[1]
+    assert (line.label, line.source_type, line.source_id) == ("Electricity, up to when new", "published", "doe_standards")
+    assert line.amount_high == round(464 * 0.15, 2)
+    assert repo.ceiling_calls == [(2004, "3", 20.5)]
+
+
+def test_lookup_else_not_estimated() -> None:
+    used = used_path(unit(year=2004))
+    assert used.lines[1].source_type == "not_estimated"
+    assert INCOMPLETE in used.flags
+
+
+@pytest.mark.parametrize("label", ["about 700", 0.0, -5.0, "nan", "inf"])
+def test_a_label_kwh_that_is_not_a_positive_number_is_skipped(label: str | float) -> None:
+    line = used_path(unit(year=2004, label_kwh_per_year=label, **CLASS_3)).lines[1]
+    assert line.source_id == "doe_standards"
+
+
+def test_a_new_unit_uses_its_label_kwh_too() -> None:
+    leased = LEASED.model_copy(update={"model": "UNRATED", "attributes": {"label_kwh_per_year": "500"}})
+    full = pick(quote(full_request(items=[USED, REFURB, leased]), FakeRepo()), "rent_to_own", "rto_full")
+    [line] = [line for line in full.lines if line.label == "Electricity"]
+    assert (line.source_type, line.source_id, line.amount_high) == ("user_entered", "user", 75.0)
+
+
+def test_a_missing_year_comes_from_the_rating_data() -> None:
+    repo = FakeRepo(years={"OLD123": THIS_YEAR - 9})
+    used = used_path(unit("OLD123", year=None), repo)
+    assert (used.expected_life_low, used.expected_life_high) == (1, 6)
+    assert [line.source_type for line in replacement_lines(used)] == ["published"]  # priced, not "year unknown"
+    repair = pick(quote(QuoteRequest(current=unit("OLD123", year=None)), repo), "repair", None)
+    assert (repair.expected_life_low, repair.expected_life_high) == (1, 6)
+
+
+def test_an_entered_year_is_kept() -> None:
+    used = used_path(unit("OLD123", year=THIS_YEAR - 8), FakeRepo(years={"OLD123": THIS_YEAR - 20}))
+    assert (used.expected_life_low, used.expected_life_high) == (2, 7)
+
+
+def test_the_ceiling_uses_the_year_from_the_rating_data() -> None:
+    repo = FakeRepo(years={"UNRATED": 2004})
+    used = used_path(unit(year=None, **CLASS_3), repo)
+    assert repo.ceiling_calls == [(2004, "3", 20.5)]
+    assert used.lines[1].source_id == "doe_standards"
+
+
+def test_a_new_unit_is_not_dated_from_the_rating_data() -> None:
+    # A new unit was made recently, not when its model was rated, so no 2004 ceiling for it.
+    repo = FakeRepo(years={"UNRATED": 2004})
+    leased = LEASED.model_copy(update={"model": "UNRATED", "attributes": CLASS_3})
+    # No current unit: the request's 2004 repair unit would ask for its own ceiling.
+    full = pick(quote(full_request(current=None, items=[USED, REFURB, leased]), repo), "rent_to_own", "rto_full")
+    assert [line.source_type for line in full.lines if line.label.startswith("Electricity")] == ["not_estimated"]
+    assert repo.ceiling_calls == []
+
+
+def test_quote_and_rank_price_the_new_offer_the_same() -> None:
+    repo = FakeRepo()
+    quoted = pick(quote(QuoteRequest(), repo), "new", "cash")
+    [ranked] = rank(ShopFilters(), [NEW_OFFERS[1]], [NEW], repo)
+    assert quoted == ranked.path
+    assert not any(line.label == "Extra use from age" for line in ranked.path.lines)
