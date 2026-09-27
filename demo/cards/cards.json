@@ -67,17 +67,23 @@
         "weekly_payment": 33.48,
         "term_weeks": 52,
         "cash_price": 1196.99,
-        "fees": 0,
+        "fees": "None",
         "payment_today": 0.01,
         "total_of_payments": 1739.88
       },
       "also_printed": {
-        "enrollment_fee": "None",
         "ownership_plan": "12 months",
         "monthly_total": 144.99,
         "cost_of_lease_services": 542.89
       },
-      "corrections": [],
+      "corrections": [
+        {
+          "field": "fees",
+          "printed": "None",
+          "typed": 0,
+          "why": "The card prints \"Enrollment Fee: None\"; Lease.fees is a dollar amount, and no fee is 0."
+        }
+      ],
       "typed": {
         "item": {
           "id": "card-aarons-frte1936av",
