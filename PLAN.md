@@ -122,6 +122,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 | C1 Shell, entry and scan UI | Track C | `web/src/App.tsx`, `web/src/main.tsx`, `web/src/api.ts`, `web/src/pages/Entry.tsx`, `web/src/pages/Entry.test.tsx`, `web/src/copy.test.ts`, `web/src/index.css` | A1 contracts |
 | C2 Receipt | Track C | `web/src/components/Receipt.tsx`, `web/src/components/PathCard.tsx`, `web/src/format.ts`, `web/src/components/Receipt.test.tsx`, `web/src/format.test.ts` | A1 contracts |
 | C3 Source sheet | Track C | `web/src/components/SourceSheet.tsx`, `web/src/components/SourceSheet.test.tsx` | C2's `format.ts` |
+| C5 UI kit (4.10) | Track C | `web/components.json`, `web/src/lib/utils.ts`, `web/src/components/ui/*` | C1 to C4 |
 | C4 Shop | Track C | `web/src/pages/Shop.tsx`, `web/src/pages/Shop.test.tsx` | C2, A1 contracts |
 | D1 Grok scan | Track D, **in Cursor** | `api/app/grok/__init__.py`, `api/app/grok/client.py`, `api/app/grok/scan.py`, `api/tests/test_scan.py`, `api/tests/test_not_a_wrapper.py`, `api/tests/fixtures/` | A1 models, A2 `quote` |
 | D2 Grok request parsing | Track D, **in Cursor** | `api/app/grok/parse.py`, `api/tests/test_parse.py` | D1's `client.py` |
@@ -542,6 +543,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [x] **4.8.3 Stage numbers locked by a test (Track A2)** (NEW 2026-09-26 22:15)
   `api/tests/test_demo_script.py`: runs "Demo Script for Judges" through `/item` and `/quote` with `TestClient` and the inputs in `demo/cards/cards.json`, and asserts what the presenter says. Scenario 1: pay today $0.01; a "Total of lease payments" line with $1,739.88; "$542.89 more than the cash price of $1,196.99" and 45% on "Rent-to-own, keep paying"; exactly one rent-to-own path, after every complete new path; the cheapest new offer $548. Scenario 2: the Maytag's electricity line is rated 505 kWh from `doe_wap_refrigerators`; its replacement line is not estimated; its `mfg_year` stays empty. Any late merge that moves a stage number then fails CI.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_demo_script.py -q` passes.
+
+- [ ] **4.10 UI polish with shadcn/ui (Track C: Addy, Neil and Krish together)** (NEW 2026-09-26 22:30)
+  Restyle only: `components.json`, `web/src/lib/utils.ts`, `web/src/components/ui/*`, the `@/` alias in `web/vite.config.ts` and `web/tsconfig.app.json`, and class names and wrappers in the existing pages and components. New packages (operator-approved): `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`, `tw-animate-css`, and only the `@radix-ui/*` packages the used components need; commit `package.json` with `package-lock.json`. Keep every label, button text and accessible name the tests query, and every path name, line label and flag sentence the Demo Script and pitch quote; change no logic in `api.ts`, `format.ts` or `contracts.ts`. Mobile first: no horizontal scroll at 375 px. Merge `origin/main` in before the PR (the flaky-test fix and 3.10.1 land in `Entry.tsx` first). One PR, auto-merge off, reviewed by Aarav.
+  **Acceptance:** `npm --prefix web ci && npm --prefix web test && npm --prefix web run build` passes with no test file weakened or deleted, and `api/.venv/bin/python -m pytest api/tests analysis -q` still passes.
 
 - [ ] **4.9 Code freeze at Sun 02:00 (Track 0 — operator)**
   Merge nothing new after 02:00 except demo-breaking fixes. (A 22:00 verdict moved this to 23:00; superseded at 22:15: 23:00 is the target, 02:00 stays the freeze.) Tag the last green `main` commit: `git tag freeze origin/main` then `git push origin freeze`.
