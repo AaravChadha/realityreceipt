@@ -153,6 +153,15 @@ def _of_class(hits: list[_EnergyRow], product_class: str | float | None) -> list
     return same or hits
 
 
+def _icemaker_pair_of(product_class: str | float | None) -> tuple[str, str, bool] | None:
+    """For a class with an icemaker form, `(base, with_icemaker, is_icemaker)`: `3` and `3I` both
+    give `("3", "3I", ...)`, `5I-BI` gives `("5-BI", "5I-BI", True)`; None for any other class."""
+    m = re.fullmatch(r"(\d+)(I?)(-BI)?", _class_key(product_class) or "")
+    if not m:
+        return None
+    return m[1] + (m[3] or ""), m[1] + "I" + (m[3] or ""), bool(m[2])
+
+
 def _matching_rows(rows: list[_EnergyRow], brand: str, model: str) -> list[_EnergyRow]:
     """Rows of the same brand that stand for `model`, fewest wildcards only; when the brand has
     none, the rows of the other brand of the same maker (`_SAME_MAKER`)."""
@@ -267,10 +276,11 @@ class Repository:
         must match (`GE Appliances` counts as `GE`); another brand's row is never returned. The
         row with the fewest wildcards wins. When `product_class` is given and ENERGY STAR rates the
         model in that class (`3` without an icemaker, `3I` with one), only those rows count. If the
-        rows left disagree on kWh the answer is None, and `model_candidates` lists them. ENERGY
-        STAR is asked first; DOE's historical ratings are used only when ENERGY STAR has no
-        matching row, so an ambiguous ENERGY STAR model stays `None` rather than falling back to
-        an older figure.
+        rows left disagree on kWh the answer is None, and `model_candidates` lists them; the one
+        exception is two DOE ratings one icemaker adder apart, which the given class resolves
+        (`_icemaker_pick`). ENERGY STAR is asked first; DOE's historical ratings are used only
+        when ENERGY STAR has no matching row, so an ambiguous ENERGY STAR model stays `None`
+        rather than falling back to an older figure.
         """
         for rows, source_id in (
             (self._energy, "energystar_refrigerators"),
@@ -278,10 +288,46 @@ class Repository:
         ):
             hits = _of_class(_matching_rows(rows, brand, model), product_class)
             if hits:
-                if len({r.annual_kwh for r in hits}) > 1:
+                kwh = {r.annual_kwh for r in hits}
+                if len(kwh) > 1 and source_id == "doe_wap_refrigerators":
+                    kwh = {self._icemaker_pick(kwh, product_class)} - {None}
+                if len(kwh) != 1:
                     return None
-                return ModelEnergy(kwh_per_year=hits[0].annual_kwh, source_type="rated", source_id=source_id)
+                return ModelEnergy(kwh_per_year=kwh.pop(), source_type="rated", source_id=source_id)
         return None
+
+    def _icemaker_pick(self, kwh: set[float], product_class: str | float | None) -> float | None:
+        """Of two DOE ratings exactly one icemaker adder apart, the one for `product_class`, or None.
+
+        DOE's historical file has no class column, and lists many models twice: without and with
+        an automatic icemaker. Every icemaker class's current standard (10 CFR 430.32(a)) has its
+        base class's slope and an intercept 84 kWh higher, and the ratings differ by the same
+        amount. So when the item's class is given and the two figures differ by that adder (to
+        within rounding), the lower is the base class's and the higher the icemaker class's. The
+        adder is read from the standards file; with no class, another gap, or three or more
+        figures, the answer stays None. This is an inference, not a rating in the item's class.
+        """
+        pair = _icemaker_pair_of(product_class)
+        if pair is None or len(kwh) != 2:
+            return None
+        base, with_icemaker, is_icemaker = pair
+        adder = self._icemaker_adder(base, with_icemaker)
+        low, high = sorted(kwh)
+        if adder is None or abs(high - low - adder) > 0.5:
+            return None
+        return high if is_icemaker else low
+
+    def _icemaker_adder(self, base: str, with_icemaker: str) -> float | None:
+        """The icemaker class's current intercept minus its base class's, when their slopes match."""
+        latest: dict[str, _Standard] = {}
+        for s in self._standards:
+            if s.product_class in (base, with_icemaker) and (
+                s.product_class not in latest or s.from_date > latest[s.product_class].from_date
+            ):
+                latest[s.product_class] = s
+        if len(latest) != 2 or latest[base].kwh_per_cuft != latest[with_icemaker].kwh_per_cuft:
+            return None
+        return latest[with_icemaker].kwh_base - latest[base].kwh_base
 
     def model_year(self, brand: str, model: str) -> int | None:
         """The latest year DOE's historical database lists `brand` and `model`, or None.

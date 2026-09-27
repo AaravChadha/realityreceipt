@@ -76,12 +76,14 @@ The option that looks cheapest today often costs the most over time: an old used
 > 6. **Demo address:** the API serves the built web app at one address, deployed behind the team's free .tech domain; the quick tunnel stays as backup; a backup video is recorded. Tasks 2.7.1, 2.11.1.
 > 7. **3-year window:** only payments falling in months 0 to 35 count; later lease or BNPL payments are left out, not moved into month 35 (the full total stays in the line's formula). Supersedes 3.2's `min(35, ...)` bucketing. Tasks 3.1.1, 3.2.1.
 > 8. **Past typical life:** flag `past_typical_life`, insert no replacement, mark replacement timing `not_estimated`. After a replacement inside the window, running cost switches to the replacement unit. Task 3.3.2.
-> 9. **Rated means the brand matches;** several matching rows with different kWh return `None` with the rows as candidates. Task 2.2.1. **Refined (2026-09-26):** ENERGY STAR certifies many models twice, without and with an automatic icemaker (class `3` and `3I`, about 84 kWh apart). The CSV keeps each row's CFR class, and an item's `product_class` picks the rows of that class. With no class given, the two still disagree and return `None`. Task 2.2.3. **Refined (2026-09-26):** an EnergyGuide may print the maker ("Electrolux Home Products Inc." on the Frigidaire demo label), which counts as Electrolux. Electrolux and Frigidaire, one maker, fall back to each other only when the brand as given has no matching row. They are never merged, because DOE lists some models under both names at different kWh. A retailer's house brand (Kenmore) is never an alias. Task 2.2.4.
+> 9. **Rated means the brand matches;** several matching rows with different kWh return `None` with the rows as candidates. Task 2.2.1. **Refined (2026-09-26):** ENERGY STAR certifies many models twice, without and with an automatic icemaker (class `3` and `3I`, about 84 kWh apart). The CSV keeps each row's CFR class, and an item's `product_class` picks the rows of that class. With no class given, the two still disagree and return `None`. Task 2.2.3. **Refined (2026-09-26):** an EnergyGuide may print the maker ("Electrolux Home Products Inc." on the Frigidaire demo label), which counts as Electrolux. Electrolux and Frigidaire, one maker, fall back to each other only when the brand as given has no matching row. They are never merged, because DOE lists some models under both names at different kWh. A retailer's house brand (Kenmore) is never an alias. Task 2.2.4. **Refined (2026-09-26):** DOE's historical file has no class column and lists many models twice, exactly 84 kWh apart. Every icemaker class's DOE standard (10 CFR 430.32(a)) has its base class's slope and an intercept 84 kWh higher, so two DOE figures exactly that adder apart are read as without and with an icemaker, and the item's class picks one (lower for `3`, `4`, `5`, `3-BI`, ...; higher for `3I`, `4I`, `5I`, `3I-BI`, ...). This is an inference from the standard, limited to an exact pair and a given class; any other disagreement, or no class, still returns `None`. ENERGY STAR rows are unaffected. Task 2.2.6.
 > Tradeoff: about fifteen small tasks across rows tonight; mitigated by each being one row's files with its own acceptance.
 
 > **Decision (2026-09-26 18:45):** ~~Grok Voice read-aloud in English and Spanish (spec §5 item 8; tasks 4.5, 4.6)~~ → **Verdict (2026-09-26):** dropped. Reading a table of numbers aloud adds little a user would actually use, and judges would see it was there for the prize. The SpaceXAI entry rests on the Grok scan and the shopping request. Future extension: a Spanish version of the screen from written templates, not voice.
 
 > **Decision (2026-09-26 21:10): fixes from the second Codex review** (main at f435b79). (1) Cost per year uses the full acquisition cost: a lease or BNPL total beyond 36 months still counts, even though the 3-year total leaves those payments out. Tasks 3.2.3, 3.3.4. (2) Every range is built from the min and max of its scenarios, so low never exceeds high; an earlier, more efficient replacement can be the cheaper case. Task 3.3.4. (3) A manufacture year inferred from DOE listing years is a range with a visible flag, never written in as if typed. Tasks 2.2.5, 3.3.5, 2.9.2. (4) The scan picker drops "Price tag" tonight, because the quote prices new paths from the cached offers, not from a scanned tag. Task 3.10's status. (5) docs/pitch.md follows the rewritten demo script. Task 4.8.2.
+
+> **Decision (2026-09-26 21:45): from the demo check on main (session 4, 54a9954).** (1) The keep-paying path states its cost over the cash price ($542.89 on the demo lease, the cost of lease services), as the demo script says; 3.2.1 had put that comparison on the buyout path only. Task 3.2.4. (2) With no early purchase terms there is no buyout card: it repeated the keep-paying numbers, which asserts a buyout price nobody knows. Task 3.3.6. (3) The script follows the pinned sort (complete paths by 3-year total), so the lease is the last path, the most expensive over 3 years; Scenarios 1 to 4 now say what main shows.
 
 ## Index of phases
 
@@ -135,7 +137,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - Reserved source ids: `user` (typed by the user), `user_listing` (from the user's listing), `user_lease` (from the user's lease). Every other id comes from `api/app/data/sources.json`.
 - **Flags** (pinned 2026-09-26; the web shows each as a plain sentence): `year_from_rating_data` (added 21:10, task 3.3.5), `costs_not_estimated`, `past_typical_life`, `test_procedure_changed`, `year_from_serial_low_confidence`, `pal_caps_not_an_offer`, `bnpl_terms_not_an_offer`, `over_budget_today`, `delivery_unknown`, `width_unknown`, `fixture`.
 - **`Item.attributes` keys:** `product_class` (CFR class code, e.g. `"3"`), `volume_cuft` (total volume printed on the label), `adjusted_volume_cuft` (DOE adjusted volume; only this feeds the standard ceiling), `width_in`, `label_kwh_per_year` (kWh printed on the unit's own EnergyGuide label).
-- **Added 2026-09-26 21:10:** `lease.full_term_total(lease: Lease) -> float` (3.2.3: `total_of_payments` if printed, else `weekly_payment * term_weeks`, plus fees); `Repository.model_year_range(brand: str, model: str, product_class: str | float | None = None) -> tuple[int, int] | None` (2.2.5: first and last year DOE lists the model).
+- **Added 2026-09-26 21:10:** `lease.full_term_total(lease: Lease) -> float` (3.2.3: ~~`total_of_payments` if printed, else `weekly_payment * term_weeks`, plus fees~~ → **Verdict (2026-09-26):** the sum of 3.2.2's payment schedule (so a printed payment today replaces the first weekly payment), plus fees — it must match the keep-paying line.); `Repository.model_year_range(brand: str, model: str, product_class: str | float | None = None) -> tuple[int, int] | None` (2.2.5: first and last year DOE lists the model).
 - **Energy lookup order** (3.3.3), used by every path builder: `repo.model_energy` (ENERGY STAR, then DOE historical), then `label_kwh_per_year` (`user_entered`), then `repo.standard_ceiling` with `adjusted_volume_cuft`, else `not_estimated`. Added: `Repository.model_year(brand: str, model: str) -> int | None` (2.2.2).
 
 ## Phases
@@ -250,6 +252,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   In `api/app/repository.py`: `_BRAND_ALIASES` maps `Electrolux Home Products Inc.` to Electrolux, and `_SAME_MAKER` lets Electrolux and Frigidaire each fall back to the other's rows only when the brand as given has none. Scanning the Frigidaire card (`label-current-frigidaire-ffht1822u.png`) returned brand "Electrolux Home Products Inc." and no rating; it now returns the ENERGY STAR 360 kWh. No lookup of a model listed under either brand changes.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_repository.py api/tests/test_profile.py -q` passes, including a test that `model_energy("Electrolux Home Products Inc.", "FFHT1822U*")` gives 360 kWh and that `ERQR32E3HSS` keeps 409 kWh for Frigidaire and 438 for Electrolux.
 
+- [x] **2.2.6 DOE icemaker pairs (Track B2)** (NEW 2026-09-26, decision 9; 2.2.5 was taken by #62)
+  In `Repository.model_energy`, DOE rows only: when the matching rows give exactly two kWh figures that differ by the icemaker adder (the icemaker class's current DOE standard intercept minus its base class's, read from `doe_standards_refrigerators.json`: 84 kWh, within 0.5 for rounding), and the item's class is a base class with an icemaker form or that form, return the lower figure for the base class and the higher for the icemaker class. No class, another gap, or three or more figures still give `None`. Seven retailer-cache new fridges that ENERGY STAR does not list (GE `GTS18HGNRWW` 399, `GTS22KGNRWW` 451; Frigidaire `FFTR1814WB`/`WW` 410; Whirlpool `WRT311FZDW` 436, `WRT318FZDM`/`FZDW` 411, all class `3`) had no rating and showed electricity as not estimated.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_repository.py api/tests/test_profile.py -q` passes, including tests that a DOE pair 410/494 gives 410 for class `3`, 494 for `3I` and `None` with no class, that a pair 50 apart, three figures or class `7` give `None`, and that `FFTR1814WW` (class `3`) gives 410 and `WRT318FZDM` gives 411 from the real data.
+
 - [ ] **2.2.5 DOE listing years as a range (Track B1/B2)** (NEW 2026-09-26, Codex review; numbered 2.2.4 in #59, renumbered because #60 took 2.2.4)
   Add `Repository.model_year_range(brand, model, product_class=None) -> tuple[int, int] | None`: the first and last year the DOE historical data lists the model, with the same matching rules as `model_energy`. Keep `model_year` for now.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_profile.py -q` passes, including a test that the Maytag family on `label-older-maytag-mb2562.png` returns the DOE file's first and last listing years, and that an unknown model returns `None`.
@@ -257,6 +263,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [x] **2.3 Retailer cache (Track B3)**
   `api/app/data/retailer_cache.json`: 8 to 15 real new refrigerator listings recorded by hand, each an `Offer` with `source: "retailer_cache"`, `url`, `retrieved_at`, a `source_id` present in `sources.json`, and an `item_id` whose `Item` (brand, model, `product_class`, `volume_cuft`, `width_in`) is stored alongside. Every model appears in `energystar_refrigerators.csv` or is noted as missing. `api/tests/test_retailer_cache.py`: every offer validates, has a URL and date, and resolves its source.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_retailer_cache.py -q` passes.
+
+- [x] **2.3.1 Retailer-cache notes match the data (Track B3)** (NEW 2026-09-26)
+  `retailer_cache.json`'s `energystar_notes` said the ENERGY STAR CSV was not on main and marked all 14 models missing; 7 are ENERGY STAR (class 3) and the other 7 are now noted missing with DOE's without/with-icemaker kWh. `test_retailer_cache.py` now checks each note against `Repository.model_energy` (the repository's wildcard and product-class matching, ENERGY STAR source only) both ways, so a stale "missing" note fails. Done on Krish's behalf.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_retailer_cache.py -q`
 
 - [x] **2.4 Running cost and carbon (Track A5)**
   `api/app/engine/running.py` per "Fixed interfaces". `energy`: monthly cost = `kwh_per_year / 12 * rate.value` in every month 0 to 35; one `running` line with the kWh source label and a `formula` string. `aging_line`: a `running` line labeled "Extra use from age", `not_estimated`. `carbon_kg`: `kwh_per_year * kg_per_kwh.value * months / 12`. `upkeep`: each item's cost at every `every_months`. `api/tests/test_running.py`: 600 kWh at $0.15 gives $7.50 a month and $270.00 over the 36 months; carbon for 600 kWh at 0.4 kg over 36 months is 720 kg.
@@ -306,7 +316,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   Remove `Receipt`'s own width, padding and light background so it sits inside the app shell and follows dark mode; give the "What's in this number" toggle a 44px minimum height; show each pinned flag as a plain sentence, with `costs_not_estimated` as a visible note under the headline numbers ("Some costs are not estimated, so the real total may be higher"); label carbon "kg CO2e"; show "up to" beside the PAL path's pay today.
   **Acceptance:** `npm --prefix web test -- Receipt` passes, including tests for the `costs_not_estimated` note, one flag sentence, "CO2e", and "up to" on the PAL path.
 
-- [ ] **2.9.2 Sentence for the inferred-year flag (Track C2)** (NEW 2026-09-26, Codex review; with 3.3.5)
+- [x] **2.9.2 Sentence for the inferred-year flag (Track C2)** (NEW 2026-09-26, Codex review; with 3.3.5)
   Add the plain sentence for the new pinned flag `year_from_rating_data`: "The year made is estimated from the years DOE lists this model, so its remaining life is a range."
   **Acceptance:** `npm --prefix web test -- Receipt` passes, including a test that the flag renders that sentence.
 
@@ -348,9 +358,13 @@ One row = one session's file set. A person with fewer sessions runs several rows
   When `lease.payment_today` is set it is pay today (and month 0's payment) instead of the first weekly payment; when `lease.total_of_payments` is set it is the full-term total, spread evenly over the weeks in the window, and the effective annual cost uses it. Both formulas say the figure is "as printed on your lease".
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including a test with the Aaron's demo card's numbers (52 weeks, $33.48 a week, $0.01 today, $1,739.88 total, $1,196.99 cash): pay today is $0.01, the full-term total is $1,739.88, and the effective annual cost is 45%.
 
-- [ ] **3.2.3 A lease's full-term total (Track A4)** (NEW 2026-09-26, Codex review; after 3.2.2)
-  Add `full_term_total(lease: Lease) -> float` to `api/app/engine/lease.py`: `total_of_payments` if printed, else `weekly_payment * term_weeks`, plus `fees`. Pinned in "Fixed interfaces"; 3.3.4 uses it for cost per year.
+- [x] **3.2.3 A lease's full-term total (Track A4)** (NEW 2026-09-26, Codex review; after 3.2.2)
+  Add `full_term_total(lease: Lease) -> float` to `api/app/engine/lease.py`: ~~`total_of_payments` if printed, else `weekly_payment * term_weeks`, plus `fees`~~ → **Verdict (2026-09-26):** the sum of 3.2.2's payment schedule (so a printed payment today replaces the first weekly payment), plus fees — it must match the keep-paying line. Pinned in "Fixed interfaces"; 3.3.4 uses it for cost per year.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including tests that a 208-week $30 lease totals $6,240, that a printed total wins over the weekly figure, and that fees are added.
+
+- [ ] **3.2.4 Keep-paying states its cost over the cash price (Track A4)** (NEW 2026-09-26 21:45, demo check)
+  ~~`rto_full` keeps the effective annual cost in its formula; `rto_buyout` drops it and states its total minus the cash price~~ (3.2.1) → **Verdict (2026-09-26):** `rto_full`'s formula also states `full_term_total(lease)` minus the cash price ("That is $X more than the cash price of $Y"), before the effective annual cost, and says "No early purchase terms entered" when `early_purchase_rule` is "none" (3.3.6 drops the buyout path in that case). `rto_buyout` keeps its own comparison.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including a test that the Aaron's demo lease (`demo/cards/cards.json`) gives a keep-paying formula containing "$542.89 more than the cash price of $1,196.99", "45%" and "No early purchase terms entered".
 
 - [x] **3.3 All paths in the quote (Track A2)**
   Extend `quote` to all 9 path kinds: `repair` (when `current` is given; repair cost from `repair_quote_*` as `user_entered`, else the profile's repair ranges as `published`; running cost from the current unit), `refurbished` (from a refurbished listing; warranty months shown in a flag), `new` x4 via A3, `rent_to_own` x2 via A4 (when `lease` is given). A path whose inputs are absent is omitted, never invented. Apply flags: `past_typical_life`, `test_procedure_changed` (when comparing a pre-2014 unit with a newer one), `year_from_serial_low_confidence`. `api/tests/test_quote_all_paths.py`: a full request returns 9 paths sorted by `total_3yr_high`; each path's totals equal the sums of its arrays. `api/tests/test_copy.py`: no label, formula or flag in that output contains an em dash, `APR` or `qualif`.
@@ -368,13 +382,17 @@ One row = one session's file set. A person with fewer sessions runs several rows
   One function in `quote.py` resolves a unit's kWh in the pinned "Energy lookup order", and every path builder uses it, including `_cash_path`, so `rank` agrees with `quote`. When `mfg_year` is missing, use `repo.model_year` if it returns one. Add `model_year` to the `QuoteRepository` protocol.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py api/tests/test_rank.py -q` passes, including a test that the same used unit gets the same electricity line from `quote` and from `rank`, and a test for each step of the lookup order.
 
-- [ ] **3.3.4 Cost per year from the full cost; ranges that never flip (Track A2)** (NEW 2026-09-26, Codex review; needs 3.2.3)
+- [x] **3.3.4 Cost per year from the full cost; ranges that never flip (Track A2)** (NEW 2026-09-26, Codex review; needs 3.2.3)
   Cost per year's purchase total is the full acquisition cost: the cash price, or the full financed total (card and PAL schedules, BNPL's full cost, `lease.full_term_total` for rent-to-own), never the part inside the 36-month window. Build every low/high pair (3-year total, cost per year, expected life) as the min and max of its scenarios, since an earlier, more efficient replacement can be the cheaper case.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including a test that a 208-week $30 lease's cost per year uses the $6,240 total (about $536 a year, not $416), and a property test over at least 500 generated requests that low never exceeds high for any path's 3-year total, cost per year or expected life.
 
 - [x] **3.3.5 An inferred year is a range, flagged (Track A2)** (NEW 2026-09-26, Codex review; needs 2.2.5)
   When `mfg_year` is missing and `repo.model_year_range` returns years, use both ends for the age, so expected life and cost per year become ranges; add the flag `year_from_rating_data`; never write an inferred year into `mfg_year`. Call `model_year_range` only if the repository has it until 2.2.5 lands.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including a test that an undated unit whose model DOE lists over several years gets an expected-life range from both ends and the `year_from_rating_data` flag, with `mfg_year` left `None`.
+
+- [ ] **3.3.6 No buyout path without buyout terms (Track A2)** (NEW 2026-09-26 21:45, demo check; after 3.3.4)
+  In `quote`, build "Rent-to-own, early buyout" only when `req.lease.early_purchase_rule` is not "none". Without terms it repeated the keep-paying numbers on a second card; 3.2.4 puts "No early purchase terms entered" on the keep-paying path instead.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including tests that a lease with `early_purchase_rule="none"` gives exactly one rent-to-own path and a lease with terms gives two.
 
 - [x] **3.4 Serial decode (Track B4)**
   `api/app/serial/decode.py`: decoders keyed by brand, only for the brands on the demo cards and in the retailer cache, each rule's `source_id` in `sources.json`. A year code that repeats on a cycle resolves from model era when possible, otherwise returns `year_confidence="low"`. An unknown brand returns `SerialDecode(None, "none", None, "no decoder for brand")`. `api/tests/test_serial.py`: one known serial per supported brand decodes to its year; an unknown brand returns confidence `none`.
@@ -388,16 +406,16 @@ One row = one session's file set. A person with fewer sessions runs several rows
   If one provider publishes pay-in-installment terms, record them in `api/app/data/bnpl.json` with URL and date and return them from `bnpl_terms()`; otherwise `bnpl_terms()` returns `None` and the BNPL path stays `not_estimated`. Test in `api/tests/test_repository.py` either way.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_repository.py -q` passes.
 
-- [ ] **3.7 Grok scan (Track D1, in Cursor)** ← may start after Phase 1
+- [x] **3.7 Grok scan (Track D1, in Cursor)** ← may start after Phase 1
   `api/app/grok/client.py` and `api/app/grok/scan.py` per "Fixed interfaces". One system prompt per `ScanKind` asking for strict JSON with only the fields printed on the image (label: brand, model, serial, `product_class`, `volume_cuft`; price tag: brand, model, price; lease: every `Lease` field plus `early_purchase_text`; listing: brand, model, price, condition). The response validates into `ScanResult`; on failure `valid=False`, `errors` lists the Pydantic errors, and every field that did parse is kept for the correction form. No number is computed by the model. `api/tests/test_scan.py` uses a fake `GrokClient` returning recorded JSON from `api/tests/fixtures/scan/`: one valid response per kind, and one malformed response that yields `valid=False` with partial fields.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_scan.py -q` passes. The real call is checked by hand in 3.8.
   **Status (2026-09-26 18:05, review):** also extract `mfg_year` when printed and, from an EnergyGuide label, `label_kwh_per_year`. Per xAI's docs as read in review (not re-verified): the API is OpenAI-compatible with JSON-schema structured output; use a non-reasoning vision model; send JPEG or PNG only, shrunk on the phone to about 1600px.
 
-- [ ] **3.8 Not-a-wrapper test (Track D1, in Cursor)**
+- [x] **3.8 Not-a-wrapper test (Track D1, in Cursor)**
   For each demo card from 3.13: record the real Grok response once into `api/tests/fixtures/scan/<card>.json`, and write the typed equivalent into `api/tests/fixtures/typed/<card>.json`. `api/tests/test_not_a_wrapper.py`: for every card, `quote` on the scan result's item equals `quote` on the typed item, compared as JSON.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_not_a_wrapper.py -q` passes with one case per demo card.
 
-- [ ] **3.9 Wire scan (Track A1)**
+- [x] **3.9 Wire scan (Track A1)**
   `POST /scan` calls `scan(kind, image, GrokClient())` and returns the `ScanResult`; when `valid` is true and the item has brand and serial, it also applies `decode`. Test in `api/tests/test_routes.py` with the fake client injected through a FastAPI dependency override.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_routes.py -q` passes.
 
@@ -444,8 +462,9 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [ ] **4.3 Wire shop routes (Track A1)**
   `POST /shop/parse` calls `parse_request`; `POST /shop/rank` calls `rank` with the retailer cache plus any listings in the request. Tests in `api/tests/test_routes.py` with the fake client.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_routes.py -q` passes.
+  **Status (2026-09-26 21:31):** `/shop/rank` is wired: the retailer cache's new offers plus the request's own listings, through `rank`, with tests in `test_routes.py`. The request may carry only `user_listing` offers, and a listing may not reuse a cached item's id (both 422). `/shop/parse` stays a stub until 4.1 lands; this box stays open until then.
 
-- [ ] **4.4 Shop page (Track C4)**
+- [x] **4.4 Shop page (Track C4)**
   `web/src/pages/Shop.tsx`: a text box for the request, the parsed filters shown as editable chips (the visible AI step), ranked offers with cost per year and a "View at retailer" link that opens the offer's `url`. No in-app checkout. `Shop.test.tsx` renders ranked offers from a stub and finds each link.
   **Acceptance:** `npm --prefix web test -- Shop` passes.
 
@@ -469,7 +488,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   In `docs/pitch.md`: "ACEEE's 2016 report" instead of "2016 data" (or ACEEE's 2024 update, after confirming its Atlanta low-income column); no "2004 unit" (say what the card shows); "tap any line" instead of "tap any number"; "energy costs equal to X% of income (EIA-estimated)" instead of "spent"; no claim that a refurbished warranty narrows a range or that other categories work today; crop the under-$5,000 bracket from the chart; about 20 seconds of visible AI (the scan and the shopping request's filter chips); open with the lease story.
   **Acceptance:** `grep -c -E '2004 unit|2016 data|[Tt]ap any number' docs/pitch.md` prints `0`.
 
-- [ ] **4.8.2 Pitch follows the rewritten demo script (Track 0, operator)** (NEW 2026-09-26, Codex review)
+- [x] **4.8.2 Pitch follows the rewritten demo script (Track 0, operator)** (NEW 2026-09-26, Codex review)
   Align `docs/pitch.md` with "Demo Script for Judges": lead with the lease ($0.01 today, $1,739.88 total, $542.89 over its cash price, 45%); no serial typed from a card, no buyout week, the Maytag as Rated 505 kWh from DOE historical data with no year; paths sorted with complete ones first; the lease page does show its total. Every number must match `analysis/recs/out/burden.csv` or the demo script.
   **Acceptance:** `grep -c -i -E 'buyout week|serial|sorted by total over 3 years' docs/pitch.md` prints `0`.
 
@@ -484,27 +503,28 @@ One row = one session's file set. A person with fewer sessions runs several rows
 **Scenario 1: the lease (the poverty premium). Lead with this.**
 > "This is a real rent-to-own page for a fridge, printed out."
 - Card: `lease-aarons-frigidaire-frte1936av.png` (Aaron's, ZIP 30309, retrieved 2026-09-26). Enter the lease (scan, or the lease form from 3.10): 52 weekly payments of $33.48, cash price $1,196.99, paid today $0.01, total of payments $1,739.88.
-- The receipt: "Rent-to-own, keep paying" shows **$0.01 today** and **$1,739.88 in total, as printed on the lease: $542.89 more than its own cash price, an effective annual cost of 45%.** Beside it, new fridges from store listings (the cheapest is a $548 Frigidaire at Home Depot: a different, smaller model, so say "a new fridge", not "the same fridge") and the PAL line ("up to", with its caps).
-- Needs: 3.2.2 (printed numbers) and a lease form (3.10). Never say a buyout week, "120 days", or APR.
+- The receipt: "Rent-to-own, keep paying" shows **$0.01 today** and **$1,739.88 in total, as printed on the lease: $542.89 more than its own cash price, an effective annual cost of 45%.** ~~Beside it, new fridges from store listings~~ → **Verdict (2026-09-26 21:45):** the paths sort by 3-year total, so the new fridges come first and the lease is the last card, with the highest 3-year total on the receipt: point at that. The new fridges come from store listings (the cheapest is a $548 Frigidaire at Home Depot: a different, smaller model, so say "a new fridge", not "the same fridge"; the card itself shows no brand), then the PAL line ("up to", with its caps).
+- Needs: 3.2.2 (printed numbers), 3.2.4 (the $542.89 on the keep-paying path), 3.3.6 (one lease card, not two) and a lease form (3.10); until 3.10 is on main, the only way in is the scan. Never say a buyout week, "120 days", or APR.
 
 **Scenario 2: every line has a source (the trust layer).**
 > "This is the label from an older Maytag."
 - Card: `label-older-maytag-mb2562.png`. Enter it as "Your fridge now" with a repair quote (for example $180): with no quote there are no repair ranges, so there is no repair path.
 - Tap the electricity line: **Rated, 505 kWh a year, from DOE's historical refrigerator ratings**, times the Georgia Power rate (tap through to both sources). Tap the replacement line: "not estimated", left blank on purpose, because the unit is past its typical life.
-- Don't state a year (the label prints none), and don't claim big energy savings: against a new fridge the gap is about $20 a year.
+- Don't state a year (the label prints none), and don't claim big energy savings: against a new fridge the gap is about $20 a year ($78.99 against $56.31 on main at 54a9954).
+- The receipt also shows two flag sentences, both true: the year made is estimated from the years DOE lists this model (3.3.5), and the energy test changed around 2014. Read them if asked; still state no year.
 
 **Scenario 3: used vs new, asked in plain words (Visa).** Only if the shop (4.1, 4.3, 4.4) is on main by 23:30.
 > "About $300, small space, need it this week."
 - Type the request → Grok's parsed filters appear as editable chips → offers ranked by cost per year, with unknown delivery or width flagged, not hidden → "View at retailer". Include the used GE listing (`listing-used-ge-gie18gsnrss.png`, $175): ask its age and enter it, since the listing states none.
-- Check the numbers before going on stage: at some prices and years a used and a new option land on the same cost per year, which looks like a bug.
+- Check the numbers before going on stage: at some prices and years a used and a new option land on the same cost per year, which looks like a bug. Measured on main at 54a9954 through `/quote`: the $175 used GE is rated 443 kWh, $94.29 a year, against $98.46 for the cheapest new: close, not equal.
 
 **Scenario 4: not a wrapper.** Only if a real scan works by 22:00.
 > "The AI only reads the label. Watch me type the same thing by hand."
-- Scan `label-current-frigidaire-ffht1822u.png` (it prints the brand as "Electrolux Home Products Inc.": correct it to Frigidaire in the form unless the brand alias has landed), then type `FFHT1822U*` by hand: the identical receipt, rated 360 kWh.
+- Scan `label-current-frigidaire-ffht1822u.png` (it prints the maker, "Electrolux Home Products Inc."; leave it as read: the app treats Electrolux and Frigidaire as one maker, task 2.2.4, and task 3.8 checks that the scanned and typed receipts match), then type `FFHT1822U*` by hand: the identical receipt, rated 360 kWh.
 
 **Presenter rules:** say the cards are printouts of real labels and pages; tap any *line*, not any number; no year for the Maytag, no "2004", no buyout week, no APR, no "you qualify", no absolute claims.
 
-Scenario 1 is the strongest talking point: its numbers come straight off a real lease page and need no explanation. Open the pitch on the RECS finding (South region, EIA-estimated); close on the cost line and the carbon line together.
+Scenario 1 is the strongest talking point: its numbers come straight off a real lease page and need no explanation. ~~Open the pitch on the RECS finding (South region, EIA-estimated);~~ → **Verdict (2026-09-26):** open the pitch on the lease (Scenario 1), then the RECS finding (South region, EIA-estimated) second. The old sentence was carried over from the earlier script and contradicted Scenario 1 and task 4.8.2. Close on the cost line and the carbon line together.
 
 ## Future Extensions (mention to judges, don't build)
 
