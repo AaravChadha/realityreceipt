@@ -393,7 +393,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   When `total_of_payments` is printed, `_schedule` spreads it, less the payment today, evenly over the remaining weeks. The keep-paying formula states that (for the Aaron's card, the remaining $1,739.87 spread evenly over 51 weekly payments of about $34.11), so the monthly figures are not read as printed payments. Also, from session 4's note on 3.2.4: the effective annual cost uses the same total as the "more than the cash price" figure, fees included (a $30 × 52 lease with $20 fees showed "$780.00 more" beside a 95% worked out from $760).
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including a test that the Aaron's demo lease's keep-paying formula names the even spread and its weekly figure, and one that a lease with fees computes its effective annual cost from the same total as its "more than the cash price" figure.
 
-- [ ] **3.2.6 The buyout line counts fees the same way (Track A4)** (NEW 2026-09-26 22:15, session 4's note on 3.2.5)
+- [x] **3.2.6 The buyout line counts fees the same way (Track A4)** (NEW 2026-09-26 22:15, session 4's note on 3.2.5)
   `rto_buyout`'s "more than the cash price" figure uses the same fee-inclusive total as `rto_full`'s since 3.2.5.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including a test that a lease with early purchase terms and fees states its buyout's "more than the cash price" figure with the fees included.
 

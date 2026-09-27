@@ -290,3 +290,13 @@ def test_the_effective_annual_cost_uses_the_same_fee_inclusive_total_as_the_cash
     assert "Plus $40.00 in fees, $1,600.00 in all." in formula
     assert "That is $800.00 more than the cash price of $800.00." in formula
     assert formula.endswith("Effective annual cost = ((1600.00 - 800.00) / 800.00) / (52 / 52) = 100%.")
+
+
+def test_the_buyout_counts_fees_in_its_cost_over_the_cash_price() -> None:
+    # Week 1: $30 + 50% of the $1,530 left = $795, plus $20 in fees = $815 against an $800 cash price.
+    terms = lease(early_purchase_rule="pct_of_remaining", early_purchase_pct=0.5, fees=20.0)
+    formula = rto_buyout(terms).lines[0].formula
+    assert "= $795.00. Cheapest week under your lease's early purchase rule. Plus $20.00 in fees, $815.00 in all." in formula
+    assert formula.endswith("That is $15.00 more than the cash price of $800.00.")  # was "$5.00 less", fees left out
+    # The keep-paying line counts the same fees.
+    assert "Plus $20.00 in fees, $1,580.00 in all." in rto_full(terms).lines[0].formula
