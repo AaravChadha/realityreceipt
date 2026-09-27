@@ -344,7 +344,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   Weekly payments after month 35 are left out of the window arrays (a 208-week lease at $30 a week counts 156 payments, $4,680; the formula states the full lease total). A buyout in week 1 is included in pay today. `rto_full` keeps the effective annual cost in its formula; `rto_buyout` drops it and states its total minus the cash price ("$X more than the cash price" or "$X less"). A lease with `early_purchase_rule="none"` says "No early purchase terms entered", never "Your lease has no early purchase option".
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including tests for the 208-week lease ($4,680 inside the window), a week-1 buyout's pay today ($795 for task 3.2's example lease), the buyout wording, and the "no terms entered" wording.
 
-- [ ] **3.2.2 Use the lease's own printed numbers (Track A4)** (NEW 2026-09-26, needs 1.7)
+- [x] **3.2.2 Use the lease's own printed numbers (Track A4)** (NEW 2026-09-26, needs 1.7)
   When `lease.payment_today` is set it is pay today (and month 0's payment) instead of the first weekly payment; when `lease.total_of_payments` is set it is the full-term total, spread evenly over the weeks in the window, and the effective annual cost uses it. Both formulas say the figure is "as printed on your lease".
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_lease.py -q` passes, including a test with the Aaron's demo card's numbers (52 weeks, $33.48 a week, $0.01 today, $1,739.88 total, $1,196.99 cash): pay today is $0.01, the full-term total is $1,739.88, and the effective annual cost is 45%.
 
