@@ -109,7 +109,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 
 | Row | Owner | Edits only | Reads from |
 |---|---|---|---|
-| 0 Operator | repo owner | `.gitignore`, `.github/`, `pytest.ini`, `api/requirements.txt`, `api/app/__init__.py`, `api/.env.example`, `web/package.json`, `web/package-lock.json`, `web/vite.config.ts`, `web/tsconfig*.json`, `web/index.html`, `docs/`, `README.md`, `AGENTS.md`, `.claude/acstack.md`, `.cursor/` | — |
+| 0 Operator | repo owner | `.gitignore`, `.github/`, `pytest.ini`, `api/requirements.txt`, `api/app/__init__.py`, `api/.env.example`, `web/package.json`, `web/package-lock.json`, `web/vite.config.ts`, `web/tsconfig*.json`, `web/index.html`, `docs/`, `README.md`, `AGENTS.md`, `.claude/acstack.md`, `.claude/agents/`, `.cursor/` | — |
 | A1 Contracts and routes | Track A | `api/app/models.py`, `api/app/main.py`, `contracts/`, `web/src/contracts.ts`, `web/src/contracts.test.ts`, `api/tests/test_contracts.py`, `api/tests/test_health.py`, `api/tests/test_routes.py`, `api/tests/test_journey.py` | every module's functions below |
 | A2 Quote and lifecycle | Track A | `api/app/engine/__init__.py`, `api/app/engine/quote.py`, `api/app/engine/lifecycle.py`, `api/app/engine/rank.py`, `api/tests/test_lifecycle.py`, `api/tests/test_slice.py`, `api/tests/test_quote_all_paths.py`, `api/tests/test_rank.py`, `api/tests/test_copy.py`, `api/tests/test_quote_unit.py`, `api/tests/test_demo_script.py` | A3 to A5, B1 |
 | A3 Financing | Track A | `api/app/engine/financing.py`, `api/tests/test_financing.py` | A1 models |
@@ -188,6 +188,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - [ ] **0.8 Keys and Notability (Track 0 — operator)**
   Put a working key and model name in `api/.env` (`XAI_API_KEY=...`, `XAI_MODEL=...`, a vision-capable Grok model from xAI's docs) on every machine that runs the API. Start Notability now: an architecture sketch, screenshot saved to `docs/notability/01-architecture.png`.
   **Acceptance:** `git check-ignore -q api/.env && echo ignored` prints `ignored`, and `ls docs/notability/*.png | wc -l` prints at least `1`.
+
+- [x] **0.9 Tech stack flowchart agent (Track 0 — operator)**
+  Add the Claude Code subagent `.claude/agents/techstack-flowchart.md`. It reads the repo and writes `docs/architecture.md` (Mermaid: stack and deploy, request flow, old-unit energy lookup) and `docs/architecture.html` (the same charts on a standalone page), labelling every node with the file or route it came from. It never publishes or commits; the calling session decides.
+  **Acceptance:** `python -c "import re;t=open('.claude/agents/techstack-flowchart.md',encoding='utf-8').read();assert t.startswith('---') and re.search(r'^name: techstack-flowchart$',t,re.M) and 'docs/architecture.md' in t;print('ok')"` prints `ok`.
 
 <a id="phase-1"></a>
 ### [x] Phase 1 — Contracts (A1)
