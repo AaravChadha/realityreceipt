@@ -89,6 +89,8 @@ The option that looks cheapest today often costs the most over time: an old used
 
 > **Decision (2026-09-26 22:00):** ~~all coding ends at 23:00 (the operator's call). After 23:00, merge only a fix for something that breaks a demo scenario; 23:00 to 02:00 is the deploy, the phone check, rehearsal and the Devpost. A scenario whose code is not on main at 23:00 is cut from the demo: Scenario 3 needs 4.4.1, Scenario 4's live scan needs 3.10. Deferred past the event: the icemaker-inference open item.~~ → **Verdict (2026-09-26 22:15):** 23:00 is the target for finishing all coding, not a cutoff. Every open task still gets done, the icemaker item included (tasks 1.9 and 2.2.7); nothing is cut at 23:00. The hard freeze stays at 02:00 (4.9).
 
+> **Decision (2026-09-26 22:20): fourth Codex review** (main at 3c0d932). (1) A user listing marked new is priced as a new unit, not mapped to used (that would misstate a printed fact). Tasks 3.3.7, 3.10.1. (2) A year range that could fall before 2014 gets `test_procedure_changed`: its sentence is a general caution, not a claim about this unit. This reverses the 21:30 call on 3.3.5 ("flag only when certainly before 2014"). Task 3.3.8. (3) `past_typical_life` only when the whole remaining-life range is 0; when only the low end is, the new flag `may_be_past_typical_life`. Tasks 3.3.8, 2.9.3. (4) A label scan that replaces the current fridge clears its repair quote. Task 3.10.1.
+
 ## Index of phases
 
 Phases are milestones, not time slots. A task in a later phase starts as soon as its inputs are on `origin/main`; Track D's scan and RECS work can start right after Phase 1.
@@ -139,7 +141,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 - `api/app/grok/client.py`: `class GrokClient` with `chat_json(system: str, user: str, image_jpeg: bytes | None = None) -> dict`; reads `XAI_API_KEY` and `XAI_MODEL` from `api/.env`. `api/app/grok/scan.py`: `scan(kind: ScanKind, image_jpeg: bytes, client: GrokClient) -> ScanResult`. `api/app/grok/parse.py`: `parse_request(text: str, client: GrokClient) -> ShopFilters`.
 - ~~`api/app/voice/script.py`: `script(paths: list[Path], lang: Literal["en", "es"]) -> str`.~~ Dropped 2026-09-26 with 4.5 and 4.6.
 - Reserved source ids: `user` (typed by the user), `user_listing` (from the user's listing), `user_lease` (from the user's lease). Every other id comes from `api/app/data/sources.json`.
-- **Flags** (pinned 2026-09-26; the web shows each as a plain sentence): `year_from_rating_data` (added 21:10, task 3.3.5), `costs_not_estimated`, `past_typical_life`, `test_procedure_changed`, `year_from_serial_low_confidence`, `pal_caps_not_an_offer`, `bnpl_terms_not_an_offer`, `over_budget_today`, `delivery_unknown`, `width_unknown`, `fixture`.
+- **Flags** (pinned 2026-09-26; the web shows each as a plain sentence): `year_from_rating_data` (added 21:10, task 3.3.5), `may_be_past_typical_life` (added 22:20, task 3.3.8), `costs_not_estimated`, `past_typical_life`, `test_procedure_changed`, `year_from_serial_low_confidence`, `pal_caps_not_an_offer`, `bnpl_terms_not_an_offer`, `over_budget_today`, `delivery_unknown`, `width_unknown`, `fixture`.
 - **`Item.attributes` keys:** `product_class` (CFR class code, e.g. `"3"`), `volume_cuft` (total volume printed on the label), `adjusted_volume_cuft` (DOE adjusted volume; only this feeds the standard ceiling), `width_in`, `label_kwh_per_year` (kWh printed on the unit's own EnergyGuide label).
 - **Added 2026-09-26 21:10:** `lease.full_term_total(lease: Lease) -> float` (3.2.3: ~~`total_of_payments` if printed, else `weekly_payment * term_weeks`, plus fees~~ → **Verdict (2026-09-26):** the sum of 3.2.2's payment schedule (so a printed payment today replaces the first weekly payment), plus fees — it must match the keep-paying line.); `Repository.model_year_range(brand: str, model: str, product_class: str | float | None = None) -> tuple[int, int] | None` (2.2.5: first and last year DOE lists the model).
 - **Energy lookup order** (3.3.3), used by every path builder: `repo.model_energy` (ENERGY STAR, then DOE historical), then `label_kwh_per_year` (`user_entered`), then `repo.standard_ceiling` with `adjusted_volume_cuft`, else `not_estimated`. Added: `Repository.model_year(brand: str, model: str) -> int | None` (2.2.2).
@@ -337,6 +339,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   Add the plain sentence for the new pinned flag `year_from_rating_data`: "The year made is estimated from the years DOE lists this model, so its remaining life is a range."
   **Acceptance:** `npm --prefix web test -- Receipt` passes, including a test that the flag renders that sentence.
 
+- [ ] **2.9.3 Sentence for "may be past its typical life" (Track C2)** (NEW 2026-09-26 22:20, with 3.3.8)
+  The flag `may_be_past_typical_life` reads "This unit may be at or past its typical life."
+  **Acceptance:** `npm --prefix web test -- Receipt` passes, including a test that the flag renders that sentence and never its code name.
+
 - [x] **2.10 Tap-to-source sheet (Track C3)**
   `web/src/components/SourceSheet.tsx`: tapping any cost line opens a sheet with its label, amount range, formula, source label (`Rated`, `Published`, `You entered`, `Not estimated`) and, from `/sources`, the title, publisher, URL and retrieved date. `SourceSheet.test.tsx` renders one line of each `source_type` and finds the four label texts.
   **Acceptance:** `npm --prefix web test -- SourceSheet` passes.
@@ -419,6 +425,14 @@ One row = one session's file set. A person with fewer sessions runs several rows
   In `quote`, build "Rent-to-own, early buyout" only when `req.lease.early_purchase_rule` is not "none". Without terms it repeated the keep-paying numbers on a second card; 3.2.4 puts "No early purchase terms entered" on the keep-paying path instead.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including tests that a lease with `early_purchase_rule="none"` gives exactly one rent-to-own path and a lease with terms gives two.
 
+- [ ] **3.3.7 Price a listing that is new (Track A2)** (NEW 2026-09-26 22:20, Codex review)
+  `LISTING_KINDS` gains `"new": ("New, from your listing", "new")`: a user listing with `condition: "new"` becomes a cash path in group `new`, age 0, not aged (no aging line, no inferred year). Before this, it was skipped with no message.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py -q` passes, including a test that a $400 user listing with `condition: "new"` gives a path "New, from your listing" with pay today $400 and no `past_typical_life` or aging line.
+
+- [ ] **3.3.8 Flags that match a range (Track A2)** (NEW 2026-09-26 22:20, Codex review)
+  `_flag_test_procedure` uses the first possible year: a unit that could be made before 2014 is flagged when the quote also holds a newer unit. `past_typical_life` only when `life_high` is 0; when only `life_low` is 0, `may_be_past_typical_life` instead. `api/tests/test_demo_script.py` must still pass.
+  **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_quote_all_paths.py api/tests/test_demo_script.py -q` passes, including tests that a 2012 to 2016 undated unit beside a new fridge gets `test_procedure_changed`, and a unit with 0 to 3 years left gets `may_be_past_typical_life`, not `past_typical_life`.
+
 - [x] **3.4 Serial decode (Track B4)**
   `api/app/serial/decode.py`: decoders keyed by brand, only for the brands on the demo cards and in the retailer cache, each rule's `source_id` in `sources.json`. A year code that repeats on a cycle resolves from model era when possible, otherwise returns `year_confidence="low"`. An unknown brand returns `SerialDecode(None, "none", None, "no decoder for brand")`. `api/tests/test_serial.py`: one known serial per supported brand decodes to its year; an unknown brand returns confidence `none`.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_serial.py -q` passes.
@@ -451,8 +465,8 @@ One row = one session's file set. A person with fewer sessions runs several rows
   **Status (2026-09-26 21:10, reviews of #48 and #52):** also: the lease form gets `payment_today`, `total_of_payments` and the leased fridge's brand and model, and no "Lease source" field; pass `budgetToday` into `Receipt` so 3.11's dimming works; drop "Price tag" from the scan picker tonight; give the `/scan` request a 60-second timeout with a visible reading state.
 
 - [ ] **3.10.1 Scan and lease form, last fixes (Track C1)** (NEW 2026-09-26 22:15, review of #48)
-  In `Entry.tsx`: remove the "New" listing condition and map a scanned `condition: "new"` to `used_as_is` (the engine prices only used and refurbished listings, so a "New" listing vanished from the receipt); label the fee field "Fees ($0 if none)"; strip a leading "Value error, " from a 422 message and show the "does not fit" error beside "Paid today". In `api.ts`: the scan timeout 75 seconds, so the server's own 60-second Grok error arrives first.
-  **Acceptance:** `npm --prefix web test -- Entry` passes, including tests that the listing condition picker has no "New" option and a scanned `condition: "new"` becomes "Used, as-is", and `npm --prefix web run build` exits 0.
+  In `Entry.tsx`: ~~remove the "New" listing condition and map a scanned `condition: "new"` to `used_as_is`~~ → **Verdict (22:20):** keep the "New" condition and keep a scanned `"new"` as new (3.3.7 prices it; mapping it to used would misstate the listing); clear the repair quote when a label scan replaces the current fridge's brand or model; fix the flaky waits in `Entry.test.tsx` (lines 441, 529, 555: wait for the scanned value, not the field); label the fee field "Fees ($0 if none)"; strip a leading "Value error, " from a 422 message and show the "does not fit" error beside "Paid today". In `api.ts`: the scan timeout 75 seconds, so the server's own 60-second Grok error arrives first.
+  **Acceptance:** `npm --prefix web test -- Entry` passes, ~~including tests that the listing condition picker has no "New" option and a scanned `condition: "new"` becomes "Used, as-is"~~ → including tests that a scanned `condition: "new"` stays "New" and a new label scan clears the repair quote; five runs in a row all pass; and `npm --prefix web run build` exits 0.
 
 - [x] **3.11 Budget, flags and motion (Track C2)**
   In `Receipt.tsx`: paths whose `pay_today` exceeds the "spend up to" amount are dimmed with "More than you can spend today" (never hidden); flags render as plain sentences; a Framer Motion print-in animation on first render, off under `prefers-reduced-motion`. `Receipt.test.tsx` covers the dimming.
