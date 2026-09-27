@@ -165,10 +165,12 @@ def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
         year = this_year if is_new else _last(years)
         aged = unit is not None and not is_new
         lease = req.lease
-        for name, method, acquire, full_cost in (
-            ("Rent-to-own, keep paying", "rto_full", rto_full(lease), full_term_total(lease)),
-            ("Rent-to-own, early buyout", "rto_buyout", rto_buyout(lease), round(cheapest_buyout(lease)[1] + lease.fees, 2)),
-        ):
+        lease_paths = [("Rent-to-own, keep paying", "rto_full", rto_full(lease), full_term_total(lease))]
+        if lease.early_purchase_rule != "none":  # no terms, no buyout price: the card would repeat keep-paying
+            lease_paths.append(
+                ("Rent-to-own, early buyout", "rto_buyout", rto_buyout(lease), round(cheapest_buyout(lease)[1] + lease.fees, 2))
+            )
+        for name, method, acquire, full_cost in lease_paths:
             path = _unit_path(
                 name, "rent_to_own", method, acquire, unit, ages, aged, profile, cheapest_new, repo, [],
                 years=years, replacement_kwh=replacement_kwh, full_cost=full_cost,
