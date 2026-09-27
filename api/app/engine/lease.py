@@ -1,4 +1,4 @@
-"""Rent-to-own paths (PLAN.md tasks 3.2 and 3.2.1, row A4).
+"""Rent-to-own paths (PLAN.md tasks 3.2 to 3.2.2, row A4).
 
 Every number comes from the user's lease, so every line is `user_entered` and
 carries the lease's source id (`user_lease`). The cost of keeping the lease is
@@ -6,9 +6,15 @@ shown as an effective annual cost (spec §6), in the keep-paying line's formula;
 the buyout line states its total against the cash price instead, because
 annualizing a buyout after a few weeks gives meaningless percentages.
 
-Pay today is the fees plus the first weekly payment, plus the buyout when it
-falls in week 1. Fees fall in month 0 on their own line; they are not part of
-the total of payments or the buyout total.
+The lease's own printed numbers win over ones derived from the weekly payment
+(task 3.2.2): `payment_today` is week 1's payment, and `total_of_payments` is the
+full-term total, today's payment included, with the rest spread evenly over the
+other weeks. Payments so far, what is left to pay, the total and the effective
+annual cost all come from that week-by-week schedule.
+
+Pay today is the fees plus week 1's payment, plus the buyout when it falls in
+week 1. Fees fall in month 0 on their own line; they are not part of the total
+of payments or the buyout total.
 
 Only payments falling in months 0 to 35 count in the arrays and in a line's
 amount; later ones are left out, and the formula states the full lease total.
@@ -29,46 +35,95 @@ def cheapest_buyout(lease: Lease) -> tuple[int, float]:
 
     A lease with no early purchase option returns the full term.
     """
+    schedule = _schedule(lease)
+    full = _cents(sum(schedule))
     if lease.early_purchase_rule == "none":
-        return lease.term_weeks, _cents(lease.weekly_payment * lease.term_weeks)
-    totals = [
-        (week, _cents(lease.weekly_payment * week + _buyout_amount(lease, week)))
-        for week in range(1, lease.term_weeks + 1)
-    ]
+        return lease.term_weeks, full
+    totals: list[tuple[int, float]] = []
+    paid = 0.0
+    for week, amount in enumerate(schedule, start=1):
+        paid += amount
+        totals.append((week, _cents(paid + _buyout_amount(lease, week, paid, full))))
     return min(totals, key=lambda wt: wt[1])  # min keeps the first, so the earliest week wins a tie
 
 
 def rto_full(lease: Lease) -> Contribution:
     """Keep paying to the end of the lease."""
-    total = _cents(lease.weekly_payment * lease.term_weeks)
+    schedule = _schedule(lease)
+    total = _cents(sum(schedule))
+    if _printed(lease):
+        paid = f"{_printed_text(lease)} Total of payments = {_money(total)}."
+    else:
+        paid = f"{_weekly(lease.term_weeks)} of {_money(lease.weekly_payment)} from your lease = {_money(total)}."
     formula = (
-        f"{lease.term_weeks} weekly payments of {_money(lease.weekly_payment)} from your lease"
-        f" = {_money(total)}.{_window_text(lease, lease.term_weeks, 0.0)}"
+        f"{paid}{_window_text(schedule, lease.term_weeks, 0.0)}"
         f" {_eac_text(total, lease.cash_price, lease.term_weeks)}"
     )
-    return _contribution(lease, lease.term_weeks, 0.0, "Total of lease payments", formula)
+    return _contribution(lease, schedule, lease.term_weeks, 0.0, "Total of lease payments", formula)
 
 
 def rto_buyout(lease: Lease) -> Contribution:
     """Pay until the cheapest buyout week, then buy it out under the lease's early purchase rule."""
+    schedule = _schedule(lease)
     week, total = cheapest_buyout(lease)
-    payments = _cents(lease.weekly_payment * week)
+    payments = _cents(sum(schedule[:week]))
     buyout = _cents(total - payments)
-    after = f"{_window_text(lease, week, buyout)} {_vs_cash_text(total, lease.cash_price)}"
+    if _printed(lease):
+        paid = f"{_printed_text(lease)} Payments to week {week} = {_money(payments)}"
+    else:
+        paid = f"{_weekly(week)} of {_money(lease.weekly_payment)} = {_money(payments)}"
+    after = f"{_window_text(schedule, week, buyout)} {_vs_cash_text(total, lease.cash_price)}"
     if lease.early_purchase_rule == "none":
         label = f"All payments to week {week}"
-        formula = f"No early purchase terms entered: {week} weekly payments of {_money(lease.weekly_payment)} = {_money(total)}.{after}"
+        formula = f"No early purchase terms entered: {paid}.{after}"
     elif week == lease.term_weeks:
         label = f"All payments to week {week}"
-        formula = f"No early buyout week costs less than finishing the lease: {week} weekly payments of {_money(lease.weekly_payment)} = {_money(total)}.{after}"
+        formula = f"No early buyout week costs less than finishing the lease: {paid}.{after}"
     else:
         label = f"Payments plus buyout at week {week}"
         formula = (
-            f"{week} weekly payments of {_money(lease.weekly_payment)} = {_money(payments)}, plus a buyout of"
-            f" {_money(buyout)} ({_rule_text(lease, week)}) = {_money(total)}. Cheapest week under your lease's"
-            f" early purchase rule.{after}"
+            f"{paid}, plus a buyout of {_money(buyout)} ({_rule_text(lease, schedule, week)}) = {_money(total)}."
+            f" Cheapest week under your lease's early purchase rule.{after}"
         )
-    return _contribution(lease, week, buyout, label, formula)
+    return _contribution(lease, schedule, week, buyout, label, formula)
+
+
+def _schedule(lease: Lease) -> list[float]:
+    """Each week's payment, week 1 (paid today) first, from the lease's printed numbers when set.
+
+    Raises `ValueError` when the printed payment today does not fit the printed total.
+    """
+    n, today, total = lease.term_weeks, lease.payment_today, lease.total_of_payments
+    if total is None:
+        first = lease.weekly_payment if today is None else today
+        return [first] + [lease.weekly_payment] * (n - 1)
+    if today is None:
+        return _spread(total, n)
+    if today > total or (n == 1 and today != total):
+        raise ValueError("the payment today printed on the lease does not fit its total of payments")
+    return [today] + (_spread(total - today, n - 1) if n > 1 else [])
+
+
+def _spread(amount: float, weeks: int) -> list[float]:
+    """`amount` as `weeks` equal whole-cent payments, the last one taking the leftover cents."""
+    each, extra = divmod(round(amount * 100), weeks)
+    return [each / 100] * (weeks - 1) + [(each + extra) / 100]
+
+
+def _printed(lease: Lease) -> bool:
+    return lease.payment_today is not None or lease.total_of_payments is not None
+
+
+def _printed_text(lease: Lease) -> str:
+    """The lease's printed numbers, and how the other weeks are filled from them, as one sentence."""
+    n, today, total = lease.term_weeks, lease.payment_today, lease.total_of_payments
+    if total is None:
+        then = f", then {_weekly(n - 1)} of {_money(lease.weekly_payment)}" if n > 1 else ""
+        return f"{_money(today)} today, as printed on your lease{then}."
+    if today is None:
+        return f"{_money(total)} in all over {_weeks(n)}, as printed on your lease, spread evenly."
+    rest = f"; the remaining {_money(total - today)} is spread evenly over the other {_weeks(n - 1)}" if n > 1 else ""
+    return f"{_money(today)} today and {_money(total)} in all over {_weeks(n)}, as printed on your lease{rest}."
 
 
 def _payment_month(week: int) -> int:
@@ -80,25 +135,24 @@ def _in_window(week: int) -> bool:
     return _payment_month(week) < MONTHS
 
 
-def _buyout_amount(lease: Lease, week: int) -> float:
-    """What the early purchase rule charges after `week` payments; nothing once every payment is made."""
+def _buyout_amount(lease: Lease, week: int, paid: float, full: float) -> float:
+    """What the early purchase rule charges after `week` payments totalling `paid` of `full`;
+    nothing once every payment is made."""
     if week >= lease.term_weeks:
         return 0.0
-    paid = lease.weekly_payment * week
     pct = lease.early_purchase_pct or 0.0
     if lease.early_purchase_rule == "pct_of_remaining":
-        return pct * (lease.weekly_payment * lease.term_weeks - paid)
+        return pct * (full - paid)
     if lease.early_purchase_rule == "cash_price_minus_pct_paid":
         return max(0.0, lease.cash_price - pct * paid)
     raise ValueError("this lease has no early purchase option")
 
 
-def _rule_text(lease: Lease, week: int) -> str:
-    paid = lease.weekly_payment * week
+def _rule_text(lease: Lease, schedule: list[float], week: int) -> str:
+    paid = sum(schedule[:week])
     pct = lease.early_purchase_pct or 0.0
     if lease.early_purchase_rule == "pct_of_remaining":
-        remaining = lease.weekly_payment * lease.term_weeks - paid
-        return f"{pct:.0%} of the {_money(remaining)} left to pay"
+        return f"{pct:.0%} of the {_money(sum(schedule) - paid)} left to pay"
     return f"cash price {_money(lease.cash_price)} minus {pct:.0%} of the {_money(paid)} paid"
 
 
@@ -120,25 +174,27 @@ def _vs_cash_text(total: float, cash_price: float) -> str:
     return f"That is the same as the cash price of {_money(cash_price)}."
 
 
-def _window_text(lease: Lease, weeks: int, buyout: float) -> str:
+def _window_text(schedule: list[float], weeks: int, buyout: float) -> str:
     """A sentence for the formula when some of `weeks` payments fall after month 35; else empty."""
     if _in_window(weeks):
         return ""
     counted = sum(1 for week in range(1, weeks + 1) if _in_window(week))
     text = (
         f" Only the {counted} payments due in the first 36 months,"
-        f" {_money(lease.weekly_payment * counted)}, count toward the 3-year total."
+        f" {_money(sum(schedule[:counted]))}, count toward the 3-year total."
     )
     return text + (" The buyout falls after them." if buyout > 0 else "")
 
 
-def _contribution(lease: Lease, weeks: int, buyout: float, label: str, formula: str) -> Contribution:
-    """Fees in month 0, weekly payments 1 to `weeks` and the buyout in their months, each left out
-    past month 35. The payment line's amount is what falls inside the window."""
+def _contribution(
+    lease: Lease, schedule: list[float], weeks: int, buyout: float, label: str, formula: str
+) -> Contribution:
+    """Fees in month 0, the payments for weeks 1 to `weeks` and the buyout in their months, each
+    left out past month 35. The payment line's amount is what falls inside the window."""
     monthly = [0.0] * MONTHS
-    for week in range(1, weeks + 1):
+    for week, amount in enumerate(schedule[:weeks], start=1):
         if _in_window(week):
-            monthly[_payment_month(week)] += lease.weekly_payment
+            monthly[_payment_month(week)] += amount
     if _in_window(weeks):
         monthly[_payment_month(weeks)] += buyout
     counted = _cents(sum(monthly))
@@ -157,9 +213,18 @@ def _contribution(lease: Lease, weeks: int, buyout: float, label: str, formula: 
         ))
     buyout_today = buyout if weeks == 1 else 0.0
     return Contribution(
-        pay_today=_cents(lease.fees + lease.weekly_payment + buyout_today),
+        pay_today=_cents(lease.fees + schedule[0] + buyout_today),
         monthly_low=monthly, monthly_high=list(monthly), lines=lines,
     )
+
+
+def _weekly(n: int) -> str:
+    """With the right plural: "1 weekly payment", "52 weekly payments"."""
+    return f"{n} weekly payment{'' if n == 1 else 's'}"
+
+
+def _weeks(n: int) -> str:
+    return f"{n} week{'' if n == 1 else 's'}"
 
 
 def _money(amount: float) -> str:

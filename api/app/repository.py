@@ -40,7 +40,14 @@ WILDCARDS = "*#"
 
 # Brand names that mean the same maker, after `_brand_key`. Kept small on purpose:
 # a sub-brand is not an alias, because a rated figure must come from the same brand.
-_BRAND_ALIASES = {"geappliances": "ge"}
+# An EnergyGuide can print the maker instead of the brand ("Electrolux Home Products Inc."
+# on a Frigidaire label).
+_BRAND_ALIASES = {"geappliances": "ge", "electroluxhomeproductsinc": "electrolux"}
+
+# Two brands of one maker, asked only when the brand as given has no matching row: the
+# datasets list some Electrolux-made models under both names at different kWh, so they are
+# never merged. A retailer's house brand (Kenmore) is not a maker and is never here.
+_SAME_MAKER = {"electrolux": "frigidaire", "frigidaire": "electrolux"}
 
 
 def normalize_model(s: str) -> str:
@@ -147,13 +154,16 @@ def _of_class(hits: list[_EnergyRow], product_class: str | float | None) -> list
 
 
 def _matching_rows(rows: list[_EnergyRow], brand: str, model: str) -> list[_EnergyRow]:
-    """Rows of the same brand that stand for `model`, fewest wildcards only."""
+    """Rows of the same brand that stand for `model`, fewest wildcards only; when the brand has
+    none, the rows of the other brand of the same maker (`_SAME_MAKER`)."""
     brand_key = _brand_key(brand)
-    hits = _select([r for r in rows if r.brand_key == brand_key], normalize_model(model))
-    if not hits:
-        return []
-    fewest = min(r.wildcards for r in hits)
-    return [r for r in hits if r.wildcards == fewest]
+    key = normalize_model(model)
+    for candidate in (brand_key, _SAME_MAKER.get(brand_key)):
+        hits = _select([r for r in rows if r.brand_key == candidate], key) if candidate else []
+        if hits:
+            fewest = min(r.wildcards for r in hits)
+            return [r for r in hits if r.wildcards == fewest]
+    return []
 
 
 @dataclass(frozen=True)
