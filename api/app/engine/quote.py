@@ -1,4 +1,4 @@
-"""Every way to get the item, as receipt paths (PLAN.md tasks 2.6, 3.3 to 3.3.3, row A2).
+"""Every way to get the item, as receipt paths (PLAN.md tasks 2.6, 3.3 to 3.3.3 and 3.3.5, row A2).
 
 Nine kinds of path: repair the one you have; each used listing, as-is or refurbished;
 the cheapest cached new offer paid four ways (cash, card, buy now pay later, credit
@@ -18,10 +18,13 @@ When a replacement falls inside the 36 months, the old unit's electricity and ca
 stop at that month and the replacement unit's run after it.
 
 Energy (task 3.3.3): every path finds a unit's kWh with `_unit_energy`, in the pinned
-"Energy lookup order", and a unit with no manufacture year takes the year DOE's rating
-data gives its model (`repo.model_year`). `_cash_path`, which `rank.py` (task 4.2) calls,
-builds with the same `_unit_path`, so a unit is priced the same in the shop as on the
-receipt.
+"Energy lookup order". `_cash_path`, which `rank.py` (task 4.2) calls, builds with the
+same `_unit_path`, so a unit is priced the same in the shop as on the receipt.
+
+Year made (task 3.3.5): a used unit with no manufacture year takes the first and last
+years DOE's rating data lists its model, so its age, expected life and cost per year are
+ranges, flagged `year_from_rating_data`. The inferred years are never written into
+`mfg_year`.
 
 `quote` takes any object with the methods of `QuoteRepository`, so this module does
 not import `app.repository`; the real `Repository` (task 2.1) satisfies it.
@@ -42,6 +45,7 @@ from app.models import (
     Contribution,
     CostLine,
     Item,
+    LifespanRange,
     ModelEnergy,
     Offer,
     Path,
@@ -66,6 +70,7 @@ DEFAULT_CATEGORY = "refrigerator"
 TEST_PROCEDURE_YEAR = 2014
 
 INCOMPLETE = "costs_not_estimated"
+YEAR_FROM_RATING_DATA = "year_from_rating_data"
 
 # A user listing's item condition -> path name and group.
 LISTING_KINDS: dict[str, tuple[str, PathGroup]] = {
@@ -96,6 +101,10 @@ class QuoteRepository(Protocol):
 
     def standard_ceiling(self, mfg_year: int, product_class: str, volume_cuft: float) -> ModelEnergy | None: ...
 
+    # Asked only when the repository has them: `model_year_range` arrives with task 2.2.5, and
+    # until then `model_year` stands in (see `_years`).
+    def model_year_range(self, brand: str, model: str, product_class: str | float | None = None) -> tuple[int, int] | None: ...
+
     def model_year(self, brand: str, model: str) -> int | None: ...
 
 
@@ -108,20 +117,22 @@ def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
     """
     category = _category(req)
     profile = repo.profile(category)
-    items = {item.id: _dated(item, repo) for item in req.items}
+    items = {item.id: item for item in req.items}
     cheapest_new = min(repo.new_offers(category), key=lambda o: o.price, default=None)
     new_item = (repo.item(cheapest_new.item_id) or items.get(cheapest_new.item_id)) if cheapest_new is not None else None
+    new_years = _years(new_item, repo)
     # The unit that replaces a worn-out one is the cheapest new offer's.
-    replacement_kwh = _unit_energy(new_item, repo)
+    replacement_kwh = _unit_energy(new_item, repo, new_years)
     this_year = date.today().year
 
-    built: list[tuple[Path, int | None]] = []  # each path with its unit's manufacture year
-    current = _dated(req.current, repo)
-    if current is not None:
+    # Each path with its unit's manufacture year (the last possible one when it is inferred).
+    built: list[tuple[Path, int | None]] = []
+    if req.current is not None:
         repair = _repair_cost(req, profile)
         if repair is not None:
-            path = _unit_path("Repair the one you have", "repair", None, repair, current, _age(current), True, profile, cheapest_new, repo, [], replacement_kwh=replacement_kwh)
-            built.append((path, current.mfg_year))
+            years = _years(req.current, repo)
+            path = _unit_path("Repair the one you have", "repair", None, repair, req.current, _ages(years), True, profile, cheapest_new, repo, [], years=years, replacement_kwh=replacement_kwh)
+            built.append((path, _last(years)))
 
     for offer in req.offers:
         item = items.get(offer.item_id)
@@ -129,25 +140,27 @@ def quote(req: QuoteRequest, repo: QuoteRepository) -> list[Path]:
             continue
         name, group = LISTING_KINDS[item.condition]
         flags = [f"warranty_{item.warranty_months}_months"] if group == "refurbished" and item.warranty_months else []
-        path = _unit_path(name, group, "cash", cash(offer.price, offer.source_id), item, _age(item), True, profile, cheapest_new, repo, flags, replacement_kwh=replacement_kwh)
-        built.append((path, item.mfg_year))
+        years = _years(item, repo)
+        path = _unit_path(name, group, "cash", cash(offer.price, offer.source_id), item, _ages(years), True, profile, cheapest_new, repo, flags, years=years, replacement_kwh=replacement_kwh)
+        built.append((path, _last(years)))
 
     if cheapest_new is not None:
         for name, method, acquire, flags in _new_ways(cheapest_new, repo):
-            path = _unit_path(name, "new", method, acquire, new_item, 0.0, False, profile, cheapest_new, repo, flags, replacement_kwh=replacement_kwh)
+            path = _unit_path(name, "new", method, acquire, new_item, (0.0, 0.0), False, profile, cheapest_new, repo, flags, years=new_years, replacement_kwh=replacement_kwh)
             built.append((path, this_year))
 
     if req.lease is not None:
         unit = _leased_item(req, items)
         is_new = unit is not None and unit.condition == "new"
-        age = 0.0 if is_new else (_age(unit) if unit is not None else None)
-        year = this_year if is_new else (unit.mfg_year if unit is not None else None)
+        years = _years(unit, repo)
+        ages = (0.0, 0.0) if is_new else _ages(years)
+        year = this_year if is_new else _last(years)
         aged = unit is not None and not is_new
         for name, method, acquire in (
             ("Rent-to-own, keep paying", "rto_full", rto_full(req.lease)),
             ("Rent-to-own, early buyout", "rto_buyout", rto_buyout(req.lease)),
         ):
-            built.append((_unit_path(name, "rent_to_own", method, acquire, unit, age, aged, profile, cheapest_new, repo, [], replacement_kwh=replacement_kwh), year))
+            built.append((_unit_path(name, "rent_to_own", method, acquire, unit, ages, aged, profile, cheapest_new, repo, [], years=years, replacement_kwh=replacement_kwh), year))
 
     paths = _flag_test_procedure(built)
     paths.sort(key=lambda p: (INCOMPLETE in p.flags, p.total_3yr_high, p.pay_today))
@@ -166,18 +179,19 @@ def _cash_path(
     repo: QuoteRepository,
 ) -> Path:
     """`offer` paid in cash, for `rank`: built by `_unit_path` like `quote`'s paths, with the same
-    energy lookup, year from the rating data, replacement and flags."""
-    item = _dated(item, repo)
-    if age_years is None and item is not None:
-        age_years = _age(item)
+    energy lookup, years from the rating data, replacement and flags. `age_years` is what `rank`
+    worked out from `mfg_year`; without it the rating data's years give the ages."""
+    years = _years(item, repo)
+    ages = (age_years, age_years) if age_years is not None else _ages(years)
     # The replacement unit is found with `repo.item`, which the real Repository has. Remove this
     # check once api/tests/test_rank.py's stand-in repository has `item` too (task 4.2.1); until
     # then, without it, the replacement unit's electricity is not switched in.
     has_item = hasattr(repo, "item")
     new_item = repo.item(cheapest_new.item_id) if has_item and cheapest_new is not None else None
     return _unit_path(
-        name, group, "cash", cash(offer.price, offer.source_id), item, age_years, group != "new", profile,
-        cheapest_new, repo, [], replacement_kwh=_unit_energy(new_item, repo), switch_electricity=has_item,
+        name, group, "cash", cash(offer.price, offer.source_id), item, ages, group != "new", profile,
+        cheapest_new, repo, [], years=years, replacement_kwh=_unit_energy(new_item, repo, _years(new_item, repo)),
+        switch_electricity=has_item,
     )
 
 
@@ -187,24 +201,49 @@ def _category(req: QuoteRequest) -> str:
     return req.items[0].category if req.items else DEFAULT_CATEGORY
 
 
-def _dated(item: Item | None, repo: QuoteRepository) -> Item | None:
-    """`item` with `mfg_year` from `repo.model_year` when it has none and DOE's rating data lists
-    its model. A new unit is left as it is: it was made recently, not when its model was rated."""
-    if item is None or item.mfg_year is not None or item.condition == "new":
-        return item
-    # Only a repository with `model_year` is asked. The real Repository has had it since task
-    # 2.2.2; remove this check once api/tests/test_rank.py's stand-in repository has it too.
-    if not hasattr(repo, "model_year"):
-        return item
-    year = repo.model_year(item.brand, item.model)
-    return item if year is None else item.model_copy(update={"mfg_year": year})
-
-
-def _age(item: Item) -> float | None:
-    """Whole years since the manufacture year; `None` when the year is unknown."""
-    if item.mfg_year is None:
+def _years(item: Item | None, repo: QuoteRepository) -> tuple[int, int] | None:
+    """The first and last year `item` may have been made: its `mfg_year` when entered; else, for a
+    unit that is not new, the years DOE's rating data lists its model. Never written into
+    `mfg_year`. A new unit with no year gets none: it was made recently, not when its model was
+    rated."""
+    if item is None:
         return None
-    return float(max(0, date.today().year - item.mfg_year))
+    if item.mfg_year is not None:
+        return item.mfg_year, item.mfg_year
+    if item.condition == "new":
+        return None
+    # `model_year_range` comes with task 2.2.5, so only a repository that has it is asked. Until
+    # then the last listed year (`model_year`) stands in as a one-year range, flagged the same way.
+    # Remove the fallback and both checks once 2.2.5 is on main and every stand-in repository has
+    # `model_year_range` (api/tests/test_rank.py's has neither).
+    if hasattr(repo, "model_year_range"):
+        listed = repo.model_year_range(item.brand, item.model, item.attributes.get("product_class"))
+        return (min(listed), max(listed)) if listed else None
+    if hasattr(repo, "model_year"):
+        year = repo.model_year(item.brand, item.model)
+        return None if year is None else (year, year)
+    return None
+
+
+def _ages(years: tuple[int, int] | None) -> tuple[float, float] | None:
+    """(youngest, oldest) whole years of age for a unit made in `years`; `None` when unknown."""
+    if years is None:
+        return None
+    this_year = date.today().year
+    first, last = years
+    return float(max(0, this_year - last)), float(max(0, this_year - first))
+
+
+def _last(years: tuple[int, int] | None) -> int | None:
+    return None if years is None else years[1]
+
+
+def _life(ages: tuple[float, float] | None, lifespan: LifespanRange | None) -> tuple[float | None, float | None]:
+    """Typical life left: the low end for the oldest the unit may be, the high end for the youngest."""
+    if ages is None:
+        return remaining_life(None, lifespan)
+    youngest, oldest = ages
+    return remaining_life(oldest, lifespan)[0], remaining_life(youngest, lifespan)[1]
 
 
 def _annual_cost(electricity: Contribution, schedule: list[UpkeepItem]) -> tuple[float, float]:
@@ -249,18 +288,25 @@ def _replacement_not_estimated(formula: str) -> CostLine:
 
 
 def _replacement_parts(
-    aged: bool, life_low: float | None, life_high: float | None, profile: CategoryProfile, cheapest_new: Offer | None
+    aged: bool,
+    life_low: float | None,
+    life_high: float | None,
+    profile: CategoryProfile,
+    cheapest_new: Offer | None,
+    inferred_year: bool = False,
 ) -> list[Contribution]:
     """The replacement purchase, or a blank line saying why its timing or price is not estimated.
 
     At or past the low end of typical life, or for an aged unit of unknown age, no replacement
-    is bought in the arrays: when it will need replacing is not estimated.
+    is bought in the arrays: when it will need replacing is not estimated. With `inferred_year`
+    the unit's age is a range from DOE's listing years, so it only may be past that point.
     """
     lifespan = profile.lifespan_range
     if life_low == 0 and lifespan is not None:
         years = f"{lifespan.low_years:g}" if lifespan.low_years == lifespan.high_years else f"{lifespan.low_years:g} to {lifespan.high_years:g}"
+        where = "going by the years DOE lists its model, it may be" if inferred_year else "it is"
         return [_line_only(_replacement_not_estimated(
-            "When it will need replacing is not estimated: it is at or past the low end of the typical"
+            f"When it will need replacing is not estimated: {where} at or past the low end of the typical"
             f" {years} year life, so no replacement is priced"
         ))]
     if life_low is None:
@@ -362,24 +408,26 @@ def _unit_path(
     method: PaymentMethod | None,
     acquire: Contribution,
     item: Item | None,
-    age_years: float | None,
+    ages: tuple[float, float] | None,
     aged: bool,
     profile: CategoryProfile,
     cheapest_new: Offer | None,
     repo: QuoteRepository,
     flags: list[str],
     *,
+    years: tuple[int, int] | None,
     replacement_kwh: ModelEnergy | None,
     switch_electricity: bool = True,
 ) -> Path:
     """One path: `acquire` (every dollar paid to get the unit), then electricity, the aging
     line when `aged`, upkeep and the replacement for `item`, with cost per year and carbon.
-    `replacement_kwh` is the replacement unit's figure, used from the month it is bought
-    unless `switch_electricity` is false."""
-    kwh = _unit_energy(item, repo)
+    `ages` is (youngest, oldest) and `years` the first and last year it may have been made (see
+    `_years`). `replacement_kwh` is the replacement unit's figure, used from the month it is
+    bought unless `switch_electricity` is false."""
+    kwh = _unit_energy(item, repo, years)
     rate = repo.rate(ELECTRICITY_RATE)
     electricity = energy(kwh or _NO_KWH, rate)
-    life_low, life_high = remaining_life(age_years, profile.lifespan_range)
+    life_low, life_high = _life(ages, profile.lifespan_range)
     month_low, month_high = _switch_months(life_low, life_high, cheapest_new) if switch_electricity else (MONTHS, MONTHS)
     running = electricity
     if month_high < MONTHS:
@@ -389,7 +437,8 @@ def _unit_path(
     if aged:
         parts.append(_line_only(aging_line()))
     parts.append(upkeep(profile.upkeep_schedule))
-    parts += _replacement_parts(aged, life_low, life_high, profile, cheapest_new)
+    inferred_year = aged and item is not None and item.mfg_year is None and years is not None
+    parts += _replacement_parts(aged, life_low, life_high, profile, cheapest_new, inferred_year)
     total = combine(parts)
 
     # Cost per year of use is this unit's: its own electricity, not the replacement's.
@@ -405,6 +454,8 @@ def _unit_path(
         flags.append("past_typical_life")
     if item is not None and item.year_confidence == "low":
         flags.append("year_from_serial_low_confidence")
+    if inferred_year:
+        flags.append(YEAR_FROM_RATING_DATA)
     if _costs_not_estimated(total.lines, profile):
         flags.append(INCOMPLETE)
 
@@ -428,13 +479,13 @@ def _unit_path(
     )
 
 
-def _unit_energy(item: Item | None, repo: QuoteRepository) -> ModelEnergy | None:
+def _unit_energy(item: Item | None, repo: QuoteRepository, years: tuple[int, int] | None) -> ModelEnergy | None:
     """A unit's kWh per year, in the pinned "Energy lookup order" (PLAN.md "Fixed interfaces"):
     the model's rated figure (`repo.model_energy`: ENERGY STAR, then DOE's historical ratings);
     else the kWh printed on the unit's own EnergyGuide label (`label_kwh_per_year`, as entered);
-    else the DOE standard ceiling for its year, class and adjusted volume (total volume alone
-    gives nothing, because the standard is written in adjusted volume); else `None`, shown as
-    not estimated."""
+    else the DOE standard ceiling for its class and adjusted volume in `years` (the higher of the
+    two ends when they differ, as it is an upper bound; total volume alone gives nothing, because
+    the standard is written in adjusted volume); else `None`, shown as not estimated."""
     if item is None:
         return None
     product_class = item.attributes.get("product_class")
@@ -445,11 +496,15 @@ def _unit_energy(item: Item | None, repo: QuoteRepository) -> ModelEnergy | None
     if label_kwh is not None:
         return ModelEnergy(kwh_per_year=label_kwh, source_type="user_entered", source_id="user")
     adjusted = _positive(item.attributes.get("adjusted_volume_cuft"))
-    if item.mfg_year is None or product_class is None or adjusted is None:
+    if years is None or product_class is None or adjusted is None:
         return None
     if isinstance(product_class, float):  # a class sent as a number: 3.0 is CFR class "3"
         product_class = f"{product_class:g}"
-    return repo.standard_ceiling(item.mfg_year, product_class, adjusted)
+    ceilings = [repo.standard_ceiling(year, product_class, adjusted) for year in sorted(set(years))]
+    # An upper bound only if every year it may have been made has one (none before the first standard).
+    if any(c is None for c in ceilings):
+        return None
+    return max(ceilings, key=lambda c: c.kwh_per_year)  # type: ignore[arg-type, union-attr]
 
 
 def _positive(value: str | float | None) -> float | None:
