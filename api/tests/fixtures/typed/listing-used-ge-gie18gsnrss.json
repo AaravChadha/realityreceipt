@@ -1,0 +1,16 @@
+{
+  "item": {
+    "id": "card-ge-gie18gsnrss",
+    "category": "refrigerator",
+    "brand": "GE",
+    "model": "GIE18GSNRSS",
+    "condition": "used_as_is"
+  },
+  "offer": {
+    "item_id": "card-ge-gie18gsnrss",
+    "price": 175,
+    "seller_type": "private",
+    "source": "user_listing",
+    "source_id": "user_listing"
+  }
+}

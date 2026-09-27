@@ -401,7 +401,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_scan.py -q` passes. The real call is checked by hand in 3.8.
   **Status (2026-09-26 18:05, review):** also extract `mfg_year` when printed and, from an EnergyGuide label, `label_kwh_per_year`. Per xAI's docs as read in review (not re-verified): the API is OpenAI-compatible with JSON-schema structured output; use a non-reasoning vision model; send JPEG or PNG only, shrunk on the phone to about 1600px.
 
-- [ ] **3.8 Not-a-wrapper test (Track D1, in Cursor)**
+- [x] **3.8 Not-a-wrapper test (Track D1, in Cursor)**
   For each demo card from 3.13: record the real Grok response once into `api/tests/fixtures/scan/<card>.json`, and write the typed equivalent into `api/tests/fixtures/typed/<card>.json`. `api/tests/test_not_a_wrapper.py`: for every card, `quote` on the scan result's item equals `quote` on the typed item, compared as JSON.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_not_a_wrapper.py -q` passes with one case per demo card.
 
