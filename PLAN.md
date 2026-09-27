@@ -55,7 +55,7 @@ The option that looks cheapest today often costs the most over time: an old used
 > - **Credit card:** Federal Reserve G.19 "accounts assessed interest" rate, paid off in 12 equal monthly payments starting month 1. Pay today = 0.
 > - **PAL:** NCUA PALs II caps as the ceiling: 28% interest, 12 months, $20 application fee, only for prices up to $2,000. Low = high = cost at the caps, labeled "up to". Never implies the user can get one.
 > - **Buy now pay later:** `not_estimated`, unless one provider's published terms are cached with URL and retrieval date.
-> - **Replacement purchase:** the cheapest cached new offer in the category, added to `monthly_high` at month `ceil(life_low * 12)` and to `monthly_low` at month `ceil(life_high * 12)`, each only when that month is under 36.
+> - **Replacement purchase:** the cheapest cached new offer in the category, added to `monthly_high` at month `ceil(life_low * 12)` and to `monthly_low` at month `ceil(life_high * 12)`, each only when that month is under 36. → **Verdict (2026-09-26):** no replacement is priced for a unit at or past its typical life, or with no year made; its timing is `not_estimated` (decision 8, task 3.3.2).
 > - **Monthly cash flow:** `monthly_low[36]` and `monthly_high[36]` (index 0 = today), replacing the spec's single `monthly[36]`. Total over 3 years = sum of each array.
 > - **Old unit energy:** its sourced rated figure. Extra draw from aging is `not_estimated`.
 > - ~~**Rent-to-own effective annual cost** = ((total of payments - cash price) / cash price) / (term_weeks / 52). Never labeled APR.~~ → **Verdict (2026-09-26):** the same formula, never labeled APR, shown only on the keep-paying path; the buyout path states its total minus the cash price instead. Annualizing a buyout after a few weeks gave -32% and 706% in review.
@@ -101,7 +101,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 |---|---|---|---|
 | 0 Operator | repo owner | `.gitignore`, `.github/`, `pytest.ini`, `api/requirements.txt`, `api/app/__init__.py`, `api/.env.example`, `web/package.json`, `web/package-lock.json`, `web/vite.config.ts`, `web/tsconfig*.json`, `web/index.html`, `docs/`, `README.md`, `AGENTS.md`, `.claude/acstack.md`, `.cursor/` | — |
 | A1 Contracts and routes | Track A | `api/app/models.py`, `api/app/main.py`, `contracts/`, `web/src/contracts.ts`, `web/src/contracts.test.ts`, `api/tests/test_contracts.py`, `api/tests/test_health.py`, `api/tests/test_routes.py`, `api/tests/test_journey.py` | every module's functions below |
-| A2 Quote and lifecycle | Track A | `api/app/engine/__init__.py`, `api/app/engine/quote.py`, `api/app/engine/lifecycle.py`, `api/app/engine/rank.py`, `api/tests/test_lifecycle.py`, `api/tests/test_slice.py`, `api/tests/test_quote_all_paths.py`, `api/tests/test_rank.py`, `api/tests/test_copy.py` | A3 to A5, B1 |
+| A2 Quote and lifecycle | Track A | `api/app/engine/__init__.py`, `api/app/engine/quote.py`, `api/app/engine/lifecycle.py`, `api/app/engine/rank.py`, `api/tests/test_lifecycle.py`, `api/tests/test_slice.py`, `api/tests/test_quote_all_paths.py`, `api/tests/test_rank.py`, `api/tests/test_copy.py`, `api/tests/test_quote_unit.py` | A3 to A5, B1 |
 | A3 Financing | Track A | `api/app/engine/financing.py`, `api/tests/test_financing.py` | A1 models |
 | A4 Rent-to-own | Track A | `api/app/engine/lease.py`, `api/tests/test_lease.py` | A1 models |
 | A5 Running cost and carbon | Track A | `api/app/engine/running.py`, `api/tests/test_running.py` | A1 models |
@@ -444,23 +444,32 @@ One row = one session's file set. A person with fewer sessions runs several rows
 
 ## Demo Script for Judges
 
-**Scenario 1: the old unit (energy, trust).**
-> "This is a rating label from a 2004 unit."
-- Scan the printed card on the phone → correction form pre-filled → confirm → receipt prints. Tap the running-cost line: its source, formula and "Published, up to when new". Tap the aging line: "Not estimated", left blank on purpose.
+~~Scenarios 1 to 4 as first written (the "2004 unit", "Published, up to when new", the serial typed from the back, the cheapest buyout week).~~ → **Verdict (2026-09-26 21:00):** rewritten from what the cards and data actually produce, per the reviews of #39 and the demo cards: none of those four claims holds. Every number said aloud must be on screen.
 
-**Scenario 2: the lease (poverty premium).**
-> "This is a real rent-to-own listing."
-- Scan the lease card → the rent-to-own paths show the total of payments against the cash price, the cheapest buyout week, and the effective annual cost. Compare with the PAL line ("up to", with its caps).
+**Scenario 1: the lease (the poverty premium). Lead with this.**
+> "This is a real rent-to-own page for a fridge, printed out."
+- Card: `lease-aarons-frigidaire-frte1936av.png` (Aaron's, ZIP 30309, retrieved 2026-09-26). Enter the lease (scan, or the lease form from 3.10): 52 weekly payments of $33.48, cash price $1,196.99, paid today $0.01, total of payments $1,739.88.
+- The receipt: "Rent-to-own, keep paying" shows **$0.01 today** and **$1,739.88 in total, as printed on the lease: $542.89 more than its own cash price, an effective annual cost of 45%.** Beside it, new fridges from store listings (the cheapest is a $548 Frigidaire at Home Depot: a different, smaller model, so say "a new fridge", not "the same fridge") and the PAL line ("up to", with its caps).
+- Needs: 3.2.2 (printed numbers) and a lease form (3.10). Never say a buyout week, "120 days", or APR.
 
-**Scenario 3: used vs new, asked in plain words (Visa).**
+**Scenario 2: every line has a source (the trust layer).**
+> "This is the label from an older Maytag."
+- Card: `label-older-maytag-mb2562.png`. Enter it as "Your fridge now" with a repair quote (for example $180): with no quote there are no repair ranges, so there is no repair path.
+- Tap the electricity line: **Rated, 505 kWh a year, from DOE's historical refrigerator ratings**, times the Georgia Power rate (tap through to both sources). Tap the replacement line: "not estimated", left blank on purpose, because the unit is past its typical life.
+- Don't state a year (the label prints none), and don't claim big energy savings: against a new fridge the gap is about $20 a year.
+
+**Scenario 3: used vs new, asked in plain words (Visa).** Only if the shop (4.1, 4.3, 4.4) is on main by 23:30.
 > "About $300, small space, need it this week."
-- Type the request → Grok's parsed filters appear as editable chips → offers ranked by cost per year, a cheap used unit below a new one → "View at retailer".
+- Type the request → Grok's parsed filters appear as editable chips → offers ranked by cost per year, with unknown delivery or width flagged, not hidden → "View at retailer". Include the used GE listing (`listing-used-ge-gie18gsnrss.png`, $175): ask its age and enter it, since the listing states none.
+- Check the numbers before going on stage: at some prices and years a used and a new option land on the same cost per year, which looks like a bug.
 
-**Scenario 4: not a wrapper.**
-> "Now I'll type the model number by hand."
-- Type brand, model and serial from Scenario 1 → the identical receipt.
+**Scenario 4: not a wrapper.** Only if a real scan works by 22:00.
+> "The AI only reads the label. Watch me type the same thing by hand."
+- Scan `label-current-frigidaire-ffht1822u.png` (it prints the brand as "Electrolux Home Products Inc.": correct it to Frigidaire in the form unless the brand alias has landed), then type `FFHT1822U*` by hand: the identical receipt, rated 360 kWh.
 
-Scenario 4 is the strongest talking point: it proves the AI is only the keyboard and every number comes from a source. Open the pitch on the RECS finding; close on the cost line and the carbon line together.
+**Presenter rules:** say the cards are printouts of real labels and pages; tap any *line*, not any number; no year for the Maytag, no "2004", no buyout week, no APR, no "you qualify", no absolute claims.
+
+Scenario 1 is the strongest talking point: its numbers come straight off a real lease page and need no explanation. Open the pitch on the RECS finding (South region, EIA-estimated); close on the cost line and the carbon line together.
 
 ## Future Extensions (mention to judges, don't build)
 
@@ -504,6 +513,8 @@ Scenario 4 is the strongest talking point: it proves the AI is only the keyboard
 - [ ] **TigerData prize (NEW 2026-09-26).** Enter only if confirmed (spec §1).
 - [ ] **Spec §7 verify list (NEW 2026-09-26).** Georgia Power tier, season and riders and the eGRID rate type (2.1); the DOE standard ceiling and the ~2014 test procedure change (3.5); RECS variables and cell sizes (3.12); whether a Georgia regulator publishes rent-to-own multiples and whether a newer ACEEE Atlanta figure exists (pitch, 4.8).
   **Status (2026-09-26):** RECS variables and cell sizes answered by `analysis/recs/VARIABLES.md` (3.12, #10): every name and the jackknife formula quoted from EIA; Georgia fails EIA's 10-household rule in 17 of 30 cells, so the finding is for the South region.
+
+- [ ] **Year made from DOE rating data (NEW 2026-09-26, from 3.3.3).** `Repository.model_year` returns the *last* year DOE lists a model, so an undated unit can look younger than it is. Decide: return the first-to-last range (B1) and show it, or a flag such as `year_from_rating_data` with a sentence (A1). Until then, never state that year on stage.
 
 ## Glossary
 
