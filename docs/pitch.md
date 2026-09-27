@@ -15,7 +15,7 @@ These are the only statistics in the pitch. The income figures come from `analys
 - **Cost** is EIA's modeled total home energy cost, so we call it **"EIA-estimated"**.
 - **Income** is the **midpoint** of each bracket: $22,500 and $125,000.
 - **ACEEE, Atlanta:** 10.2% energy burden for low-income households. It comes from **ACEEE's 2016 report**, so we always name the report and its year with it. It is a different measure from the RECS table, so we never set the two side by side as one comparison.
-- **The lease (Scenario 1):** **$0.01** today, **$1,739.88** in total as printed on the lease, **$542.89** more than its own **$1,196.99** cash price, and an effective annual cost of **45%**. Quote the total as the page prints it. Never work it out from the weekly payment: that gives a different figure.
+- **The lease (Scenario 1):** **$0.01** today, **$1,739.88** in total as printed on the lease, **$542.89** more than its own **$1,196.99** cash price, and an effective annual cost of **45%**. Quote the total as the page prints it. Never work it out from the weekly payment: that gives a different figure. On the receipt it is the keep-paying card's "Total of lease payments" line; the card's headline 3-year total includes electricity, so never read it as the lease total.
 
 ## Pitch script (about 3 minutes)
 
@@ -27,9 +27,9 @@ Run Scenario 1. Open on the card, then on the receipt it produces.
 
 > "This is a real rent-to-own page for a fridge, printed out."
 
-When the receipt prints:
+When the receipt prints, open the "Rent-to-own, keep paying" card's "Total of lease payments" line:
 
-> "One cent today. $1,739.88 in total, as printed on the lease: $542.89 more than its own cash price, an effective annual cost of 45 percent. Beside it, a new fridge from a store listing, and a credit union loan line, marked 'up to'."
+> "One cent today. $1,739.88 in total, as printed on the lease: $542.89 more than its own cash price, an effective annual cost of 45 percent. Above it, a new fridge from a store listing, and a credit union loan line, marked 'up to'."
 
 ### 2. The finding (0:40 to 1:00)
 
@@ -68,7 +68,7 @@ Scroll to a path's cost line and carbon line together.
 ### Before judges arrive
 
 - [ ] Printed cards on the table: the Aaron's rent-to-own page (`lease-aarons-frigidaire-frte1936av.png`), the older Maytag EnergyGuide label (`label-older-maytag-mb2562.png`), the used GE listing (`listing-used-ge-gie18gsnrss.png`) and the current Frigidaire EnergyGuide label (`label-current-frigidaire-ffht1822u.png`).
-- [ ] The lease form (task 3.10) is on `main`. Without it, Scenario 1 depends on a working scan of the lease card.
+- [ ] Tasks 3.2.4 (the $542.89 on the keep-paying card), 3.3.6 (one lease card, not two) and 3.10 (the lease form) are on `main`. Until 3.10 is, the only way into Scenario 1 is a scan of the lease card.
 - [ ] At 22:00: keep Scenario 4 only if a real scan works. At 23:30: keep Scenario 3 only if the shop (tasks 4.1, 4.3 and 4.4) is on `main`.
 - [ ] A repair quote amount ready for Scenario 2, for example $180.
 - [ ] Phone mirrored to the laptop. API and web app running; the phone opens the app over the HTTPS tunnel.
@@ -82,8 +82,8 @@ Scroll to a path's cost line and carbon line together.
 |---|---|
 | **Say** | "This is a real rent-to-own page for a fridge, printed out." |
 | **Do** | Enter the lease: scan the card, or fill in the lease form. The card prints 52 weekly payments of $33.48, a cash price of $1,196.99, $0.01 paid today, and a total of payments of $1,739.88. Enter the total as printed. |
-| **Point at** | "Rent-to-own, keep paying": **$0.01 today** and **$1,739.88 in total, as printed on the lease: $542.89 more than its own cash price, an effective annual cost of 45%.** Beside it, new fridges from store listings, and the credit union loan line, marked "up to", with its caps. |
-| **Say, at the new fridges** | "A new fridge", never "the same fridge": the cheapest listing, $548 at Home Depot, is a different, smaller Frigidaire. |
+| **Point at** | The "Rent-to-own, keep paying" card, near the bottom: the paths sort by 3-year total, so the new fridges come first. It shows **$0.01 today**. Open its "Total of lease payments" line for **$1,739.88, as printed on the lease: $542.89 more than its own cash price, an effective annual cost of 45%.** Never read the card's headline 3-year total as the lease total: it includes electricity. Then the new fridges above it, and the credit union loan line, marked "up to", with its caps. |
+| **Say, at the new fridges** | "A new fridge", never "the same fridge": the cheapest listing, $548 at Home Depot, is a different, smaller Frigidaire. The card shows no brand, so "Frigidaire" is only ever spoken. |
 | **Say, at the loan line** | "This is the most a credit union payday alternative loan can cost under the federal caps. It doesn't mean anyone can get one." |
 | **If it fails** | Upload the saved lease image, or fill in the lease form by hand. |
 
@@ -100,7 +100,7 @@ Scenario 1 is the strongest point: its numbers come straight off a real lease pa
 | **Point at** | The paths: complete ones come first, cheapest 3-year total first, and a path with a cost not estimated comes after them and says so. Then tap the electricity line: **Rated, 505 kWh a year, from DOE's historical refrigerator ratings**, times the Georgia Power rate; tap through to both sources. Then tap the replacement line: "not estimated", left blank on purpose, because the unit is past its typical life. |
 | **If it fails** | Check the brand and model on the form against the label, character by character, and quote again. |
 
-Don't state a year: the label prints none. Don't claim big energy savings: against a new fridge the gap is about $20 a year.
+Don't state a year: the label prints none. Don't claim big energy savings: against a new fridge the gap is about $20 a year. The receipt also shows two flag sentences, both true: the year made is estimated from the years DOE lists this model, and the energy test changed around 2014. Read them if asked; still state no year.
 
 ### Scenario 3: used vs new, asked in plain words (Visa)
 
@@ -124,7 +124,7 @@ Only if a real scan works by 22:00.
 | | |
 |---|---|
 | **Say** | "The AI only reads the label. Watch me type the same thing by hand." |
-| **Do** | 1. Scan the current Frigidaire label. It prints the brand as "Electrolux Home Products Inc.": correct it to Frigidaire in the form, unless the brand alias has landed. 2. Type Frigidaire and `FFHT1822U*` by hand. 3. Show that the two receipts are identical: rated, 360 kWh. |
+| **Do** | 1. Scan the current Frigidaire label. It prints the maker, 'Electrolux Home Products Inc.'; leave it as read, because the app treats Electrolux and Frigidaire as one maker. 2. Type Frigidaire and FFHT1822U* by hand. 3. Show that the two receipts are identical. |
 | **If it fails** | Skip it. Scenarios 1 to 3 do not need a scan. |
 
 ## If a judge asks
@@ -154,7 +154,7 @@ Only if a real scan works by 22:00.
 - Don't say a refurbished warranty narrows the range, or that any category other than fridges works today.
 - Say the cards are printouts of real labels and pages. Say "tap any line".
 - No year for the Maytag, and no "2004".
-- Quote the lease total as printed. Don't name a week to buy it out early, and don't say "120 days".
+- Quote the lease total as printed, from the "Total of lease payments" line, never from the card's headline. Don't name a week to buy it out early, and don't say "120 days".
 - Say "a new fridge" about the store listing, never "the same fridge".
 - Energy figures come from ENERGY STAR or DOE, and rent-to-own totals from the lease itself.
 - Leave out the unverified rent-to-own household count and the Georgia PSC data center topic.
