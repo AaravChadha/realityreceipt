@@ -508,7 +508,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
 
 **Presenter rules:** say the cards are printouts of real labels and pages; tap any *line*, not any number; no year for the Maytag, no "2004", no buyout week, no APR, no "you qualify", no absolute claims.
 
-Scenario 1 is the strongest talking point: its numbers come straight off a real lease page and need no explanation. Open the pitch on the RECS finding (South region, EIA-estimated); close on the cost line and the carbon line together.
+Scenario 1 is the strongest talking point: its numbers come straight off a real lease page and need no explanation. ~~Open the pitch on the RECS finding (South region, EIA-estimated);~~ → **Verdict (2026-09-26):** open the pitch on the lease (Scenario 1), then the RECS finding (South region, EIA-estimated) second. The old sentence was carried over from the earlier script and contradicted Scenario 1 and task 4.8.2. Close on the cost line and the carbon line together.
 
 ## Future Extensions (mention to judges, don't build)
 
