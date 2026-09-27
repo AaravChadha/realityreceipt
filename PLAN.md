@@ -348,6 +348,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   The flag `may_be_past_typical_life` reads "This unit may be at or past its typical life."
   **Acceptance:** `npm --prefix web test -- Receipt` passes, including a test that the flag renders that sentence and never its code name.
 
+- [x] **2.9.4 Test the "Lowest 3-year total here" badge (Track C2)** (NEW 2026-09-26 22:50)
+  Tests in `web/src/components/Receipt.test.tsx` for `lowestTotal` (added in #106): the badge shows only when one path's whole 3-year range sits below every other path's and that path is not flagged `costs_not_estimated`.
+  **Acceptance:** `npm --prefix web test -- Receipt` passes, including tests that a clear winner shows the badge once, overlapping ranges show none, and a winner flagged `costs_not_estimated` shows none.
+
 - [x] **2.10 Tap-to-source sheet (Track C3)**
   `web/src/components/SourceSheet.tsx`: tapping any cost line opens a sheet with its label, amount range, formula, source label (`Rated`, `Published`, `You entered`, `Not estimated`) and, from `/sources`, the title, publisher, URL and retrieved date. `SourceSheet.test.tsx` renders one line of each `source_type` and finds the four label texts.
   **Acceptance:** `npm --prefix web test -- SourceSheet` passes.

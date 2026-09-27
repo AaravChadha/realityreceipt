@@ -209,6 +209,50 @@ test('the over_budget_today flag dims a path even when pay today is within a spe
   expect(within(article).getByText('This costs more today than the amount you said you can spend.')).toBeVisible()
 })
 
+const LOWEST = 'Lowest 3-year total here'
+
+/** The first fixture paths with their 3-year ranges replaced, costs_not_estimated removed, and extra flags per path. */
+function priced(ranges: [number, number][], extraFlags: string[][] = []): Path[] {
+  return ranges.map(([low, high], i) => ({
+    ...fixture[i],
+    total_3yr_low: low,
+    total_3yr_high: high,
+    flags: [...fixture[i].flags.filter((f) => f !== 'costs_not_estimated'), ...(extraFlags[i] ?? [])],
+  }))
+}
+
+test('a clear winner, whose whole 3-year range is below every other path, shows the lowest-total badge once', () => {
+  const paths = priced([
+    [300, 400],
+    [100, 200],
+    [250, 500],
+  ])
+  render(<Receipt paths={paths} />)
+  expect(card(paths[1].name).getByText(LOWEST)).toBeVisible()
+  expect(screen.getAllByText(LOWEST)).toHaveLength(1)
+})
+
+test('overlapping 3-year ranges show no lowest-total badge', () => {
+  const paths = priced([
+    [250, 400],
+    [100, 300],
+  ])
+  render(<Receipt paths={paths} />)
+  expect(screen.queryByText(LOWEST)).toBeNull()
+})
+
+test('a winner flagged costs_not_estimated shows no lowest-total badge', () => {
+  const paths = priced(
+    [
+      [100, 200],
+      [300, 400],
+    ],
+    [['costs_not_estimated']],
+  )
+  render(<Receipt paths={paths} />)
+  expect(screen.queryByText(LOWEST)).toBeNull()
+})
+
 test('the rendered receipt has no em dash, no "APR", and nothing about qualifying', () => {
   const { container } = render(<Receipt paths={fixture} />)
   for (const toggle of screen.getAllByRole('button', { name: "What's in this number" })) fireEvent.click(toggle)
