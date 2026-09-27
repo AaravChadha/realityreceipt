@@ -405,7 +405,7 @@ One row = one session's file set. A person with fewer sessions runs several rows
   For each demo card from 3.13: record the real Grok response once into `api/tests/fixtures/scan/<card>.json`, and write the typed equivalent into `api/tests/fixtures/typed/<card>.json`. `api/tests/test_not_a_wrapper.py`: for every card, `quote` on the scan result's item equals `quote` on the typed item, compared as JSON.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_not_a_wrapper.py -q` passes with one case per demo card.
 
-- [ ] **3.9 Wire scan (Track A1)**
+- [x] **3.9 Wire scan (Track A1)**
   `POST /scan` calls `scan(kind, image, GrokClient())` and returns the `ScanResult`; when `valid` is true and the item has brand and serial, it also applies `decode`. Test in `api/tests/test_routes.py` with the fake client injected through a FastAPI dependency override.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_routes.py -q` passes.
 

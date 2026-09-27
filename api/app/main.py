@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, FastAPI, File, Form, HTTPException, Uplo
 from fastapi.responses import FileResponse
 
 from app.engine.quote import quote as build_quote
+from app.grok.client import GrokClient
+from app.grok.scan import scan as read_image
 from app.models import (
     Item,
     Path,
@@ -22,6 +24,7 @@ from app.repository import Repository
 from app.serial.decode import decode
 
 WEB_DIST = FilePath(__file__).resolve().parents[2] / "web" / "dist"
+MAX_SCAN_BYTES = 15 * 1024 * 1024  # a full-size phone photo is 3 to 8 MB
 
 router = APIRouter()
 
@@ -33,6 +36,27 @@ def get_repository() -> Repository:
 
 
 Repo = Annotated[Repository, Depends(get_repository)]
+
+
+def get_grok_client() -> GrokClient | None:
+    """`None` when `XAI_API_KEY` or `XAI_MODEL` is not set, so /scan sends the user to the form
+    instead of failing. Tests override this with a fake client."""
+    try:
+        return GrokClient()
+    except RuntimeError:
+        return None
+
+
+Grok = Annotated[GrokClient | None, Depends(get_grok_client)]
+
+
+def _with_serial_year(item: Item) -> Item:
+    """Fills the manufacture year from the serial when none was given; a typed or printed year always wins."""
+    if item.mfg_year is None and item.serial:
+        found = decode(item.brand, item.serial)
+        if found.mfg_year is not None:
+            return item.model_copy(update={"mfg_year": found.mfg_year, "year_confidence": found.year_confidence})
+    return item
 
 
 @router.get("/health")
@@ -54,12 +78,7 @@ def quote(req: QuoteRequest, repo: Repo) -> list[Path]:
 
 @router.post("/item", response_model=Item)
 def item(item: Item) -> Item:
-    """Fills the manufacture year from the serial when the user gave none; a typed year always wins."""
-    if item.mfg_year is None and item.serial:
-        found = decode(item.brand, item.serial)
-        if found.mfg_year is not None:
-            return item.model_copy(update={"mfg_year": found.mfg_year, "year_confidence": found.year_confidence})
-    return item
+    return _with_serial_year(item)
 
 
 @router.get("/categories")
@@ -72,12 +91,24 @@ def sources(repo: Repo) -> list[Source]:
     return repo.sources()
 
 
-# Still stubs, replaced by their wiring tasks: /scan in 3.9; /shop/* in 4.3.
-
-
 @router.post("/scan", response_model=ScanResult)
-def scan(kind: Annotated[ScanKind, Form()], image: Annotated[UploadFile, File()]) -> ScanResult:
-    return ScanResult(kind=kind, valid=False, errors=["not implemented"])
+def scan(kind: Annotated[ScanKind, Form()], image: Annotated[UploadFile, File()], grok: Grok) -> ScanResult:
+    """Reads the photo with Grok (task 3.7). Every failure is `valid=False` with a plain error, so the
+    user always lands on the correction form; a valid item also gets its year from the serial."""
+    data = image.file.read(MAX_SCAN_BYTES + 1)
+    if len(data) > MAX_SCAN_BYTES:
+        return ScanResult(kind=kind, valid=False, errors=["The photo is larger than 15 MB. Take a smaller one or enter the details by hand."])
+    if not data:
+        return ScanResult(kind=kind, valid=False, errors=["No photo arrived. Try again or enter the details by hand."])
+    if grok is None:
+        return ScanResult(kind=kind, valid=False, errors=["Scanning is not set up on this server. Enter the details by hand."])
+    result = read_image(kind, data, grok)
+    if result.valid and result.item is not None:
+        return result.model_copy(update={"item": _with_serial_year(result.item)})
+    return result
+
+
+# Still stubs, replaced by their wiring task: /shop/* in 4.3.
 
 
 @router.post("/shop/parse", response_model=ShopFilters)
