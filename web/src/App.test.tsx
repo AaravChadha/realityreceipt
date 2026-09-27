@@ -48,6 +48,12 @@ test('the browser back button changes the page', async () => {
   expect(await screen.findByRole('group', { name: 'Your fridge now' })).toBeInTheDocument()
 })
 
+test('the header is not fridge-only and says fridges come first', () => {
+  render(<App />)
+  expect(screen.getByText(/Every way to get a big purchase, side by side/)).toBeInTheDocument()
+  expect(screen.getByText('Starting with refrigerators. Cars, ovens, window ACs and more are next.')).toBeInTheDocument()
+})
+
 test('a link straight to #/shop opens the shop page', () => {
   window.location.hash = '#/shop'
   render(<App />)
