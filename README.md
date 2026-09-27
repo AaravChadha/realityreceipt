@@ -147,6 +147,6 @@ The plan, with each task's acceptance check, is in [`PLAN.md`](PLAN.md). How the
 ## Team
 
 - Aarav Chadha ([@AaravChadha](https://github.com/AaravChadha))
-- Neil ([@sachdevneil35-web](https://github.com/sachdevneil35-web))
+- Neil Sachdev ([@sachdevneil35-web](https://github.com/sachdevneil35-web))
 - Krish Agrawal ([@KrishAgrawal595](https://github.com/KrishAgrawal595))
 - Adhyayan Agarwal ([@adhyayancs50](https://github.com/adhyayancs50))
