@@ -85,7 +85,10 @@ def rto_buyout(lease: Lease) -> Contribution:
         paid = f"{_printed_text(lease)} Payments to week {week} = {_money(payments)}"
     else:
         paid = f"{_weekly(week)} of {_money(lease.weekly_payment)} = {_money(payments)}"
-    after = f"{_window_text(schedule, week, buyout)} {_vs_cash_text(total, lease.cash_price)}"
+    # Fees count toward the cost over the cash price, as on the keep-paying line (task 3.2.6).
+    with_fees = _cents(total + lease.fees)
+    fees = f" Plus {_money(lease.fees)} in fees, {_money(with_fees)} in all." if lease.fees > 0 else ""
+    after = f"{fees}{_window_text(schedule, week, buyout)} {_vs_cash_text(with_fees, lease.cash_price)}"
     if lease.early_purchase_rule == "none":
         label = f"All payments to week {week}"
         formula = f"No early purchase terms entered: {paid}.{after}"
