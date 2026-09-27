@@ -549,7 +549,8 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `api/tests/test_demo_script.py`: runs "Demo Script for Judges" through `/item` and `/quote` with `TestClient` and the inputs in `demo/cards/cards.json`, and asserts what the presenter says. Scenario 1: pay today $0.01; a "Total of lease payments" line with $1,739.88; "$542.89 more than the cash price of $1,196.99" and 45% on "Rent-to-own, keep paying"; exactly one rent-to-own path, after every complete new path; the cheapest new offer $548. Scenario 2: the Maytag's electricity line is rated 505 kWh from `doe_wap_refrigerators`; its replacement line is not estimated; its `mfg_year` stays empty. Any late merge that moves a stage number then fails CI.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_demo_script.py -q` passes.
 
-- [ ] **4.10 UI polish with shadcn/ui (Track C: Addy, Neil and Krish together)** (NEW 2026-09-26 22:30)
+- [x] **4.10 UI polish with shadcn/ui (Track C: Addy, Neil and Krish together)** (NEW 2026-09-26 22:30)
+  **Status (2026-09-26 22:50):** merged as #106 (af2eba1). Acceptance checked on #106 merged with main bf39616: `npm --prefix web ci`, `npm --prefix web test` 82/82 with no test file changed, the build, and `pytest api/tests analysis` 476 passed; main's CI passed on af2eba1 and 22e6f0c.
   Restyle only: `components.json`, `web/src/lib/utils.ts`, `web/src/components/ui/*`, the `@/` alias in `web/vite.config.ts` and `web/tsconfig.app.json`, and class names and wrappers in the existing pages and components. New packages (operator-approved): `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`, `tw-animate-css`, and only the `@radix-ui/*` packages the used components need; commit `package.json` with `package-lock.json`. Keep every label, button text and accessible name the tests query, and every path name, line label and flag sentence the Demo Script and pitch quote; change no logic in `api.ts`, `format.ts` or `contracts.ts`. Mobile first: no horizontal scroll at 375 px. Merge `origin/main` in before the PR (the flaky-test fix and 3.10.1 land in `Entry.tsx` first). One PR, auto-merge off, reviewed by Aarav.
   **Acceptance:** `npm --prefix web ci && npm --prefix web test && npm --prefix web run build` passes with no test file weakened or deleted, and `api/.venv/bin/python -m pytest api/tests analysis -q` still passes.
 
@@ -623,16 +624,16 @@ Scenario 1 is the strongest talking point: its numbers come straight off a real 
 
 - [x] (2026-09-26 22:05, Codex review) When `model_energy` picks one of two DOE figures by the icemaker adder (task 2.2.6), the figure is an inference, not a direct rating. → Tasks 1.9 and 2.2.7 (22:15).
 
-- [ ] **Team names and row assignment (NEW 2026-09-26).** Track A to D placeholders until assigned; each person claims rows in the team chat.
-- [ ] **Grok API key and vision model name (NEW 2026-09-26).** SpaceXAI gives credits (spec §1); a working key is not confirmed. Blocks 3.7 onward; checked in 0.8.
+- [x] **Team names and row assignment (NEW 2026-09-26).** Track A to D placeholders until assigned; each person claims rows in the team chat. **Resolved (2026-09-26 22:50):** Aarav has Track 0 and A plus integration, Neil B, Addy C, Krish D; Neil, Krish and Addy shared 4.10.
+- [x] **Grok API key and vision model name (NEW 2026-09-26).** SpaceXAI gives credits (spec §1); a working key is not confirmed. Blocks 3.7 onward; checked in 0.8. **Resolved (2026-09-26 22:50):** a working key and `grok-4.20-0309-non-reasoning`; all four demo cards scanned live through `/scan` at 22:50, each valid and identical to its recorded fixture.
 - [x] **Grok Voice plays given text (NEW 2026-09-26).** Resolved 2026-09-26: voice dropped, so no longer needed. It must read a fixed script word for word, or a spoken number can differ from the screen. Blocks 4.6.
-- [ ] **Cursor reads AGENTS.md (NEW 2026-09-26).** Checked in 0.7.
-- [ ] **Best Buy API key (NEW 2026-09-26).** Assume it will not arrive; the hand-built cache in 2.3 is the plan.
+- [x] **Cursor reads AGENTS.md (NEW 2026-09-26).** Checked in 0.7. **Resolved (2026-09-26 22:50):** teammates' Cursor agents followed AGENTS.md all night (worktrees, claims, PRs with auto-merge off).
+- [x] **Best Buy API key (NEW 2026-09-26).** Assume it will not arrive; the hand-built cache in 2.3 is the plan. **Resolved (2026-09-26 22:50):** it did not arrive; the hand-built retailer cache (2.3, 2.3.1) is what the app uses.
 - [ ] **TigerData prize (NEW 2026-09-26).** Enter only if confirmed (spec §1).
 - [ ] **Spec §7 verify list (NEW 2026-09-26).** Georgia Power tier, season and riders and the eGRID rate type (2.1); the DOE standard ceiling and the ~2014 test procedure change (3.5); RECS variables and cell sizes (3.12); whether a Georgia regulator publishes rent-to-own multiples and whether a newer ACEEE Atlanta figure exists (pitch, 4.8).
   **Status (2026-09-26):** RECS variables and cell sizes answered by `analysis/recs/VARIABLES.md` (3.12, #10): every name and the jackknife formula quoted from EIA; Georgia fails EIA's 10-household rule in 17 of 30 cells, so the finding is for the South region.
 
-- [ ] **Year made from DOE rating data (NEW 2026-09-26, from 3.3.3).** `Repository.model_year` returns the *last* year DOE lists a model, so an undated unit can look younger than it is. Decide: return the first-to-last range (B1) and show it, or a flag such as `year_from_rating_data` with a sentence (A1). Until then, never state that year on stage.
+- [x] **Year made from DOE rating data (NEW 2026-09-26, from 3.3.3).** `Repository.model_year` returns the *last* year DOE lists a model, so an undated unit can look younger than it is. Decide: return the first-to-last range (B1) and show it, or a flag such as `year_from_rating_data` with a sentence (A1). Until then, never state that year on stage. **Resolved (2026-09-26 22:50):** `model_year_range` (2.2.5) gives the first and last listed years; the quote shows them as a range with `year_from_rating_data` (3.3.5).
 
 ## Glossary
 
