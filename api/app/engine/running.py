@@ -8,8 +8,9 @@ from app.models import MONTHS, Contribution, CostLine, ModelEnergy, RateValue, U
 
 
 def _num(x: float) -> str:
-    """600.0 -> "600", 0.15 -> "0.15": no trailing zeros in a formula."""
-    return f"{x:,.4f}".rstrip("0").rstrip(".")
+    """600.0 -> "600", 0.15641 -> "0.15641": up to 6 decimals, no trailing zeros, so the
+    numbers a formula prints reproduce its amount."""
+    return f"{x:,.6f}".rstrip("0").rstrip(".")
 
 
 def _check_months(months: int) -> None:

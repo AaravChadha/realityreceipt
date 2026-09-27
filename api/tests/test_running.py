@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from app.engine.running import aging_line, carbon_kg, energy, upkeep
@@ -102,3 +104,23 @@ def test_copy_has_no_em_dash_or_apr() -> None:
     for line in lines:
         for text in (line.label, line.formula):
             assert "—" not in text and "APR" not in text and "qualif" not in text.lower()
+
+
+# The electricity formula: "<kWh> kWh/yr x $<rate>/kWh = $<per year>/yr, $<per month>/month".
+FORMULA = re.compile(r"([\d,.]+) kWh/yr x \$([\d.]+)/kWh = \$([\d,.]+)/yr, \$([\d,.]+)/month")
+GA_RATE = RateValue(value=0.15641, source_id="ga_power_residential_tariff")  # the rate recorded in rates.json
+
+
+def test_electricity_formula_reproduces_its_own_amount() -> None:
+    [line] = energy(ModelEnergy(kwh_per_year=633, source_type="rated", source_id="s"), GA_RATE).lines
+    assert "$0.15641/kWh" in line.formula
+    wrong = []
+    for kwh_per_year in [*range(300, 901), 399.135, 512.3456789, 1234.5]:
+        [line] = energy(ModelEnergy(kwh_per_year=kwh_per_year, source_type="rated", source_id="s"), GA_RATE).lines
+        match = FORMULA.fullmatch(line.formula)
+        assert match, line.formula
+        kwh, rate, per_year, per_month = (float(g.replace(",", "")) for g in match.groups())
+        # Recomputed only from the numbers printed in the formula.
+        if not (round(kwh * rate, 2) == per_year == line.amount_high and round(kwh / 12 * rate, 2) == per_month):
+            wrong.append(line.formula)
+    assert wrong == []
