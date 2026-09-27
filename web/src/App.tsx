@@ -56,7 +56,10 @@ export default function App() {
           </h1>
         </div>
         <p className="mt-3 text-pretty text-muted-foreground">
-          Every way to get a fridge, side by side: what you pay today, over 3 years, and per year of use.
+          Every way to get a big purchase, side by side: what you pay today, over 3 years, and per year of use.
+        </p>
+        <p className="mt-1 text-sm text-pretty text-muted-foreground">
+          Starting with refrigerators. Cars, ovens, window ACs and more are next.
         </p>
         <nav aria-label="Pages" className="mt-4 flex gap-1 rounded-xl border border-border bg-muted p-1">
           <NavLink href="#/" current={!onShop} icon={Refrigerator}>

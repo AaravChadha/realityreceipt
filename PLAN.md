@@ -584,6 +584,10 @@ One row = one session's file set. A person with fewer sessions runs several rows
   `api/tests/test_demo_script.py` gains Scenario 3 through `/shop/rank` with filters `budget_today=300, need_within_days=7` (the live parse, fixed so the test needs no Grok): every offer flagged `over_budget_today`; the first is $548 at $98.46 a year; the $649.99 offer ranks above the $599 one, at $106.31 and $110.21 a year.
   **Acceptance:** `api/.venv/bin/python -m pytest api/tests/test_demo_script.py -q` passes.
 
+- [x] **4.11 Header says any big purchase, fridges first (Track C1)** (NEW 2026-09-27 00:10)
+  Per the 23:20 scope decision: the header in `web/src/App.tsx` stops reading as fridge-only. The tagline names a big purchase in general, and a second line says refrigerators are the first category, with cars, ovens, window ACs and more next. The fridge form, its labels and the "Check a fridge" link stay: the build covers fridges only. `web/src/App.test.tsx` checks both lines.
+  **Acceptance:** `npm --prefix web test && npm --prefix web run build` passes.
+
 - [ ] **4.9 Code freeze at Sun 02:00 (Track 0 — operator)**
   Merge nothing new after 02:00 except demo-breaking fixes. (A 22:00 verdict moved this to 23:00; superseded at 22:15: 23:00 is the target, 02:00 stays the freeze.) Tag the last green `main` commit: `git tag freeze origin/main` then `git push origin freeze`.
   **Acceptance:** `git rev-parse -q --verify refs/tags/freeze && echo tagged` prints `tagged`.
